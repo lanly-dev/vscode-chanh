@@ -13,7 +13,7 @@ import { BinaryManager } from './binaryManager'
 import { LemonadeClient } from './lemonadeClient'
 import { Logger } from './logger'
 import { refreshEvents } from './events'
-import { ServerStatus, TargetServer, type ServerInstance } from './interfaces'
+import { ServerStatus, TargetServer, type LemonadeModel, type ServerInstance } from './interfaces'
 
 // Manages the Lemonade Server process lifecycle.
 export class ServerManager {
@@ -127,7 +127,7 @@ export class ServerManager {
     const client = new LemonadeClient(`http://localhost:${standalonePort}`)
     try {
       const health = await client.getHealth()
-      const models = await client.listModels()
+      const { models, downloadableModels } = await this.fetchAllCatalogModels(client)
       return {
         id: 'standalone',
         name: 'Standalone Lemonade',
@@ -135,6 +135,7 @@ export class ServerManager {
         status: ServerStatus.RUNNING,
         health,
         models,
+        downloadableModels,
         maxLoadedModels: health.max_loaded_models
       }
     } catch {
@@ -154,7 +155,7 @@ export class ServerManager {
     const client = new LemonadeClient(customUrl)
     try {
       const health = await client.getHealth()
-      const models = await client.listModels()
+      const { models, downloadableModels } = await this.fetchAllCatalogModels(client)
       return {
         id: 'custom',
         name: 'Custom Server',
@@ -162,10 +163,27 @@ export class ServerManager {
         status: ServerStatus.RUNNING,
         health,
         models,
+        downloadableModels,
         maxLoadedModels: health.max_loaded_models
       }
     } catch {
       return null
+    }
+  }
+
+  /** Split the full catalog (?show_all=true) into downloaded vs downloadable models. */
+  private async fetchAllCatalogModels(client: LemonadeClient):
+    Promise<{ models: LemonadeModel[], downloadableModels: LemonadeModel[] }> {
+    try {
+      const all = await client.listModels(true)
+      return {
+        models: all.filter((m) => m.downloaded !== false),
+        downloadableModels: all.filter((m) => m.downloaded === false)
+      }
+    } catch {
+      // Older servers may not support ?show_all=true — fall back to downloaded only.
+      const models = await client.listModels()
+      return { models, downloadableModels: [] }
     }
   }
 
@@ -185,7 +203,7 @@ export class ServerManager {
     const embeddedClient = new LemonadeClient(this.url)
     try {
       const health = await embeddedClient.getHealth()
-      const models = await embeddedClient.listModels()
+      const { models, downloadableModels } = await this.fetchAllCatalogModels(embeddedClient)
       let maxLoadedModels = config.get<number>('maxLoadedModels', 1)
 
       // If the server reports its max_loaded_models, keep the extension config in sync
@@ -205,6 +223,7 @@ export class ServerManager {
         version: this.binaryManager.getInstalledVersion() ?? undefined,
         health,
         models,
+        downloadableModels,
         maxLoadedModels
       }
     } catch (err) {

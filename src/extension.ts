@@ -31,7 +31,7 @@ export async function activate(context: vscode.ExtensionContext) {
   const d3 = rc('lemon.downloadBinary', () => binaryManager.downloadBinary())
   const d4 = rc('lemon.openChat', ChatParticipant.openChat)
   const d5 = rc('lemon.openSettings', openSetting)
-  const d6 = rc('lemon.pullModel', () => modelManager.pullModel())
+  const d6 = rc('lemon.downloadModel', (item: { modelId: string }) => modelManager.downloadModel(item))
   const d7 = rc('lemon.loadModel', (item: { modelId: string }) => modelManager.loadModel(item.modelId))
   const d8 = rc('lemon.unloadModel', (item: { modelId: string }) => modelManager.unloadModel(item.modelId))
   const d9 = rc('lemon.selectChatModel', async () => modelManager.selectChatModel(chatParticipant))

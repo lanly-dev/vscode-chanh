@@ -234,56 +234,18 @@ export class ModelManager {
   }
 
   /**
-   * Show a picker of downloadable catalog models and pull the user's selection.
-   * Non-downloaded models from the server catalog are listed with their sizes.
-   */
-  async pullModel(): Promise<void> {
-    if (!await this.serverManager.ensureRunning()) return
-
-    // Fetch the full model catalog (?show_all=true), the same source the
-    // desktop Model Manager uses. Each entry is tagged with a `downloaded`
-    // flag, so we can present the models that aren't downloaded yet.
-    let allModels: LemonadeModel[]
-    try {
-      allModels = await this.client.listModels(true)
-    } catch (err: unknown) {
-      Logger.error('Failed to list available models', err)
-      showErrorMessage(`Failed to list available models: ${err}`)
-      return
-    }
-
-    const pullable = allModels.filter((m) => !m.downloaded)
-    if (pullable.length === 0) {
-      showInformationMessage('All catalog models are already downloaded.')
-      return
-    }
-
-    // The /v1/models?show_all=true response reports `size` in **GB** (e.g.
-    // 0.38, 3.61, 5.2) — omitted when unknown. Format accordingly.
-    const formatSize = (sizeGb?: number): string => {
-      if (!sizeGb || sizeGb <= 0) return ''
-      return sizeGb >= 1024 ? `${(sizeGb / 1024).toFixed(1)} TB` : `${sizeGb.toFixed(2)} GB`
-    }
-
-    const items: QuickPickItem[] = pullable.map((m) => ({
-      label: m.id,
-      description: ModelManager.getModelLabel(m) ?? '',
-      detail: formatSize(m.size) || 'Size not reported'
-    }))
-
-    const selected = await showQuickPick(items, {
-      title: 'Pull Model',
-      placeHolder: 'Choose a model to download'
-    })
-
-    if (!selected) return
-    await this.startPull(selected.label)
-  }
-
-  /**
    * Pull a specific model by id, showing live progress in a cancellable popup
    * and tracking incomplete downloads in the tree view on cancel/failure.
+   * Invoked from a Downloadable Models tree row (click or inline icon).
    */
+  async downloadModel(item: { modelId: string } | undefined): Promise<void> {
+    const modelId = item?.modelId
+    if (!modelId) {
+      showWarningMessage('No downloadable model selected.')
+      return
+    }
+    await this.startPull(modelId)
+  }
   async startPull(modelId: string): Promise<void> {
     if (!await this.serverManager.ensureRunning()) return
 

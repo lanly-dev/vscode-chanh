@@ -200,6 +200,15 @@ export class ServerViewProvider implements TreeDataProvider<TreeItem> {
       modelsHeader.contextValue = 'LEMOND_MODELS_HEADER'
       items.push(modelsHeader)
     }
+
+    // Downloadable (not-yet-downloaded catalog) models section
+    if (this._activeServer?.downloadableModels) {
+      const dlHeader = new TreeItem(
+        `Downloadable Models (${this._activeServer.downloadableModels.length})`, Expanded)
+      dlHeader.iconPath = new vscode.ThemeIcon('cloud-download')
+      dlHeader.contextValue = 'LEMOND_DOWNLOADABLE_HEADER'
+      items.push(dlHeader)
+    }
     return items
   }
 
@@ -210,6 +219,7 @@ export class ServerViewProvider implements TreeDataProvider<TreeItem> {
     if (element.contextValue === 'LEMOND_PARTIAL_HEADER') return this.getPartialDownloadChildren()
     if (element.contextValue === 'LEMOND_PINNED_HEADER') return this.getPinnedModelChildren(element)
     if (element.contextValue === 'LEMOND_MODELS_HEADER') return this.getModelChildren(element)
+    if (element.contextValue === 'LEMOND_DOWNLOADABLE_HEADER') return this.getDownloadableChildren()
     if (element.contextValue === 'LEMOND_CAP_GROUP') return this.getCapabilityGroupChildren(element)
     return []
   }
@@ -361,7 +371,7 @@ export class ServerViewProvider implements TreeDataProvider<TreeItem> {
     if (!server?.models) return []
 
     if (server.models.length === 0) {
-      const noModelsItem = new TreeItem('No models available, please pull a model.', None)
+      const noModelsItem = new TreeItem('No models downloaded yet.', None)
       noModelsItem.iconPath = new vscode.ThemeIcon('circle-filled')
       return [noModelsItem]
     }
@@ -370,6 +380,34 @@ export class ServerViewProvider implements TreeDataProvider<TreeItem> {
 
     const loadedIds = new Set(server.health?.all_models_loaded.map((m) => m.model_name) ?? [])
     return server.models.map((model) => this.toModelItem(model, loadedIds.has(model.id)))
+  }
+
+  /** Downloadable catalog models (not yet on disk) — each pulls on click. */
+  private getDownloadableChildren(): vscode.TreeItem[] {
+    const models = this._activeServer?.downloadableModels ?? []
+    if (models.length === 0) {
+      const none = new TreeItem('All catalog models are already downloaded.', None)
+      none.iconPath = new vscode.ThemeIcon('check')
+      return [none]
+    }
+    return models.map((model) => this.toDownloadableItem(model))
+  }
+
+  /** Build one downloadable-model leaf row with a pull affordance. */
+  private toDownloadableItem(model: LemonadeModel): vscode.TreeItem {
+    const item = new TreeItem(model.id, None) as vscode.TreeItem & { modelId: string }
+    item.modelId = model.id
+    const sizeText = model.size && model.size > 0
+      ? (model.size >= 1024 ? `${(model.size / 1024).toFixed(1)} TB` : `${model.size.toFixed(2)} GB`)
+      : ''
+    if (sizeText) item.description = sizeText
+    item.iconPath = new vscode.ThemeIcon('cloud-download')
+    item.tooltip = `Downloadable model: ${model.id}${sizeText ? `\nSize: ${sizeText}` : ''}`
+    item.contextValue = 'LEMOND_DOWNLOADABLE_MODEL'
+    // Inline pull lives in package.json view/item/context; the row click
+    // also triggers it via the viewItem's default command below.
+    item.command = { command: 'lemon.downloadModel', title: 'Download Model', arguments: [item] }
+    return item
   }
 
   /** Build one available-model leaf row (shared by flat and grouped modes). */

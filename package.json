@@ -80,8 +80,8 @@
         "icon": "$(gear)"
       },
       {
-        "command": "lemon.pullModel",
-        "title": "Lemon: Pull Model",
+        "command": "lemon.downloadModel",
+        "title": "Lemon: Download Model",
         "icon": "$(cloud-download)"
       },
       {
@@ -190,8 +190,8 @@
           "group": "inline"
         },
         {
-          "command": "lemon.pullModel",
-          "when": "view == LEMON_TREEVIEW && viewItem == LEMOND_MODELS_HEADER",
+          "command": "lemon.downloadModel",
+          "when": "view == LEMON_TREEVIEW && viewItem == LEMOND_DOWNLOADABLE_MODEL",
           "group": "inline"
         },
         {

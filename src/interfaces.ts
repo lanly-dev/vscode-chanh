@@ -151,6 +151,7 @@ export interface ServerInstance {
   version?: string
   health?: HealthResponse
   models?: LemonadeModel[]
+  downloadableModels?: LemonadeModel[]
   error?: string
   maxLoadedModels?: number
 }
