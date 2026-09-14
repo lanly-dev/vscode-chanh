@@ -6,7 +6,7 @@ import type {
   ChatMessage,
   HealthResponse,
   LemonadeModel,
-  PullStreamEvent
+  DownloadProgressEvent
 } from './interfaces'
 
 /**
@@ -243,7 +243,7 @@ export class LemonadeClient {
   /** Parse a single `/v1/pull` streaming event into a progress update. */
   private parsePullEvent(line: string):
     { status?: string, pct: number, written?: number, total?: number, message: string } {
-    let parsed: PullStreamEvent & { percent?: number, bytes_downloaded?: number }
+    let parsed: DownloadProgressEvent & { percent?: number, bytes_downloaded?: number }
     try {
       parsed = JSON.parse(line)
     } catch {

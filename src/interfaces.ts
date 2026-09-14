@@ -5,27 +5,11 @@ export enum ServerStatus {
   ERROR = 'ERROR',
 }
 
-// The user-selected Lemonade server to target for chat and model operations.
+/** The user-selected Lemonade server to target for chat and model operations. */
 export enum TargetServer {
   STANDALONE = 'standalone',
   EMBEDDED = 'embedded',
   CUSTOM = 'custom',
-}
-
-/** A chat message in OpenAI format. */
-export interface ChatMessage {
-  role: 'system' | 'user' | 'assistant'
-  content: string
-}
-
-/** Request body for `/v1/chat/completions`. */
-export interface ChatCompletionRequest {
-  model: string
-  messages: ChatMessage[]
-  stream?: boolean
-  temperature?: number
-  max_tokens?: number
-  top_p?: number
 }
 
 /** A single choice in a chat completion response. */
@@ -34,6 +18,15 @@ export interface ChatChoice {
   message?: ChatMessage
   delta?: Partial<ChatMessage>
   finish_reason?: string | null
+}
+/** Request body for `/v1/chat/completions`. */
+export interface ChatCompletionRequest {
+  model: string
+  messages: ChatMessage[]
+  stream?: boolean
+  temperature?: number
+  max_tokens?: number
+  top_p?: number
 }
 
 /** Non-streaming chat completion response. */
@@ -48,6 +41,12 @@ export interface ChatCompletionResponse {
     completion_tokens: number
     total_tokens: number
   }
+}
+
+/** A chat message in OpenAI format. */
+export interface ChatMessage {
+  role: 'system' | 'user' | 'assistant'
+  content: string
 }
 
 /** Live progress of an in-progress model download (surface in the tree view). */
@@ -127,7 +126,7 @@ export interface PinnedModels {
 }
 
 /** A single progress event emitted by the streaming `/v1/pull` endpoint. */
-export interface PullStreamEvent {
+export interface DownloadProgressEvent {
   status?: string
   response?: string
   progress?: number
