@@ -43,6 +43,9 @@ const GROUP_MODELS_KEY = 'groupModelsByCapability'
 /** Storage key for the downloadable-models grouped-by-capability toggle. */
 const GROUP_DOWNLOADABLE_MODELS_KEY = 'groupDownloadableModelsByCapability'
 
+/** Storage key for the show-hot-models-only toggle (downloadable section). */
+const SHOW_HOT_ONLY_KEY = 'showHotOnly'
+
 /**
  * Tree data provider for the Servers view.
  * Shows both the standalone Lemonade app and the lemond app in a single tree.
@@ -62,6 +65,8 @@ export class ServerViewProvider implements TreeDataProvider<TreeItem> {
   private _groupAvaModels = false
   /** Whether downloadable catalog models are grouped by capability. */
   private _groupDowModels = false
+  /** Whether the downloadable section shows only hot models. */
+  private _showHotOnly = false
 
   constructor(private context: ExtensionContext, private serverManager: ServerManager) {
     // Refresh whenever another part of the extension fires the shared event, or when the server status changes.
@@ -77,6 +82,7 @@ export class ServerViewProvider implements TreeDataProvider<TreeItem> {
 
     this._groupAvaModels = this.context.workspaceState.get<boolean>(GROUP_MODELS_KEY, false)
     this._groupDowModels = this.context.workspaceState.get<boolean>(GROUP_DOWNLOADABLE_MODELS_KEY, false)
+    this._showHotOnly = this.context.workspaceState.get<boolean>(SHOW_HOT_ONLY_KEY, false)
   }
 
   /** Flip the group-models-by-capability toggle, persist it, and refresh. */
@@ -90,6 +96,13 @@ export class ServerViewProvider implements TreeDataProvider<TreeItem> {
   toggleDlModelGrouping(): void {
     this._groupDowModels = !this._groupDowModels
     void this.context.workspaceState.update(GROUP_DOWNLOADABLE_MODELS_KEY, this._groupDowModels)
+    this.refresh()
+  }
+
+  /** Flip the show-hot-models-only toggle (downloadable section), persist it, and refresh. */
+  toggleHotModels(): void {
+    this._showHotOnly = !this._showHotOnly
+    void this.context.workspaceState.update(SHOW_HOT_ONLY_KEY, this._showHotOnly)
     this.refresh()
   }
 
@@ -215,8 +228,14 @@ export class ServerViewProvider implements TreeDataProvider<TreeItem> {
 
     // Downloadable (not-yet-downloaded catalog) models section
     if (this._activeServer?.downloadableModels) {
-      const dlHeader = new TreeItem(`Downloadable Models (${this._activeServer.downloadableModels.length})`, Expanded)
-      dlHeader.iconPath = new ThemeIcon('cloud-download')
+      const dlModels = this._activeServer.downloadableModels
+      const dlCount = this._showHotOnly
+        ? dlModels.filter((m) => ModelManager.isHotModel(m)).length
+        : dlModels.length
+      const dlHeader = new TreeItem(`Downloadable Models (${dlCount})`, Expanded)
+      dlHeader.iconPath = this._showHotOnly
+        ? new ThemeIcon('flame', new ThemeColor('charts.yellow'))
+        : new ThemeIcon('cloud-download')
       dlHeader.contextValue = 'CHANH_DOWNLOADABLE_HEADER'
       items.push(dlHeader)
     }
@@ -392,13 +411,19 @@ export class ServerViewProvider implements TreeDataProvider<TreeItem> {
   /** Downloadable catalog models (not yet on disk) — each pulls on click. */
   private getDownloadableChildren(): TreeItem[] {
     const models = this._activeServer?.downloadableModels ?? []
-    if (models.length === 0) {
-      const none = new TreeItem('All catalog models are already downloaded.', None)
+    const displayModels = this._showHotOnly
+      ? models.filter((m) => ModelManager.isHotModel(m))
+      : models
+    if (displayModels.length === 0) {
+      const emptyLabel = models.length === 0
+        ? 'All catalog models are already downloaded.'
+        : 'No hot models in catalog.'
+      const none = new TreeItem(emptyLabel, None)
       none.iconPath = new ThemeIcon('check')
       return [none]
     }
-    if (this._groupDowModels) return this.getCapabilityGroups(models, true)
-    return models.map((model) => this.toDownloadableItem(model))
+    if (this._groupDowModels) return this.getCapabilityGroups(displayModels, true)
+    return displayModels.map((model) => this.toDownloadableItem(model))
   }
 
   /** Build one downloadable-model leaf row with a pull affordance. */
@@ -516,9 +541,14 @@ export class ServerViewProvider implements TreeDataProvider<TreeItem> {
     const source = downloadable ? server?.downloadableModels : server?.models
     if (!source) return []
 
+    // When hot-only is active, restrict downloadable models to hot ones.
+    const effectiveSource = downloadable && this._showHotOnly
+      ? source.filter((m) => ModelManager.isHotModel(m))
+      : source
+
     // Multi-capability models live in every group they belong to, so the same
     // filter applies whether the source is downloaded or downloadable models.
-    const filtered = source.filter((m) => {
+    const filtered = effectiveSource.filter((m) => {
       const categories = ModelManager.getCapabilityCategories(m)
       if (categories.length === 0) return capability === 'other'
       return categories.includes(capability)

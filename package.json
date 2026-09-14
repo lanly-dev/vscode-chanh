@@ -94,6 +94,11 @@
         "icon": "$(group-by-ref-type)"
       },
       {
+        "command": "chanh.toggleHotModels",
+        "title": "Chanh: Toggle Hot Models Only (Downloadable)",
+        "icon": "$(flame)"
+      },
+      {
         "command": "chanh.loadModel",
         "title": "Chanh: Load Model",
         "icon": "$(run-above)"
@@ -205,6 +210,11 @@
         },
         {
           "command": "chanh.toggleDlModelGrouping",
+          "when": "view == CHANH_TREEVIEW && viewItem == CHANH_DOWNLOADABLE_HEADER",
+          "group": "inline"
+        },
+        {
+          "command": "chanh.toggleHotModels",
           "when": "view == CHANH_TREEVIEW && viewItem == CHANH_DOWNLOADABLE_HEADER",
           "group": "inline"
         },
