@@ -415,7 +415,7 @@ export class LemonadeClient {
     })
   }
 
-  /** Build a system prompt for code-related tasks. */
+  /** Build a system prompt for code-related tasks. TODO: better prompt? */
   static buildSystemPrompt(command?: string): string {
     const base = 'You are a helpful AI assistant running locally via Lemonade Server.'
     if (command === 'fix') {

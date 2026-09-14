@@ -1,7 +1,6 @@
 
 import {
   chat,
-  commands,
   window,
   workspace,
   CancellationToken,
@@ -147,8 +146,7 @@ export class ChatParticipant {
 
     // Build the chat messages from history
     const history = this.extractHistory(context)
-    const command = request.command
-    const messages = LemonadeClient.toChatMessages(request.prompt, history, command)
+    const messages = LemonadeClient.toChatMessages(request.prompt, history, request.command)
 
     // Add context from active editor if available
     const editorContext = this.getEditorContext()
