@@ -1,6 +1,13 @@
-import * as vscode from 'vscode'
-
-import { TreeDataProvider, TreeItem, TreeItemCollapsibleState } from 'vscode'
+import {
+  ExtensionContext,
+  EventEmitter,
+  ThemeColor,
+  ThemeIcon,
+  TreeDataProvider,
+  TreeItem,
+  TreeItemCollapsibleState,
+  Uri
+} from 'vscode'
 const { Collapsed, Expanded, None } = TreeItemCollapsibleState
 
 import { refreshEvents } from './events'
@@ -44,7 +51,7 @@ const GROUP_DOWNLOADABLE_MODELS_KEY = 'groupDownloadableModelsByCapability'
  * Shows both the standalone Lemonade app and the lemond app in a single tree.
  */
 export class ServerViewProvider implements TreeDataProvider<TreeItem> {
-  private _onDidChangeTreeData = new vscode.EventEmitter<void>()
+  private _onDidChangeTreeData = new EventEmitter<void>()
   readonly onDidChangeTreeData = this._onDidChangeTreeData.event
 
   private _activeServer: ServerInstance | null = null
@@ -61,7 +68,7 @@ export class ServerViewProvider implements TreeDataProvider<TreeItem> {
   /** Whether downloadable catalog models are grouped by capability. */
   private _groupDownloadableModels = false
 
-  constructor(private context: vscode.ExtensionContext, private serverManager: ServerManager) {
+  constructor(private context: ExtensionContext, private serverManager: ServerManager) {
     // Refresh whenever another part of the extension fires the shared event,
     // or when the underlying server status changes.
     refreshEvents.onDidRequestRefresh(() => this.refresh())
@@ -154,7 +161,7 @@ export class ServerViewProvider implements TreeDataProvider<TreeItem> {
     await this.context.workspaceState.update(PARTIALS_STORAGE_KEY, entries)
   }
 
-  getTreeItem(element: vscode.TreeItem): vscode.TreeItem {
+  getTreeItem(element: TreeItem): TreeItem {
     return element
   }
 
@@ -173,7 +180,7 @@ export class ServerViewProvider implements TreeDataProvider<TreeItem> {
 
     // Show single active server
     const serverHeader = new TreeItem(displayName, Expanded)
-    serverHeader.iconPath = new vscode.ThemeIcon('server')
+    serverHeader.iconPath = new ThemeIcon('server')
     serverHeader.contextValue = 'CHANH_SERVER_HEADER'
     serverHeader.tooltip = `Active server: ${displayName}\nURL: ${displayUrl}`
     items.push(serverHeader)
@@ -184,8 +191,8 @@ export class ServerViewProvider implements TreeDataProvider<TreeItem> {
 
       const loadedHeader = new TreeItem(`Loaded Models (${loadedModels.length})`, Expanded)
       let color
-      if (loadedModels.length) color = new vscode.ThemeColor('charts.yellow')
-      loadedHeader.iconPath = new vscode.ThemeIcon('zap', color)
+      if (loadedModels.length) color = new ThemeColor('charts.yellow')
+      loadedHeader.iconPath = new ThemeIcon('zap', color)
       loadedHeader.contextValue = 'CHANH_LOADED_HEADER'
       items.push(loadedHeader)
     }
@@ -193,7 +200,7 @@ export class ServerViewProvider implements TreeDataProvider<TreeItem> {
     // Downloading models section - only shown while a model is being pulled.
     if (this._downloads.size > 0) {
       const downloadingHeader = new TreeItem(`Downloading Models (${this._downloads.size})`, Expanded)
-      downloadingHeader.iconPath = new vscode.ThemeIcon('cloud-download', new vscode.ThemeColor('charts.blue'))
+      downloadingHeader.iconPath = new ThemeIcon('cloud-download', new ThemeColor('charts.blue'))
       downloadingHeader.contextValue = 'CHANH_DOWNLOADING_HEADER'
       items.push(downloadingHeader)
     }
@@ -201,7 +208,7 @@ export class ServerViewProvider implements TreeDataProvider<TreeItem> {
     // Incomplete downloads section - leftover partial files from cancelled/failed pulls.
     if (this._partials.size > 0) {
       const partialHeader = new TreeItem(`Incomplete Downloads (${this._partials.size})`, Expanded)
-      partialHeader.iconPath = new vscode.ThemeIcon('warning', new vscode.ThemeColor('charts.yellow'))
+      partialHeader.iconPath = new ThemeIcon('warning', new ThemeColor('charts.yellow'))
       partialHeader.contextValue = 'CHANH_PARTIAL_HEADER'
       items.push(partialHeader)
     }
@@ -210,7 +217,7 @@ export class ServerViewProvider implements TreeDataProvider<TreeItem> {
     // Available models section
     if (this._activeServer?.models) {
       const modelsHeader = new TreeItem(`Available Models (${this._activeServer.models.length})`, Expanded)
-      modelsHeader.iconPath = new vscode.ThemeIcon('list-tree')
+      modelsHeader.iconPath = new ThemeIcon('list-tree')
       modelsHeader.contextValue = 'CHANH_MODELS_HEADER'
       items.push(modelsHeader)
     }
@@ -219,7 +226,7 @@ export class ServerViewProvider implements TreeDataProvider<TreeItem> {
     if (this._activeServer?.downloadableModels) {
       const dlHeader = new TreeItem(
         `Downloadable Models (${this._activeServer.downloadableModels.length})`, Expanded)
-      dlHeader.iconPath = new vscode.ThemeIcon('cloud-download')
+      dlHeader.iconPath = new ThemeIcon('cloud-download')
       dlHeader.contextValue = 'CHANH_DOWNLOADABLE_HEADER'
       items.push(dlHeader)
     }
@@ -241,21 +248,21 @@ export class ServerViewProvider implements TreeDataProvider<TreeItem> {
   private getServerChildren(server: ServerInstance | null): TreeItem[] {
     if (!server) return []
 
-    const items: vscode.TreeItem[] = []
+    const items: TreeItem[] = []
 
     // Status indicator
     const statusText = this.getStatusText(server.status)
     const statusItem = new TreeItem(`Status: ${statusText}`, None)
-    statusItem.iconPath = new vscode.ThemeIcon(
+    statusItem.iconPath = new ThemeIcon(
       this.getStatusIcon(server.status),
-      new vscode.ThemeColor(this.getStatusColor(server.status))
+      new ThemeColor(this.getStatusColor(server.status))
     )
     statusItem.contextValue = `CHANH_SERVER_${server.status}`
     items.push(statusItem)
 
     // Server URL
     const urlItem = new TreeItem(server.url, None)
-    urlItem.iconPath = new vscode.ThemeIcon('link')
+    urlItem.iconPath = new ThemeIcon('link')
     urlItem.tooltip = `Server URL: ${server.url}`
     urlItem.contextValue = 'CHANH_SERVER_URL'
     items.push(urlItem)
@@ -263,7 +270,7 @@ export class ServerViewProvider implements TreeDataProvider<TreeItem> {
     // Version
     if (server.version) {
       const versionItem = new TreeItem(`Version: v${server.version}`, None)
-      versionItem.iconPath = new vscode.ThemeIcon('versions')
+      versionItem.iconPath = new ThemeIcon('versions')
       versionItem.tooltip = 'Lemonade Server binary version'
       items.push(versionItem)
     }
@@ -274,7 +281,7 @@ export class ServerViewProvider implements TreeDataProvider<TreeItem> {
         ? 'Unlimited'
         : String(server.maxLoadedModels)
       const maxModelsItem = new TreeItem(`Max Loaded Models: ${maxModelsText}`, None)
-      maxModelsItem.iconPath = new vscode.ThemeIcon('symbol-number')
+      maxModelsItem.iconPath = new ThemeIcon('symbol-number')
       const configLabel = server.id === 'lemond' ? ' (configured in settings)' : ''
       maxModelsItem.tooltip = `Maximum models that can be loaded simultaneously${configLabel}`
       items.push(maxModelsItem)
@@ -287,8 +294,8 @@ export class ServerViewProvider implements TreeDataProvider<TreeItem> {
       const pinnedCount = pinnedEntries.reduce((sum, [, count]) => sum + (count ?? 0), 0)
 
       const pinnedHeader = new TreeItem(`Pinned Models (${pinnedCount})`, Collapsed)
-      const pinnedColor = pinnedCount > 0 ? new vscode.ThemeColor('charts.blue') : undefined
-      pinnedHeader.iconPath = new vscode.ThemeIcon('pin', pinnedColor)
+      const pinnedColor = pinnedCount > 0 ? new ThemeColor('charts.blue') : undefined
+      pinnedHeader.iconPath = new ThemeIcon('pin', pinnedColor)
       pinnedHeader.contextValue = 'CHANH_PINNED_HEADER'
       items.push(pinnedHeader)
     }
@@ -296,26 +303,26 @@ export class ServerViewProvider implements TreeDataProvider<TreeItem> {
     // Error message if any
     if (server.error) {
       const errorItem = new TreeItem(`Error: ${server.error}`, None)
-      errorItem.iconPath = new vscode.ThemeIcon('error', new vscode.ThemeColor('charts.red'))
+      errorItem.iconPath = new ThemeIcon('error', new ThemeColor('charts.red'))
       items.push(errorItem)
     }
     return items
   }
 
-  private getLoadedModelChildren(element: vscode.TreeItem): TreeItem[] {
+  private getLoadedModelChildren(element: TreeItem): TreeItem[] {
     const server = this._activeServer
     if (!server?.health) return []
     const loadedModels = server.health.all_models_loaded
 
     if (!loadedModels || loadedModels.length === 0) {
       const noModelsItem = new TreeItem('No loaded models', None)
-      noModelsItem.iconPath = new vscode.ThemeIcon('circle-slash')
+      noModelsItem.iconPath = new ThemeIcon('circle-slash')
       return [noModelsItem]
     }
 
     return loadedModels.map((model) => {
       const item = new TreeItem(model.model_name, None)
-      item.iconPath = new vscode.ThemeIcon('pass-filled', new vscode.ThemeColor('charts.green'))
+      item.iconPath = new ThemeIcon('pass-filled', new ThemeColor('charts.green'))
       item.tooltip = `Model: ${model.model_name}\nBusy: ${model.is_busy}\nStreaming: ${model.is_streaming}`
       item.contextValue = 'CHANH_LOADED_MODEL'
       item.description = model.is_busy ? 'busy' : 'idle'
@@ -323,11 +330,11 @@ export class ServerViewProvider implements TreeDataProvider<TreeItem> {
     })
   }
 
-  private getDownloadingChildren(): vscode.TreeItem[] {
-    const items: vscode.TreeItem[] = []
+  private getDownloadingChildren(): TreeItem[] {
+    const items: TreeItem[] = []
     for (const download of this._downloads.values()) {
       const item = new TreeItem(download.modelId, None)
-      item.iconPath = new vscode.ThemeIcon('loading~spin', new vscode.ThemeColor('charts.blue'))
+      item.iconPath = new ThemeIcon('loading~spin', new ThemeColor('charts.blue'))
       item.contextValue = 'CHANH_DOWNLOADING_MODEL'
       item.tooltip = download.message ? `${download.modelId}\n${download.message}` : download.modelId
 
@@ -343,12 +350,12 @@ export class ServerViewProvider implements TreeDataProvider<TreeItem> {
     return items
   }
 
-  private getPartialDownloadChildren(): vscode.TreeItem[] {
-    const items: vscode.TreeItem[] = []
+  private getPartialDownloadChildren(): TreeItem[] {
+    const items: TreeItem[] = []
     for (const partial of this._partials.values()) {
-      const item = new TreeItem(partial.modelId, None) as vscode.TreeItem & { modelId: string }
+      const item = new TreeItem(partial.modelId, None) as TreeItem & { modelId: string }
       item.modelId = partial.modelId
-      item.iconPath = new vscode.ThemeIcon('warning', new vscode.ThemeColor('charts.yellow'))
+      item.iconPath = new ThemeIcon('warning', new ThemeColor('charts.yellow'))
       item.contextValue = 'CHANH_PARTIAL_MODEL'
       item.description = partial.pct >= 0 ? `${Math.round(partial.pct)}% downloaded - incomplete` : 'incomplete'
       item.tooltip = `${partial.modelId}\nNot fully downloaded. Retry, or Remove to delete the partial file.`
@@ -357,7 +364,7 @@ export class ServerViewProvider implements TreeDataProvider<TreeItem> {
     return items
   }
 
-  private getPinnedModelChildren(element: vscode.TreeItem): TreeItem[] {
+  private getPinnedModelChildren(element: TreeItem): TreeItem[] {
     const server = this._activeServer
     const pinned = server?.health?.pinned_models
     if (!pinned) return []
@@ -365,7 +372,7 @@ export class ServerViewProvider implements TreeDataProvider<TreeItem> {
     const entries = Object.entries(pinned)
     if (entries.length === 0) {
       const noItem = new TreeItem('No pinned models', None)
-      noItem.iconPath = new vscode.ThemeIcon('circle-slash', new vscode.ThemeColor('charts.gray'))
+      noItem.iconPath = new ThemeIcon('circle-slash', new ThemeColor('charts.gray'))
       return [noItem]
     }
 
@@ -373,20 +380,20 @@ export class ServerViewProvider implements TreeDataProvider<TreeItem> {
       const value = count ?? 0
       const item = new TreeItem(category, None)
       item.description = String(value)
-      const color = value > 0 ? new vscode.ThemeColor('charts.green') : new vscode.ThemeColor('charts.gray')
-      item.iconPath = new vscode.ThemeIcon('pinned', color)
+      const color = value > 0 ? new ThemeColor('charts.green') : new ThemeColor('charts.gray')
+      item.iconPath = new ThemeIcon('pinned', color)
       item.tooltip = `${category}: ${value} pinned`
       return item
     })
   }
 
-  private getModelChildren(element: vscode.TreeItem): vscode.TreeItem[] {
+  private getModelChildren(element: TreeItem): TreeItem[] {
     const server = this._activeServer
     if (!server?.models) return []
 
     if (server.models.length === 0) {
       const noModelsItem = new TreeItem('No models downloaded yet.', None)
-      noModelsItem.iconPath = new vscode.ThemeIcon('circle-filled')
+      noModelsItem.iconPath = new ThemeIcon('circle-filled')
       return [noModelsItem]
     }
 
@@ -397,11 +404,11 @@ export class ServerViewProvider implements TreeDataProvider<TreeItem> {
   }
 
   /** Downloadable catalog models (not yet on disk) — each pulls on click. */
-  private getDownloadableChildren(): vscode.TreeItem[] {
+  private getDownloadableChildren(): TreeItem[] {
     const models = this._activeServer?.downloadableModels ?? []
     if (models.length === 0) {
       const none = new TreeItem('All catalog models are already downloaded.', None)
-      none.iconPath = new vscode.ThemeIcon('check')
+      none.iconPath = new ThemeIcon('check')
       return [none]
     }
     if (this._groupDownloadableModels) return this.getCapabilityGroups(models, true)
@@ -409,8 +416,8 @@ export class ServerViewProvider implements TreeDataProvider<TreeItem> {
   }
 
   /** Build one downloadable-model leaf row with a pull affordance. */
-  private toDownloadableItem(model: LemonadeModel): vscode.TreeItem {
-    const item = new TreeItem(model.id, None) as vscode.TreeItem & { modelId: string }
+  private toDownloadableItem(model: LemonadeModel): TreeItem {
+    const item = new TreeItem(model.id, None) as TreeItem & { modelId: string }
     item.modelId = model.id
     const sizeText = model.size && model.size > 0
       ? (model.size >= 1024 ? `${(model.size / 1024).toFixed(1)} TB` : `${model.size.toFixed(2)} GB`)
@@ -420,8 +427,8 @@ export class ServerViewProvider implements TreeDataProvider<TreeItem> {
     // non-hot downloadable models keep the cloud-download icon.
     const isHot = ModelManager.isHotModel(model)
     item.iconPath = isHot
-      ? vscode.Uri.joinPath(this.context.extensionUri, 'media', 'capabilities', 'hot.svg')
-      : new vscode.ThemeIcon('cloud-download')
+      ? Uri.joinPath(this.context.extensionUri, 'media', 'capabilities', 'hot.svg')
+      : new ThemeIcon('cloud-download')
 
     let tooltip = `Downloadable model: ${model.id}${sizeText ? `\nSize: ${sizeText}` : ''}`
     if (isHot) tooltip += '\nHot model'
@@ -436,8 +443,8 @@ export class ServerViewProvider implements TreeDataProvider<TreeItem> {
   }
 
   /** Build one available-model leaf row (shared by flat and grouped modes). */
-  private toModelItem(model: LemonadeModel, isLoaded: boolean, showHotFlame = false): vscode.TreeItem {
-    const item = new TreeItem(model.id, None) as vscode.TreeItem & { modelId: string }
+  private toModelItem(model: LemonadeModel, isLoaded: boolean, showHotFlame = false): TreeItem {
+    const item = new TreeItem(model.id, None) as TreeItem & { modelId: string }
     item.modelId = model.id
 
     // Loaded models get a green label via the FileDecoration provider
@@ -459,11 +466,11 @@ export class ServerViewProvider implements TreeDataProvider<TreeItem> {
     // Unloaded hot models wear the flame when grouped by capability; in the
     // flat list the flame is suppressed so no per-model marker is needed.
     if (showHotFlame && isHot && !isLoaded)
-      item.iconPath = vscode.Uri.joinPath(this.context.extensionUri, 'media', 'capabilities', 'hot.svg')
+      item.iconPath = Uri.joinPath(this.context.extensionUri, 'media', 'capabilities', 'hot.svg')
     else if (isLoaded)
-      item.iconPath = new vscode.ThemeIcon('pass-filled', new vscode.ThemeColor('charts.green'))
+      item.iconPath = new ThemeIcon('pass-filled', new ThemeColor('charts.green'))
     else
-      item.iconPath = new vscode.ThemeIcon('circle')
+      item.iconPath = new ThemeIcon('circle')
 
     item.tooltip = tooltip
 
@@ -473,7 +480,7 @@ export class ServerViewProvider implements TreeDataProvider<TreeItem> {
   }
 
   /** Group available models under one collapsible header per capability. */
-  private getCapabilityGroups(models: LemonadeModel[], downloadable = false): vscode.TreeItem[] {
+  private getCapabilityGroups(models: LemonadeModel[], downloadable = false): TreeItem[] {
     const grouped = new Map<string, LemonadeModel[]>()
     for (const model of models) {
       const categories = ModelManager.getCapabilityCategories(model)
@@ -495,21 +502,21 @@ export class ServerViewProvider implements TreeDataProvider<TreeItem> {
         const title = CAPABILITY_TITLES[category] ?? category
         const item = new TreeItem(`${title} (${bucket.length})`, Expanded)
         item.contextValue = 'CHANH_CAP_GROUP'
-        ; (item as vscode.TreeItem & { capability: string }).capability = category
-        ; (item as vscode.TreeItem & { downloadable: boolean }).downloadable = downloadable
+        ; (item as TreeItem & { capability: string }).capability = category
+        ; (item as TreeItem & { downloadable: boolean }).downloadable = downloadable
         item.tooltip = `${bucket.length} model(s) with ${title} capability`
         // Capability groups wear the matching colored SVG; "other" gets a dot.
         item.iconPath = category === 'other'
-          ? new vscode.ThemeIcon('circle-filled')
-          : vscode.Uri.joinPath(this.context.extensionUri, 'media', 'capabilities', `${category}.svg`)
+          ? new ThemeIcon('circle-filled')
+          : Uri.joinPath(this.context.extensionUri, 'media', 'capabilities', `${category}.svg`)
         return item
       })
   }
 
   /** Models (available or downloadable) under one capability group header. */
-  private getCapabilityGroupChildren(element: vscode.TreeItem): vscode.TreeItem[] {
-    const capability = (element as vscode.TreeItem & { capability?: string }).capability
-    const downloadable = (element as vscode.TreeItem & { downloadable?: boolean }).downloadable
+  private getCapabilityGroupChildren(element: TreeItem): TreeItem[] {
+    const capability = (element as TreeItem & { capability?: string }).capability
+    const downloadable = (element as TreeItem & { downloadable?: boolean }).downloadable
     const server = this._activeServer
     if (!capability) return []
 
