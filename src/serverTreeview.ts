@@ -411,14 +411,9 @@ export class ServerViewProvider implements TreeDataProvider<TreeItem> {
   /** Downloadable catalog models (not yet on disk) — each pulls on click. */
   private getDownloadableChildren(): TreeItem[] {
     const models = this._activeServer?.downloadableModels ?? []
-    const displayModels = this._showHotOnly
-      ? models.filter((m) => ModelManager.isHotModel(m))
-      : models
+    const displayModels = this._showHotOnly ? models.filter((m) => ModelManager.isHotModel(m)) : models
     if (displayModels.length === 0) {
-      const emptyLabel = models.length === 0
-        ? 'All catalog models are already downloaded.'
-        : 'No hot models in catalog.'
-      const none = new TreeItem(emptyLabel, None)
+      const none = new TreeItem('No downloadable models available.', None)
       none.iconPath = new ThemeIcon('check')
       return [none]
     }
@@ -435,9 +430,7 @@ export class ServerViewProvider implements TreeDataProvider<TreeItem> {
     // Hot models get the flame icon so the user can spot them at a glance;
     // non-hot downloadable models keep the cloud-download icon.
     const isHot = ModelManager.isHotModel(model)
-    item.iconPath = isHot
-      ? getCapIcon(this.context.extensionUri, 'hot')
-      : new ThemeIcon('cloud-download')
+    item.iconPath = isHot ? getCapIcon(this.context.extensionUri, 'hot') : new ThemeIcon('circle-filled')
 
     let tooltip = `Downloadable model: ${model.id}${sizeText ? `\nSize: ${sizeText}` : ''}`
     if (isHot) tooltip += '\nHot model'

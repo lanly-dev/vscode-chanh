@@ -95,7 +95,7 @@
       },
       {
         "command": "chanh.toggleHotModels",
-        "title": "Chanh: Toggle Hot Models Only (Downloadable)",
+        "title": "Chanh: Toggle Downloadable Hot Models Only",
         "icon": "$(flame)"
       },
       {
@@ -209,12 +209,12 @@
           "group": "inline"
         },
         {
-          "command": "chanh.toggleDlModelGrouping",
+          "command": "chanh.toggleHotModels",
           "when": "view == CHANH_TREEVIEW && viewItem == CHANH_DOWNLOADABLE_HEADER",
           "group": "inline"
         },
         {
-          "command": "chanh.toggleHotModels",
+          "command": "chanh.toggleDlModelGrouping",
           "when": "view == CHANH_TREEVIEW && viewItem == CHANH_DOWNLOADABLE_HEADER",
           "group": "inline"
         },
