@@ -9,7 +9,7 @@ import {
 } from 'vscode'
 const { Collapsed, Expanded, None } = TreeItemCollapsibleState
 
-import { formatBytes, getCapIcon } from './utils'
+import { formatBytes, getCapIcon, getServerStatusChar } from './utils'
 import { ModelDecorationProvider } from './modelDecorations'
 import { ModelManager } from './modelManager'
 import { refreshEvents } from './events'
@@ -71,11 +71,8 @@ export class ServerViewProvider implements TreeDataProvider<TreeItem> {
     // Restore any incomplete downloads saved from a previous session.
     const saved = this.context.workspaceState.get<Array<[string, number]>>(PARTIALS_STORAGE_KEY, [])
     for (const [modelId, pct] of saved) {
-      this._partials.set(modelId, {
-        modelId,
-        pct,
-        message: pct >= 0 ? `${Math.round(pct)}% downloaded` : 'download incomplete'
-      })
+      const message = pct >= 0 ? `${Math.round(pct)}% downloaded` : 'download incomplete'
+      this._partials.set(modelId, { modelId, pct, message })
     }
 
     this._groupAvaModels = this.context.workspaceState.get<boolean>(GROUP_MODELS_KEY, false)
@@ -242,14 +239,10 @@ export class ServerViewProvider implements TreeDataProvider<TreeItem> {
     if (!server) return []
 
     const items: TreeItem[] = []
-
     // Status indicator
-    const statusText = this.getStatusText(server.status)
-    const statusItem = new TreeItem(`Status: ${statusText}`, None)
-    statusItem.iconPath = new ThemeIcon(
-      this.getStatusIcon(server.status),
-      new ThemeColor(this.getStatusColor(server.status))
-    )
+    const { color, icon, text } = getServerStatusChar(server.status)
+    const statusItem = new TreeItem(`Status: ${text}`, None)
+    statusItem.iconPath = new ThemeIcon(icon, new ThemeColor(color))
     statusItem.contextValue = `CHANH_SERVER_${server.status}`
     items.push(statusItem)
 
@@ -525,50 +518,5 @@ export class ServerViewProvider implements TreeDataProvider<TreeItem> {
   /** Fetch server data for all known server instances. */
   private async fetchServerData(): Promise<void> {
     this._activeServer = await this.serverManager.getActiveServer()
-  }
-
-  private getStatusText(status: ServerInstance['status']): string {
-    switch (status) {
-      case ServerStatus.RUNNING:
-        return 'Running'
-      case ServerStatus.STARTING:
-        return 'Starting...'
-      case ServerStatus.STOPPED:
-        return 'Stopped'
-      case ServerStatus.ERROR:
-        return 'Error'
-      default:
-        return 'Unknown'
-    }
-  }
-
-  private getStatusIcon(status: ServerInstance['status']): string {
-    switch (status) {
-      case ServerStatus.RUNNING:
-        return 'debug-start'
-      case ServerStatus.STARTING:
-        return 'loading~spin'
-      case ServerStatus.STOPPED:
-        return 'debug-stop'
-      case ServerStatus.ERROR:
-        return 'error'
-      default:
-        return 'question'
-    }
-  }
-
-  private getStatusColor(status: ServerInstance['status']): string {
-    switch (status) {
-      case ServerStatus.RUNNING:
-        return 'charts.green'
-      case ServerStatus.STARTING:
-        return 'charts.yellow'
-      case ServerStatus.STOPPED:
-        return 'charts.gray'
-      case ServerStatus.ERROR:
-        return 'charts.red'
-      default:
-        return 'charts.gray'
-    }
   }
 }

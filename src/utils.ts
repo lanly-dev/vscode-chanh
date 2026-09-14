@@ -1,4 +1,20 @@
 import * as vscode from 'vscode'
+import { ServerInstance, ServerStatus } from './interfaces'
+
+export function getServerStatusChar(status: ServerInstance['status']): { color: string, icon: string, text: string } {
+  switch (status) {
+    case ServerStatus.RUNNING:
+      return { color: 'charts.green', icon: 'debug-start', text: 'Running' }
+    case ServerStatus.STARTING:
+      return { color: 'charts.yellow', icon: 'loading~spin', text: 'Starting...' }
+    case ServerStatus.STOPPED:
+      return { color: 'charts.gray', icon: 'debug-stop', text: 'Stopped' }
+    case ServerStatus.ERROR:
+      return { color: 'charts.red', icon: 'error', text: 'Error' }
+    default:
+      return { color: 'charts.gray', icon: 'question', text: 'Unknown' }
+  }
+}
 
 export function getCapIcon(uri: vscode.Uri, category: string): vscode.ThemeIcon | vscode.Uri {
   if (category === 'other') return new vscode.ThemeIcon('circle-filled')
