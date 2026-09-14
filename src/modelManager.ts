@@ -35,7 +35,8 @@ export class ModelManager {
   private static capabilityFor(raw: string): string | undefined {
     const l = raw.toLowerCase()
     if (l === 'chat' || l === 'llm') return 'llm'
-    if (l === 'embedding') return 'embedding'
+    // Lemonade labels embedding models with the plural "embeddings".
+    if (l === 'embeddings') return 'embedding'
     if (l === 'reranking') return 'reranking'
     if (l === 'classification') return 'classification'
     if (l === 'transcription') return 'transcription'
