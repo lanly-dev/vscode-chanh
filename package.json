@@ -180,22 +180,22 @@
         },
         {
           "command": "chanh.openServerUrl",
-          "when": "view == CHANH_TREEVIEW && viewItem == CHANHD_SERVER_URL",
+          "when": "view == CHANH_TREEVIEW && viewItem == CHANH_SERVER_URL",
           "group": "inline"
         },
         {
           "command": "chanh.editServerPort",
-          "when": "view == CHANH_TREEVIEW && viewItem == CHANHD_SERVER_URL",
+          "when": "view == CHANH_TREEVIEW && viewItem == CHANH_SERVER_URL",
           "group": "inline"
         },
         {
           "command": "chanh.downloadModel",
-          "when": "view == CHANH_TREEVIEW && viewItem == CHANHD_DOWNLOADABLE_MODEL",
+          "when": "view == CHANH_TREEVIEW && viewItem == CHANH_DOWNLOADABLE_MODEL",
           "group": "inline"
         },
         {
           "command": "chanh.toggleModelGrouping",
-          "when": "view == CHANH_TREEVIEW && viewItem == CHANHD_MODELS_HEADER",
+          "when": "view == CHANH_TREEVIEW && viewItem == CHANH_MODELS_HEADER",
           "group": "inline"
         },
         {
@@ -210,27 +210,27 @@
         },
         {
           "command": "chanh.loadModel",
-          "when": "view == CHANH_TREEVIEW && viewItem == CHANHD_MODEL_AVAILABLE",
+          "when": "view == CHANH_TREEVIEW && viewItem == CHANH_MODEL_AVAILABLE",
           "group": "inline"
         },
         {
           "command": "chanh.unloadModel",
-          "when": "view == CHANH_TREEVIEW && (viewItem == CHANHD_MODEL_LOADED || viewItem == CHANHD_LOADED_MODEL)",
+          "when": "view == CHANH_TREEVIEW && (viewItem == CHANH_MODEL_LOADED || viewItem == CHANH_LOADED_MODEL)",
           "group": "inline"
         },
         {
           "command": "chanh.removeModel",
-          "when": "view == CHANH_TREEVIEW && (viewItem == CHANHD_MODEL_AVAILABLE || viewItem == CHANHD_MODEL_LOADED || viewItem == CHANHD_LOADED_MODEL)",
+          "when": "view == CHANH_TREEVIEW && (viewItem == CHANH_MODEL_AVAILABLE || viewItem == CHANH_MODEL_LOADED || viewItem == CHANH_LOADED_MODEL)",
           "group": "2_remove"
         },
         {
           "command": "chanh.retryModel",
-          "when": "view == CHANH_TREEVIEW && viewItem == CHANHD_PARTIAL_MODEL",
+          "when": "view == CHANH_TREEVIEW && viewItem == CHANH_PARTIAL_MODEL",
           "group": "inline"
         },
         {
           "command": "chanh.removeModel",
-          "when": "view == CHANH_TREEVIEW && viewItem == CHANHD_PARTIAL_MODEL",
+          "when": "view == CHANH_TREEVIEW && viewItem == CHANH_PARTIAL_MODEL",
           "group": "2_remove"
         }
       ]
