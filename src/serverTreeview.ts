@@ -36,6 +36,9 @@ const PARTIALS_STORAGE_KEY = 'partialDownloads'
 /** Storage key for the models-grouped-by-capability toggle. */
 const GROUP_MODELS_KEY = 'groupModelsByCapability'
 
+/** Storage key for the downloadable-models grouped-by-capability toggle. */
+const GROUP_DOWNLOADABLE_MODELS_KEY = 'groupDownloadableModelsByCapability'
+
 /**
  * Tree data provider for the Servers view.
  * Shows both the standalone Lemonade app and the lemond app in a single tree.
@@ -55,6 +58,9 @@ export class ServerViewProvider implements TreeDataProvider<TreeItem> {
   /** Whether available models are grouped by capability. */
   private _groupModels = false
 
+  /** Whether downloadable catalog models are grouped by capability. */
+  private _groupDownloadableModels = false
+
   constructor(private context: vscode.ExtensionContext, private serverManager: ServerManager) {
     // Refresh whenever another part of the extension fires the shared event,
     // or when the underlying server status changes.
@@ -72,12 +78,20 @@ export class ServerViewProvider implements TreeDataProvider<TreeItem> {
     }
 
     this._groupModels = this.context.workspaceState.get<boolean>(GROUP_MODELS_KEY, false)
+    this._groupDownloadableModels = this.context.workspaceState.get<boolean>(GROUP_DOWNLOADABLE_MODELS_KEY, false)
   }
 
   /** Flip the group-models-by-capability toggle, persist it, and refresh. */
   toggleModelGrouping(): void {
     this._groupModels = !this._groupModels
     void this.context.workspaceState.update(GROUP_MODELS_KEY, this._groupModels)
+    this.refresh()
+  }
+
+  /** Flip the group-downloadable-models-by-capability toggle, persist it, and refresh. */
+  toggleDlModelGrouping(): void {
+    this._groupDownloadableModels = !this._groupDownloadableModels
+    void this.context.workspaceState.update(GROUP_DOWNLOADABLE_MODELS_KEY, this._groupDownloadableModels)
     this.refresh()
   }
 
@@ -390,6 +404,7 @@ export class ServerViewProvider implements TreeDataProvider<TreeItem> {
       none.iconPath = new vscode.ThemeIcon('check')
       return [none]
     }
+    if (this._groupDownloadableModels) return this.getCapabilityGroups(models, true)
     return models.map((model) => this.toDownloadableItem(model))
   }
 
@@ -401,8 +416,18 @@ export class ServerViewProvider implements TreeDataProvider<TreeItem> {
       ? (model.size >= 1024 ? `${(model.size / 1024).toFixed(1)} TB` : `${model.size.toFixed(2)} GB`)
       : ''
     if (sizeText) item.description = sizeText
-    item.iconPath = new vscode.ThemeIcon('cloud-download')
-    item.tooltip = `Downloadable model: ${model.id}${sizeText ? `\nSize: ${sizeText}` : ''}`
+    // Hot models get the flame icon so the user can spot them at a glance;
+    // non-hot downloadable models keep the cloud-download icon.
+    const isHot = ModelManager.isHotModel(model)
+    item.iconPath = isHot
+      ? vscode.Uri.joinPath(this.context.extensionUri, 'media', 'capabilities', 'hot.svg')
+      : new vscode.ThemeIcon('cloud-download')
+
+    let tooltip = `Downloadable model: ${model.id}${sizeText ? `\nSize: ${sizeText}` : ''}`
+    if (isHot) tooltip += '\nHot model'
+
+    item.tooltip = tooltip
+
     item.contextValue = 'CHANH_DOWNLOADABLE_MODEL'
     // Inline pull lives in package.json view/item/context; the row click
     // also triggers it via the viewItem's default command below.
@@ -448,7 +473,7 @@ export class ServerViewProvider implements TreeDataProvider<TreeItem> {
   }
 
   /** Group available models under one collapsible header per capability. */
-  private getCapabilityGroups(models: LemonadeModel[]): vscode.TreeItem[] {
+  private getCapabilityGroups(models: LemonadeModel[], downloadable = false): vscode.TreeItem[] {
     const grouped = new Map<string, LemonadeModel[]>()
     for (const model of models) {
       const categories = ModelManager.getCapabilityCategories(model)
@@ -471,6 +496,7 @@ export class ServerViewProvider implements TreeDataProvider<TreeItem> {
         const item = new TreeItem(`${title} (${bucket.length})`, Expanded)
         item.contextValue = 'CHANH_CAP_GROUP'
         ; (item as vscode.TreeItem & { capability: string }).capability = category
+        ; (item as vscode.TreeItem & { downloadable: boolean }).downloadable = downloadable
         item.tooltip = `${bucket.length} model(s) with ${title} capability`
         // Capability groups wear the matching colored SVG; "other" gets a dot.
         item.iconPath = category === 'other'
@@ -480,21 +506,28 @@ export class ServerViewProvider implements TreeDataProvider<TreeItem> {
       })
   }
 
-  /** Available models under one capability group header. */
+  /** Models (available or downloadable) under one capability group header. */
   private getCapabilityGroupChildren(element: vscode.TreeItem): vscode.TreeItem[] {
     const capability = (element as vscode.TreeItem & { capability?: string }).capability
+    const downloadable = (element as vscode.TreeItem & { downloadable?: boolean }).downloadable
     const server = this._activeServer
-    if (!capability || !server?.models) return []
+    if (!capability) return []
 
-    const loadedIds = new Set(server.health?.all_models_loaded.map((m) => m.model_name) ?? [])
-    return server.models
-      .filter((m) => {
-        // Multi-capability models live in every group they belong to.
-        const categories = ModelManager.getCapabilityCategories(m)
-        if (categories.length === 0) return capability === 'other'
-        return categories.includes(capability)
-      })
-      .map((m) => this.toModelItem(m, loadedIds.has(m.id), true))
+    const source = downloadable ? server?.downloadableModels : server?.models
+    if (!source) return []
+
+    // Multi-capability models live in every group they belong to, so the same
+    // filter applies whether the source is downloaded or downloadable models.
+    const filtered = source.filter((m) => {
+      const categories = ModelManager.getCapabilityCategories(m)
+      if (categories.length === 0) return capability === 'other'
+      return categories.includes(capability)
+    })
+
+    if (downloadable) return filtered.map((m) => this.toDownloadableItem(m))
+
+    const loadedIds = new Set(server?.health?.all_models_loaded.map((m) => m.model_name) ?? [])
+    return filtered.map((m) => this.toModelItem(m, loadedIds.has(m.id), true))
   }
 
   /** Fetch server data for all known server instances. */

@@ -89,6 +89,11 @@
         "icon": "$(group-by-ref-type)"
       },
       {
+        "command": "chanh.toggleDlModelGrouping",
+        "title": "Chanh: Toggle Downloadable Models Grouping by Capability",
+        "icon": "$(group-by-ref-type)"
+      },
+      {
         "command": "chanh.loadModel",
         "title": "Chanh: Load Model",
         "icon": "$(run-above)"
@@ -196,6 +201,11 @@
         {
           "command": "chanh.toggleModelGrouping",
           "when": "view == CHANH_TREEVIEW && viewItem == CHANH_MODELS_HEADER",
+          "group": "inline"
+        },
+        {
+          "command": "chanh.toggleDlModelGrouping",
+          "when": "view == CHANH_TREEVIEW && viewItem == CHANH_DOWNLOADABLE_HEADER",
           "group": "inline"
         },
         {
