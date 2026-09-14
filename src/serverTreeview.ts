@@ -9,7 +9,7 @@ import {
 } from 'vscode'
 const { Collapsed, Expanded, None } = TreeItemCollapsibleState
 
-import { formatBytes, getCapIcon, getServerStatusChar } from './utils'
+import { formatBytes, formatSize, getCapIcon, getServerStatusChar } from './utils'
 import { ModelDecorationProvider } from './modelDecorations'
 import { ModelManager } from './modelManager'
 import { refreshEvents } from './events'
@@ -425,7 +425,7 @@ export class ServerViewProvider implements TreeDataProvider<TreeItem> {
   private toDownloadableItem(model: LemonadeModel): TreeItem {
     const item = new TreeItem(model.id, None) as TreeItem & { modelId: string }
     item.modelId = model.id
-    const sizeText = formatBytes(model.size ?? 0)
+    const sizeText = formatSize(model.size)
     if (sizeText) item.description = sizeText
     // Hot models get the flame icon so the user can spot them at a glance;
     // non-hot downloadable models keep the cloud-download icon.
@@ -455,9 +455,7 @@ export class ServerViewProvider implements TreeDataProvider<TreeItem> {
 
     // Subtext: size only (the capability label is not listed here anymore)
     const modelLabel = ModelManager.getModelLabel(model)
-    const sizeText = model.size && model.size > 0
-      ? (model.size >= 1024 ? `${(model.size / 1024).toFixed(1)} TB` : `${model.size.toFixed(2)} GB`)
-      : ''
+    const sizeText = formatSize(model.size)
     if (sizeText) item.description = sizeText
 
     const isHot = ModelManager.isHotModel(model)

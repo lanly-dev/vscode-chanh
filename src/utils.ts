@@ -33,6 +33,12 @@ export function formatBytes(value: number): string {
   return `${n.toFixed(unit === 0 ? 0 : 1)} ${units[unit]}`
 }
 
+/** Format a model size given in GB as a human-readable string (e.g. "4.00 GB" or "2.0 TB"). */
+export function formatSize(sizeGb: number | undefined): string {
+  if (!sizeGb || sizeGb <= 0) return ''
+  return sizeGb >= 1024 ? `${(sizeGb / 1024).toFixed(1)} TB` : `${sizeGb.toFixed(2)} GB`
+}
+
 export function openSetting(): void {
   vscode.commands.executeCommand('workbench.action.openSettings', '@ext:lanly-dev.chanh')
 }
