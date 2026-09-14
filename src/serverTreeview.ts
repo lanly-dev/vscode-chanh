@@ -220,9 +220,20 @@ export class ServerViewProvider implements TreeDataProvider<TreeItem> {
 
     // Available models section
     if (this._activeServer?.models) {
-      const modelsHeader = new TreeItem(`Available Models (${this._activeServer.models.length})`, Expanded)
+      const models = this._activeServer.models
+      const modelsHeader = new TreeItem(`Available Models (${models.length})`, Expanded)
       modelsHeader.iconPath = new ThemeIcon('list-tree')
       modelsHeader.contextValue = 'CHANH_MODELS_HEADER'
+
+      // Total size of every available model, summed from the sizes the server
+      // reports. Models without a reported size are skipped, so the tooltip
+      // calls out how many models the total actually covers.
+      const sized = models.filter((m) => (m.size ?? 0) > 0)
+      const totalSizeText = formatSize(sized.reduce((sum, m) => sum + (m.size ?? 0), 0))
+      const coverage = sized.length < models.length ? ` (${sized.length} of ${models.length} models)` : ''
+      modelsHeader.tooltip = totalSizeText
+        ? `${models.length} model(s) available\nTotal size${coverage}: ${totalSizeText}`
+        : `${models.length} model(s) available\nTotal size: unknown (not reported by the server)`
       items.push(modelsHeader)
     }
 
@@ -405,7 +416,7 @@ export class ServerViewProvider implements TreeDataProvider<TreeItem> {
     const loadedIds = new Set(server.health?.all_models_loaded.map((m) => m.model_name) ?? [])
 
     const orderedModels = this.sortModelsLoadedFirst(server.models, loadedIds)
-    return orderedModels.map((model) => this.toModelItem(model, loadedIds.has(model.id)))
+    return orderedModels.map((model) => this.toAvaModelItem(model, loadedIds.has(model.id)))
   }
 
   /** Downloadable catalog models (not yet on disk) — each pulls on click. */
@@ -418,11 +429,11 @@ export class ServerViewProvider implements TreeDataProvider<TreeItem> {
       return [none]
     }
     if (this._groupDowModels) return this.getCapabilityGroups(displayModels, true)
-    return displayModels.map((model) => this.toDownloadableItem(model))
+    return displayModels.map((model) => this.toDowItem(model))
   }
 
   /** Build one downloadable-model leaf row with a pull affordance. */
-  private toDownloadableItem(model: LemonadeModel): TreeItem {
+  private toDowItem(model: LemonadeModel): TreeItem {
     const item = new TreeItem(model.id, None) as TreeItem & { modelId: string }
     item.modelId = model.id
     const sizeText = formatSize(model.size)
@@ -432,20 +443,16 @@ export class ServerViewProvider implements TreeDataProvider<TreeItem> {
     const isHot = ModelManager.isHotModel(model)
     item.iconPath = isHot ? getCapIcon(this.context.extensionUri, 'hot') : new ThemeIcon('circle-filled')
 
-    let tooltip = `Downloadable model: ${model.id}${sizeText ? `\nSize: ${sizeText}` : ''}`
-    if (isHot) tooltip += '\nHot model'
+    let tooltip = `${model.id}`
+    if (isHot) tooltip = `🔥 ${tooltip}`
 
     item.tooltip = tooltip
-
     item.contextValue = 'CHANH_DOWNLOADABLE_MODEL'
-    // Inline pull lives in package.json view/item/context; the row click
-    // also triggers it via the viewItem's default command below.
-    item.command = { command: 'chanh.downloadModel', title: 'Download Model', arguments: [item] }
     return item
   }
 
   /** Build one available-model leaf row (shared by flat and grouped modes). */
-  private toModelItem(model: LemonadeModel, isLoaded: boolean, showHotFlame = false): TreeItem {
+  private toAvaModelItem(model: LemonadeModel, isLoaded: boolean, showHotFlame = false): TreeItem {
     const item = new TreeItem(model.id, None) as TreeItem & { modelId: string }
     item.modelId = model.id
 
@@ -459,9 +466,7 @@ export class ServerViewProvider implements TreeDataProvider<TreeItem> {
     if (sizeText) item.description = sizeText
 
     const isHot = ModelManager.isHotModel(model)
-    let tooltip = `Model: ${modelLabel ? `${model.id} (${modelLabel})` : model.id}`
-    tooltip += isLoaded ? '\nLoaded' : '\nNot loaded'
-    if (isHot) tooltip += '\nHot model'
+    let tooltip = `${model.id} (${modelLabel})`
 
     // Unloaded hot models wear the flame when grouped by capability; in the
     // flat list the flame is suppressed so no per-model marker is needed.
@@ -545,12 +550,12 @@ export class ServerViewProvider implements TreeDataProvider<TreeItem> {
       return categories.includes(capability)
     })
 
-    if (downloadable) return filtered.map((m) => this.toDownloadableItem(m))
+    if (downloadable) return filtered.map((m) => this.toDowItem(m))
 
     const loadedIds = new Set(server?.health?.all_models_loaded.map((m) => m.model_name) ?? [])
     // Within each capability group, surface loaded models first.
     const ordered = this.sortModelsLoadedFirst(filtered, loadedIds)
-    return ordered.map((m) => this.toModelItem(m, loadedIds.has(m.id), true))
+    return ordered.map((m) => this.toAvaModelItem(m, loadedIds.has(m.id), true))
   }
 
   /** Fetch server data for all known server instances. */

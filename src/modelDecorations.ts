@@ -20,10 +20,12 @@ export class ModelDecorationProvider implements vscode.FileDecorationProvider {
 
   provideFileDecoration(uri: vscode.Uri): vscode.FileDecoration | undefined {
     if (uri.scheme !== 'chanh-model') return undefined
-    if (!uri.query.includes('loaded=1')) return undefined
-    return {
-      color: new vscode.ThemeColor('charts.green'),
-      tooltip: 'Loaded'
+    if (uri.query.includes('loaded=1')) {
+      return {
+        color: new vscode.ThemeColor('charts.green'),
+        tooltip: 'Loaded'
+      }
     }
+    return { tooltip: 'Not loaded' }
   }
 }
