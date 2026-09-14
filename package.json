@@ -70,10 +70,6 @@
         "title": "Chanh: Download/Update Binary"
       },
       {
-        "command": "chanh.openChat",
-        "title": "Chanh: Open Chat"
-      },
-      {
         "command": "chanh.openSettings",
         "title": "Chanh: Open Settings",
         "icon": "$(gear)"

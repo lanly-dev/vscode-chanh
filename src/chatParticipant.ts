@@ -225,9 +225,4 @@ export class ChatParticipant {
     })
     return controller.signal
   }
-
-  /** Open the chat view with our participant. */
-  static async openChat(): Promise<void> {
-    await commands.executeCommand('workbench.action.chat.open', { participant: 'CHANH_CHAT' })
-  }
 }
