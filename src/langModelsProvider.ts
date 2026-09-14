@@ -11,10 +11,10 @@ import type { ChatMessage } from './interfaces'
 /**
  * Registers Lemonade Server models with the VS Code Language Model API
  * (`vscode.lm.registerLanguageModelChatProvider`) so they show up in the
- * native VS Code model picker under the "Lemon" provider — the same way
+ * native VS Code model picker under the "Chanh" provider — the same way
  * Ollama exposes its models.
  */
-export class LemonLanguageModelProvider implements vscode.LanguageModelChatProvider, vscode.Disposable {
+export class ChanhLanguageModelProvider implements vscode.LanguageModelChatProvider, vscode.Disposable {
   /** Fired when the available model list may have changed. */
   readonly onDidChangeLanguageModelChatInformation: vscode.Event<void>
 
@@ -98,8 +98,8 @@ export class LemonLanguageModelProvider implements vscode.LanguageModelChatProvi
     const client = this.serverManager.client
 
     const chatMessages: ChatMessage[] = messages.map((m) => ({
-      role: LemonLanguageModelProvider.toRole(m.role),
-      content: LemonLanguageModelProvider.extractText(m)
+      role: ChanhLanguageModelProvider.toRole(m.role),
+      content: ChanhLanguageModelProvider.extractText(m)
     })).filter((m) => m.content.length > 0)
 
     const abortController = new AbortController()
@@ -128,7 +128,7 @@ export class LemonLanguageModelProvider implements vscode.LanguageModelChatProvi
   ): Promise<number> {
     void model
     void token
-    const str = typeof text === 'string' ? text : LemonLanguageModelProvider.extractText(text)
+    const str = typeof text === 'string' ? text : ChanhLanguageModelProvider.extractText(text)
     return Math.ceil(str.length / 4)
   }
 

@@ -1,6 +1,6 @@
 {
   "name": "chanh",
-  "displayName": "Lemon 🍋 - run your free local AI",
+  "displayName": "Chanh 🍋 - run your free local AI",
   "description": "Run a local AI server powered by Lemonade Server directly in VS Code",
   "publisher": "lanly-dev",
   "version": "0.0.2",
@@ -19,13 +19,12 @@
     "chanh",
     "chat",
     "free",
-    "lemon",
     "lemonade",
     "llm",
     "local",
     "models"
   ],
-  "icon": "media/lemon.png",
+  "icon": "media/chanh.png",
   "activationEvents": [
     "onStartupFinished"
   ],
@@ -34,13 +33,13 @@
     "languageModelChatProviders": [
       {
         "vendor": "lemonade",
-        "displayName": "Lemon"
+        "displayName": "Chanh"
       }
     ],
     "chatParticipants": [
       {
-        "id": "LEMON_CHAT",
-        "name": "Lemon",
+        "id": "CHANH_CHAT",
+        "name": "Chanh",
         "description": "Chat with a local AI model powered by Lemonade Server",
         "isSticky": true,
         "commands": [
@@ -57,104 +56,104 @@
     ],
     "commands": [
       {
-        "command": "lemon.startServer",
-        "title": "Lemon: Start Server",
+        "command": "chanh.startServer",
+        "title": "Chanh: Start Server",
         "icon": "$(play)"
       },
       {
-        "command": "lemon.stopServer",
-        "title": "Lemon: Stop Server",
+        "command": "chanh.stopServer",
+        "title": "Chanh: Stop Server",
         "icon": "$(debug-stop)"
       },
       {
-        "command": "lemon.downloadBinary",
-        "title": "Lemon: Download/Update Binary"
+        "command": "chanh.downloadBinary",
+        "title": "Chanh: Download/Update Binary"
       },
       {
-        "command": "lemon.openChat",
-        "title": "Lemon: Open Chat"
+        "command": "chanh.openChat",
+        "title": "Chanh: Open Chat"
       },
       {
-        "command": "lemon.openSettings",
-        "title": "Lemon: Open Settings",
+        "command": "chanh.openSettings",
+        "title": "Chanh: Open Settings",
         "icon": "$(gear)"
       },
       {
-        "command": "lemon.downloadModel",
-        "title": "Lemon: Download Model",
+        "command": "chanh.downloadModel",
+        "title": "Chanh: Download Model",
         "icon": "$(cloud-download)"
       },
       {
-        "command": "lemon.toggleModelGrouping",
-        "title": "Lemon: Toggle Model Grouping by Capability",
+        "command": "chanh.toggleModelGrouping",
+        "title": "Chanh: Toggle Model Grouping by Capability",
         "icon": "$(group-by-ref-type)"
       },
       {
-        "command": "lemon.loadModel",
-        "title": "Lemon: Load Model",
+        "command": "chanh.loadModel",
+        "title": "Chanh: Load Model",
         "icon": "$(run-above)"
       },
       {
-        "command": "lemon.unloadModel",
-        "title": "Lemon: Unload Model",
+        "command": "chanh.unloadModel",
+        "title": "Chanh: Unload Model",
         "icon": "$(run-below)"
       },
       {
-        "command": "lemon.removeModel",
-        "title": "Lemon: Remove Model",
+        "command": "chanh.removeModel",
+        "title": "Chanh: Remove Model",
         "icon": "$(trash)"
       },
       {
-        "command": "lemon.retryModel",
-        "title": "Lemon: Retry Model Download",
+        "command": "chanh.retryModel",
+        "title": "Chanh: Retry Model Download",
         "icon": "$(refresh)"
       },
       {
-        "command": "lemon.selectChatModel",
-        "title": "Lemon: Select Chat Model"
+        "command": "chanh.selectChatModel",
+        "title": "Chanh: Select Chat Model"
       },
       {
-        "command": "lemon.refreshServer",
-        "title": "Lemon: Refresh Server Status",
+        "command": "chanh.refreshServer",
+        "title": "Chanh: Refresh Server Status",
         "icon": "$(refresh)"
       },
       {
-        "command": "lemon.switchToStandalone",
-        "title": "Lemon: Switch to Standalone Server"
+        "command": "chanh.switchToStandalone",
+        "title": "Chanh: Switch to Standalone Server"
       },
       {
-        "command": "lemon.selectServer",
-        "title": "Lemon: Select Server",
+        "command": "chanh.selectServer",
+        "title": "Chanh: Select Server",
         "icon": "$(arrow-swap)"
       },
       {
-        "command": "lemon.setMaxLoadedModels",
-        "title": "Lemon: Set Max Loaded Models"
+        "command": "chanh.setMaxLoadedModels",
+        "title": "Chanh: Set Max Loaded Models"
       },
       {
-        "command": "lemon.openServerUrl",
-        "title": "Lemon: Open Server URL",
+        "command": "chanh.openServerUrl",
+        "title": "Chanh: Open Server URL",
         "icon": "$(link-external)"
       },
       {
-        "command": "lemon.editServerPort",
-        "title": "Lemon: Edit Server Port / URL",
+        "command": "chanh.editServerPort",
+        "title": "Chanh: Edit Server Port / URL",
         "icon": "$(edit)"
       }
     ],
     "viewsContainers": {
       "activitybar": [
         {
-          "id": "LEMON_SIDEBAR",
-          "title": "Lemon",
-          "icon": "media/lemon.svg"
+          "id": "CHANH_SIDEBAR",
+          "title": "Chanh",
+          "icon": "media/chanh.svg"
         }
       ]
     },
     "views": {
-      "LEMON_SIDEBAR": [
+      "CHANH_SIDEBAR": [
         {
-          "id": "LEMON_TREEVIEW",
+          "id": "CHANH_TREEVIEW",
           "name": "Server",
           "icon": "$(server)"
         }
@@ -163,102 +162,102 @@
     "menus": {
       "view/title": [
         {
-          "command": "lemon.refreshServer",
-          "when": "view == LEMON_TREEVIEW",
+          "command": "chanh.refreshServer",
+          "when": "view == CHANH_TREEVIEW",
           "group": "navigation"
         },
         {
-          "command": "lemon.openSettings",
-          "when": "view == LEMON_TREEVIEW",
+          "command": "chanh.openSettings",
+          "when": "view == CHANH_TREEVIEW",
           "group": "navigation"
         }
       ],
       "view/item/context": [
         {
-          "command": "lemon.selectServer",
-          "when": "view == LEMON_TREEVIEW && viewItem == LEMON_SERVER_HEADER",
+          "command": "chanh.selectServer",
+          "when": "view == CHANH_TREEVIEW && viewItem == CHANH_SERVER_HEADER",
           "group": "inline"
         },
         {
-          "command": "lemon.openServerUrl",
-          "when": "view == LEMON_TREEVIEW && viewItem == LEMOND_SERVER_URL",
+          "command": "chanh.openServerUrl",
+          "when": "view == CHANH_TREEVIEW && viewItem == CHANHD_SERVER_URL",
           "group": "inline"
         },
         {
-          "command": "lemon.editServerPort",
-          "when": "view == LEMON_TREEVIEW && viewItem == LEMOND_SERVER_URL",
+          "command": "chanh.editServerPort",
+          "when": "view == CHANH_TREEVIEW && viewItem == CHANHD_SERVER_URL",
           "group": "inline"
         },
         {
-          "command": "lemon.downloadModel",
-          "when": "view == LEMON_TREEVIEW && viewItem == LEMOND_DOWNLOADABLE_MODEL",
+          "command": "chanh.downloadModel",
+          "when": "view == CHANH_TREEVIEW && viewItem == CHANHD_DOWNLOADABLE_MODEL",
           "group": "inline"
         },
         {
-          "command": "lemon.toggleModelGrouping",
-          "when": "view == LEMON_TREEVIEW && viewItem == LEMOND_MODELS_HEADER",
+          "command": "chanh.toggleModelGrouping",
+          "when": "view == CHANH_TREEVIEW && viewItem == CHANHD_MODELS_HEADER",
           "group": "inline"
         },
         {
-          "command": "lemon.startServer",
-          "when": "view == LEMON_TREEVIEW && (viewItem == LEMON_SERVER_STOPPED || viewItem == LEMON_SERVER_ERROR) && config.lemon.targetServer == embedded",
+          "command": "chanh.startServer",
+          "when": "view == CHANH_TREEVIEW && (viewItem == CHANH_SERVER_STOPPED || viewItem == CHANH_SERVER_ERROR) && config.chanh.targetServer == embedded",
           "group": "inline"
         },
         {
-          "command": "lemon.stopServer",
-          "when": "view == LEMON_TREEVIEW && viewItem == LEMON_SERVER_RUNNING && config.lemon.targetServer == embedded",
+          "command": "chanh.stopServer",
+          "when": "view == CHANH_TREEVIEW && viewItem == CHANH_SERVER_RUNNING && config.chanh.targetServer == embedded",
           "group": "inline"
         },
         {
-          "command": "lemon.loadModel",
-          "when": "view == LEMON_TREEVIEW && viewItem == LEMOND_MODEL_AVAILABLE",
+          "command": "chanh.loadModel",
+          "when": "view == CHANH_TREEVIEW && viewItem == CHANHD_MODEL_AVAILABLE",
           "group": "inline"
         },
         {
-          "command": "lemon.unloadModel",
-          "when": "view == LEMON_TREEVIEW && (viewItem == LEMOND_MODEL_LOADED || viewItem == LEMOND_LOADED_MODEL)",
+          "command": "chanh.unloadModel",
+          "when": "view == CHANH_TREEVIEW && (viewItem == CHANHD_MODEL_LOADED || viewItem == CHANHD_LOADED_MODEL)",
           "group": "inline"
         },
         {
-          "command": "lemon.removeModel",
-          "when": "view == LEMON_TREEVIEW && (viewItem == LEMOND_MODEL_AVAILABLE || viewItem == LEMOND_MODEL_LOADED || viewItem == LEMOND_LOADED_MODEL)",
+          "command": "chanh.removeModel",
+          "when": "view == CHANH_TREEVIEW && (viewItem == CHANHD_MODEL_AVAILABLE || viewItem == CHANHD_MODEL_LOADED || viewItem == CHANHD_LOADED_MODEL)",
           "group": "2_remove"
         },
         {
-          "command": "lemon.retryModel",
-          "when": "view == LEMON_TREEVIEW && viewItem == LEMOND_PARTIAL_MODEL",
+          "command": "chanh.retryModel",
+          "when": "view == CHANH_TREEVIEW && viewItem == CHANHD_PARTIAL_MODEL",
           "group": "inline"
         },
         {
-          "command": "lemon.removeModel",
-          "when": "view == LEMON_TREEVIEW && viewItem == LEMOND_PARTIAL_MODEL",
+          "command": "chanh.removeModel",
+          "when": "view == CHANH_TREEVIEW && viewItem == CHANHD_PARTIAL_MODEL",
           "group": "2_remove"
         }
       ]
     },
     "configuration": {
-      "title": "Lemon",
+      "title": "Chanh",
       "properties": {
-        "lemon.standalonePort": {
+        "chanh.standalonePort": {
           "type": "number",
           "default": 13305,
           "description": "Port for the standalone Lemonade Server"
         },
-        "lemon.embeddedPort": {
+        "chanh.embeddedPort": {
           "type": "number",
           "default": 8000,
-          "description": "Port for the embedded lemon server"
+          "description": "Port for the embedded lemond server"
         },
-        "lemon.chatModel": {
+        "chanh.chatModel": {
           "type": "string",
           "description": "Last model to use for chat (leave empty to be prompted)"
         },
-        "lemon.customServerUrl": {
+        "chanh.customServerUrl": {
           "type": "string",
           "default": "",
-          "description": "Custom Lemonade Server URL to use when lemon.targetServer is \"custom\" (e.g., http://localhost:13305)"
+          "description": "Custom Lemonade Server URL to use when chanh.targetServer is \"custom\" (e.g., http://localhost:13305)"
         },
-        "lemon.targetServer": {
+        "chanh.targetServer": {
           "type": "string",
           "enum": [
             "standalone",
@@ -266,9 +265,9 @@
             "custom"
           ],
           "default": "standalone",
-          "description": "Which Lemonade Server to use for chat. \"standalone\" requires an existing system-installed server; \"embedded\" always runs the bundled binary; \"custom\" connects to lemon.customServerUrl."
+          "description": "Which Lemonade Server to use for chat. \"standalone\" requires an existing system-installed server; \"embedded\" always runs the bundled binary; \"custom\" connects to chanh.customServerUrl."
         },
-        "lemon.maxLoadedModels": {
+        "chanh.maxLoadedModels": {
           "type": "number",
           "description": "Maximum number of loaded models (for each type?), Use -1 for unlimited."
         }
@@ -300,10 +299,10 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/lanly-dev/vscode-lemon.git"
+    "url": "git+https://github.com/lanly-dev/vscode-chanh.git"
   },
   "bugs": {
-    "url": "https://github.com/lanly-dev/vscode-lemon/issues"
+    "url": "https://github.com/lanly-dev/vscode-chanh/issues"
   },
   "license": "MIT"
 }

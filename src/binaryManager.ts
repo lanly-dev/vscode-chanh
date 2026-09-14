@@ -75,7 +75,7 @@ export class BinaryManager {
     return new Promise((resolve, reject) => {
       const options = {
         headers: {
-          'User-Agent': 'vscode-lemon-extension',
+          'User-Agent': 'vscode-chanh-extension',
           Accept: 'application/vnd.github+json'
         }
       }
@@ -342,7 +342,7 @@ export class BinaryManager {
 
   /** Check for updates and optionally install them. */
   async checkForUpdates(): Promise<void> {
-    const mode = vscode.workspace.getConfiguration('lemon').get<string>('targetServer')
+    const mode = vscode.workspace.getConfiguration('chanh').get<string>('targetServer')
     if (mode !== 'embedded') return
     if (!this.isBinaryInstalled()) {
       Logger.info('Binary not installed, skipping update check')

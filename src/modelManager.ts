@@ -154,11 +154,11 @@ export class ModelManager {
 
   /**
    * Prompt the user for a new maximum number of concurrently loaded models,
-   * persist the value to the lemon.maxLoadedModels config, and if the embedded
+   * persist the value to the chanh.maxLoadedModels config, and if the embedded
    * server is running, push it to the running server immediately.
    */
   async setMaxLoadedModels(): Promise<void> {
-    const config = workspace.getConfiguration('lemon')
+    const config = workspace.getConfiguration('chanh')
     const current = config.get<number>('maxLoadedModels', 1)
     const currentText = current === -1 ? 'Unlimited' : String(current)
 
@@ -180,7 +180,7 @@ export class ModelManager {
     const n = Number(value)
     try {
       await config.update('maxLoadedModels', n, ConfigurationTarget.Global)
-      Logger.info(`Set lemon.maxLoadedModels to ${n}`)
+      Logger.info(`Set chanh.maxLoadedModels to ${n}`)
 
       if (this.serverManager.status === ServerStatus.RUNNING) {
         await this.client.updateConfig({ max_loaded_models: n })

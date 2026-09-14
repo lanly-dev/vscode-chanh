@@ -33,7 +33,7 @@ export class ServerManager {
   private statusChangeCallbacks: Array<(status: ServerStatus) => void> = []
 
   constructor(private binaryManager: BinaryManager) {
-    const config = workspace.getConfiguration('lemon')
+    const config = workspace.getConfiguration('chanh')
     const mode = config.get<TargetServer>('targetServer', TargetServer.STANDALONE)
     this._embedPort = config.get<number>('embeddedPort', 8000)
     this._standalonePort = config.get<number>('standalonePort', 13305)
@@ -99,7 +99,7 @@ export class ServerManager {
    * none is configured, e.g. custom mode with no URL).
    */
   async getActiveServer(): Promise<ServerInstance | null> {
-    const config = workspace.getConfiguration('lemon')
+    const config = workspace.getConfiguration('chanh')
     const mode = config.get<TargetServer>('targetServer')
 
     let instance: ServerInstance | null
@@ -256,9 +256,9 @@ export class ServerManager {
     this.selectionChangeCallbacks.push(callback)
   }
 
-  /** Apply the configured `lemon.targetServer` to the in-memory server selection. */
+  /** Apply the configured `chanh.targetServer` to the in-memory server selection. */
   applyConfiguredServerMode(): void {
-    const config = workspace.getConfiguration('lemon')
+    const config = workspace.getConfiguration('chanh')
     const mode = config.get<TargetServer>('targetServer', TargetServer.STANDALONE)
     switch (mode) {
       case TargetServer.STANDALONE:
@@ -284,7 +284,7 @@ export class ServerManager {
 
   /** Switch the selected server */
   private async selectServerHelper(): Promise<void> {
-    const config = workspace.getConfiguration('lemon')
+    const config = workspace.getConfiguration('chanh')
     const standalonePort = config.get<number>('standalonePort', 13305)
     const embeddedPort = config.get<number>('embeddedPort', 8000)
     const standaloneUrl = `http://localhost:${standalonePort}`
@@ -304,9 +304,9 @@ export class ServerManager {
 
     if (mode !== TargetServer.EMBEDDED) {
       items.push({
-        label: `$(server-process) lemon (Embedded)`,
+        label: `$(server-process) lemond (Embedded)`,
         description: embeddedUrl,
-        detail: `The lemon binary managed by this extension`
+        detail: `The lemond binary managed by this extension`
       })
     }
 
@@ -356,7 +356,7 @@ export class ServerManager {
    * handled by the onDidChangeConfiguration listener + a manual refresh.
    */
   async editServerPort(): Promise<void> {
-    const config = workspace.getConfiguration('lemon')
+    const config = workspace.getConfiguration('chanh')
     const mode = config.get<string>('targetServer', 'standalone')
 
     // Custom mode edits the URL; standalone/embedded edit the port.
@@ -423,14 +423,14 @@ export class ServerManager {
 
   /** Start the Lemonade Server. */
   async start(): Promise<boolean> {
-    const config = workspace.getConfiguration('lemon')
+    const config = workspace.getConfiguration('chanh')
     const serverMode = config.get<TargetServer>('targetServer', TargetServer.STANDALONE)
 
     // Custom mode: connect to a user-configured URL instead of launching a process.
     if (serverMode === TargetServer.CUSTOM) {
       const customUrl = config.get<string>('customServerUrl', '')
       if (!customUrl) {
-        showErrorMessage('No custom Lemonade Server URL configured. Set lemon.customServerUrl in settings first.')
+        showErrorMessage('No custom Lemonade Server URL configured. Set chanh.customServerUrl in settings first.')
         this.setStatus(ServerStatus.ERROR)
         return false
       }
@@ -479,15 +479,15 @@ export class ServerManager {
       }
       this.setStatus(ServerStatus.ERROR)
       showErrorMessage(
-        'Standalone Lemonade Server is not running. Start it, or set lemon.targetServer to "embedded" or "custom".'
+        'Standalone Lemonade Server is not running. Start it, or set chanh.targetServer to "embedded" or "custom".'
       )
       return false
     }
 
     // Embedded mode: always start the embedded binary (do not auto-connect to standalone).
-    if (serverMode === TargetServer.EMBEDDED) this.setSelectedServer(this.url, 'lemon (Embedded)')
+    if (serverMode === TargetServer.EMBEDDED) this.setSelectedServer(this.url, 'lemond (Embedded)')
 
-    // No standalone server found (or embedded mode forced), start embedded lemon
+    // No standalone server found (or embedded mode forced), start embedded lemond
     this._client = new LemonadeClient(`http://localhost:${this._embedPort}`)
 
     // Check if the embedded port is in use by something else
@@ -506,7 +506,7 @@ export class ServerManager {
         )
         this._usingExistingServer = true
         this._client = new LemonadeClient(`http://localhost:${this._embedPort}`)
-        this.setSelectedServer(`http://localhost:${this._embedPort}`, 'lemon (Embedded)')
+        this.setSelectedServer(`http://localhost:${this._embedPort}`, 'lemond (Embedded)')
         this.setStatus(ServerStatus.RUNNING)
         showInformationMessage(
           `Connected to existing embedded Lemonade Server at http://localhost:${this._embedPort}`
@@ -521,8 +521,8 @@ export class ServerManager {
         : `unknown process (PID available via netstat port ${this._embedPort})`
       showInformationMessage(
         `Port ${this._embedPort} is already in use by: ${owner}. ` +
-        'If this is your own Lemonade server, connect to it via lemon.targetServer ' +
-        'instead of starting a new embedded one, or change lemon.embeddedPort.'
+        'If this is your own Lemonade server, connect to it via chanh.targetServer ' +
+        'instead of starting a new embedded one, or change chanh.embeddedPort.'
       )
       this.setStatus(ServerStatus.ERROR)
       return false
@@ -542,11 +542,11 @@ export class ServerManager {
     const binaryPath = this.binaryManager.binaryPath
     const workingDir = this.binaryManager.binaryDir
 
-    // Write config.json with the embedded port so lemon uses it.
+    // Write config.json with the embedded port so lemond uses it.
     // Use default cache directory to avoid Windows permission issues.
     try {
       const configPath = path.join(workingDir, 'config.json')
-      const config = workspace.getConfiguration('lemon')
+      const config = workspace.getConfiguration('chanh')
       const maxLoadedModels = config.get<number>('maxLoadedModels', 1)
       const configData = {
         port: this._embedPort,
@@ -559,7 +559,7 @@ export class ServerManager {
     }
 
     try {
-      // lemon [cache_dir] [--port PORT] [--host HOST]
+      // lemond [cache_dir] [--port PORT] [--host HOST]
       this.process = spawn(binaryPath, [workingDir, '--port', String(this._embedPort)], {
         cwd: workingDir,
         env: { ...process.env },
@@ -577,13 +577,13 @@ export class ServerManager {
     this._processExited = false
     this.process.stdout?.on('data', (data: Buffer) => {
       const text = data.toString().trim()
-      if (text) Logger.info(`[lemon] ${text}`)
+      if (text) Logger.info(`[chanh] ${text}`)
     })
 
     this.process.stderr?.on('data', (data: Buffer) => {
       const text = data.toString().trim()
       if (!text) return
-      Logger.warn(`[lemon] ${text}`)
+      Logger.warn(`[chanh] ${text}`)
       // The lemond process reports a fatal startup error (e.g. port already
       // in use) through its own logs. Surface it to the user as an error popup.
       if (!this._fatalErrorShown && /already in use|ERROR|will now exit/i.test(text)) {
@@ -608,7 +608,7 @@ export class ServerManager {
     // Wait for the server to be ready
     const ready = await this.waitForReady()
     if (ready) {
-      this.setSelectedServer(`http://localhost:${this._embedPort}`, 'lemon (Embedded)')
+      this.setSelectedServer(`http://localhost:${this._embedPort}`, 'lemond (Embedded)')
       this.setStatus(ServerStatus.RUNNING)
       Logger.info('Lemonade Server is ready')
       showInformationMessage('Lemonade Server started successfully')

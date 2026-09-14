@@ -1,4 +1,4 @@
-# Lemon 🍋
+# Chanh 🍋
 A VS Code extension that downloads, hosts, and runs the [Lemonade Server](https://lemonade-server.ai/) embeddable binary (`lemond`) locally, enabling AI chat with local LLMs directly in VS Code.
 <a href="https://marketplace.visualstudio.com/items?itemName=	lanly-dev.chanh" target="_blank">
   <img src='https://code.visualstudio.com/favicon.ico' width='10'/>
@@ -16,10 +16,10 @@ A VS Code extension that downloads, hosts, and runs the [Lemonade Server](https:
 - Managing/downloading lemonade models
 - Chatting integration
 
-<img src='https://github.com/lanly-dev/vscode-lemon/blob/main/media/treeview.png?raw=true' width='450'/>
+<img src='https://github.com/lanly-dev/vscode-chanh/blob/main/media/treeview.png?raw=true' width='450'/>
 
 ## Chat Commands
-The `@lemon` chat participant supports the following slash commands:
+The `@chanh` chat participant supports the following slash commands:
 
 - `/fix` - Generate a fix for the selected code
 - `/explain` - Explain the selected code
@@ -27,21 +27,21 @@ The `@lemon` chat participant supports the following slash commands:
 ## Configuration
 | Setting | Default | Description |
 |---------|---------|-------------|
-| `lemon.chatModel` | `""` | Model to use for chat (leave empty to be prompted) |
-| `lemon.customServerUrl` | (unset) | Custom Lemonade Server URL used when `lemon.targetServer` is `"custom"` (e.g., http://localhost:13305) |
-| `lemon.embeddedPort` | `8000` | Port for the embedded lemon server |
-| `lemon.maxLoadedModels` | (unset) | Maximum number of loaded models. Use `-1` for unlimited. |
-| `lemon.standalonePort` | `13305` | Port for the standalone Lemonade Server |
-| `lemon.targetServer` | `"standalone"` | Which Lemonade Server to use: `standalone`, `embedded`, or `custom` |
+| `chanh.chatModel` | `""` | Model to use for chat (leave empty to be prompted) |
+| `chanh.customServerUrl` | (unset) | Custom Lemonade Server URL used when `chanh.targetServer` is `"custom"` (e.g., http://localhost:13305) |
+| `chanh.embeddedPort` | `8000` | Port for the embedded lemond server |
+| `chanh.maxLoadedModels` | (unset) | Maximum number of loaded models. Use `-1` for unlimited. |
+| `chanh.standalonePort` | `13305` | Port for the standalone Lemonade Server |
+| `chanh.targetServer` | `"standalone"` | Which Lemonade Server to use: `standalone`, `embedded`, or `custom` |
 
 ## Server Mode Selection
-You can choose which Lemonade server the extension uses by setting **`lemon.targetServer`** (`Lemon: Select Server` lets you pick from the command palette, which updates this setting automatically):
+You can choose which Lemonade server the extension uses by setting **`chanh.targetServer`** (`Chanh: Select Server` lets you pick from the command palette, which updates this setting automatically):
 
 | Value | Behavior |
 |-------|----------|
 | `standalone` (default) | Connects to an existing system-installed standalone Lemonade Server. |
 | `embedded` | Always starts the bundled `lemond` binary. |
-| `custom` | Connects to the URL in `lemon.customServerUrl`. |
+| `custom` | Connects to the URL in `chanh.customServerUrl`. |
 
 ## Release Notes
 

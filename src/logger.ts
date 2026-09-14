@@ -6,7 +6,7 @@ export class Logger {
 
   static init(): void {
     if (Logger.channel) return
-    Logger.channel = vscode.window.createOutputChannel('Lemon')
+    Logger.channel = vscode.window.createOutputChannel('Chanh')
   }
 
   static info(message: string): void {

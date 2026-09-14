@@ -1,10 +1,11 @@
 # Change Log
-All notable changes to the "Lemon" extension will be documented in this file.\
+All notable changes to the "Chanh" extension will be documented in this file.\
 Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how to structure this file.
 
 ## [Unreleased]
 - Explore and add functionality for different types of models
 - Focus on coding-related function
+## [0.1.0]
 
 ## [0.0.1, 0.0.2] - 2026-09-02
 - Initial release

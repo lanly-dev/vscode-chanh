@@ -38,7 +38,7 @@ const GROUP_MODELS_KEY = 'groupModelsByCapability'
 
 /**
  * Tree data provider for the Servers view.
- * Shows both the standalone Lemonade app and the lemon app in a single tree.
+ * Shows both the standalone Lemonade app and the lemond app in a single tree.
  */
 export class ServerViewProvider implements TreeDataProvider<TreeItem> {
   private _onDidChangeTreeData = new vscode.EventEmitter<void>()
@@ -160,7 +160,7 @@ export class ServerViewProvider implements TreeDataProvider<TreeItem> {
     // Show single active server
     const serverHeader = new TreeItem(displayName, Expanded)
     serverHeader.iconPath = new vscode.ThemeIcon('server')
-    serverHeader.contextValue = 'LEMON_SERVER_HEADER'
+    serverHeader.contextValue = 'CHANH_SERVER_HEADER'
     serverHeader.tooltip = `Active server: ${displayName}\nURL: ${displayUrl}`
     items.push(serverHeader)
 
@@ -172,7 +172,7 @@ export class ServerViewProvider implements TreeDataProvider<TreeItem> {
       let color
       if (loadedModels.length) color = new vscode.ThemeColor('charts.yellow')
       loadedHeader.iconPath = new vscode.ThemeIcon('zap', color)
-      loadedHeader.contextValue = 'LEMOND_LOADED_HEADER'
+      loadedHeader.contextValue = 'CHANH_LOADED_HEADER'
       items.push(loadedHeader)
     }
 
@@ -180,7 +180,7 @@ export class ServerViewProvider implements TreeDataProvider<TreeItem> {
     if (this._downloads.size > 0) {
       const downloadingHeader = new TreeItem(`Downloading Models (${this._downloads.size})`, Expanded)
       downloadingHeader.iconPath = new vscode.ThemeIcon('cloud-download', new vscode.ThemeColor('charts.blue'))
-      downloadingHeader.contextValue = 'LEMOND_DOWNLOADING_HEADER'
+      downloadingHeader.contextValue = 'CHANH_DOWNLOADING_HEADER'
       items.push(downloadingHeader)
     }
 
@@ -188,7 +188,7 @@ export class ServerViewProvider implements TreeDataProvider<TreeItem> {
     if (this._partials.size > 0) {
       const partialHeader = new TreeItem(`Incomplete Downloads (${this._partials.size})`, Expanded)
       partialHeader.iconPath = new vscode.ThemeIcon('warning', new vscode.ThemeColor('charts.yellow'))
-      partialHeader.contextValue = 'LEMOND_PARTIAL_HEADER'
+      partialHeader.contextValue = 'CHANH_PARTIAL_HEADER'
       items.push(partialHeader)
     }
 
@@ -197,7 +197,7 @@ export class ServerViewProvider implements TreeDataProvider<TreeItem> {
     if (this._activeServer?.models) {
       const modelsHeader = new TreeItem(`Available Models (${this._activeServer.models.length})`, Expanded)
       modelsHeader.iconPath = new vscode.ThemeIcon('list-tree')
-      modelsHeader.contextValue = 'LEMOND_MODELS_HEADER'
+      modelsHeader.contextValue = 'CHANH_MODELS_HEADER'
       items.push(modelsHeader)
     }
 
@@ -206,21 +206,21 @@ export class ServerViewProvider implements TreeDataProvider<TreeItem> {
       const dlHeader = new TreeItem(
         `Downloadable Models (${this._activeServer.downloadableModels.length})`, Expanded)
       dlHeader.iconPath = new vscode.ThemeIcon('cloud-download')
-      dlHeader.contextValue = 'LEMOND_DOWNLOADABLE_HEADER'
+      dlHeader.contextValue = 'CHANH_DOWNLOADABLE_HEADER'
       items.push(dlHeader)
     }
     return items
   }
 
   private getChildrenForElement(element: TreeItem): TreeItem[] {
-    if (element.contextValue === 'LEMON_SERVER_HEADER') return this.getServerChildren(this._activeServer)
-    if (element.contextValue === 'LEMOND_LOADED_HEADER') return this.getLoadedModelChildren(element)
-    if (element.contextValue === 'LEMOND_DOWNLOADING_HEADER') return this.getDownloadingChildren()
-    if (element.contextValue === 'LEMOND_PARTIAL_HEADER') return this.getPartialDownloadChildren()
-    if (element.contextValue === 'LEMOND_PINNED_HEADER') return this.getPinnedModelChildren(element)
-    if (element.contextValue === 'LEMOND_MODELS_HEADER') return this.getModelChildren(element)
-    if (element.contextValue === 'LEMOND_DOWNLOADABLE_HEADER') return this.getDownloadableChildren()
-    if (element.contextValue === 'LEMOND_CAP_GROUP') return this.getCapabilityGroupChildren(element)
+    if (element.contextValue === 'CHANH_SERVER_HEADER') return this.getServerChildren(this._activeServer)
+    if (element.contextValue === 'CHANH_LOADED_HEADER') return this.getLoadedModelChildren(element)
+    if (element.contextValue === 'CHANH_DOWNLOADING_HEADER') return this.getDownloadingChildren()
+    if (element.contextValue === 'CHANH_PARTIAL_HEADER') return this.getPartialDownloadChildren()
+    if (element.contextValue === 'CHANH_PINNED_HEADER') return this.getPinnedModelChildren(element)
+    if (element.contextValue === 'CHANH_MODELS_HEADER') return this.getModelChildren(element)
+    if (element.contextValue === 'CHANH_DOWNLOADABLE_HEADER') return this.getDownloadableChildren()
+    if (element.contextValue === 'CHANH_CAP_GROUP') return this.getCapabilityGroupChildren(element)
     return []
   }
 
@@ -236,14 +236,14 @@ export class ServerViewProvider implements TreeDataProvider<TreeItem> {
       this.getStatusIcon(server.status),
       new vscode.ThemeColor(this.getStatusColor(server.status))
     )
-    statusItem.contextValue = `LEMON_SERVER_${server.status}`
+    statusItem.contextValue = `CHANH_SERVER_${server.status}`
     items.push(statusItem)
 
     // Server URL
     const urlItem = new TreeItem(server.url, None)
     urlItem.iconPath = new vscode.ThemeIcon('link')
     urlItem.tooltip = `Server URL: ${server.url}`
-    urlItem.contextValue = 'LEMOND_SERVER_URL'
+    urlItem.contextValue = 'CHANH_SERVER_URL'
     items.push(urlItem)
 
     // Version
@@ -261,7 +261,7 @@ export class ServerViewProvider implements TreeDataProvider<TreeItem> {
         : String(server.maxLoadedModels)
       const maxModelsItem = new TreeItem(`Max Loaded Models: ${maxModelsText}`, None)
       maxModelsItem.iconPath = new vscode.ThemeIcon('symbol-number')
-      const configLabel = server.id === 'lemon' ? ' (configured in settings)' : ''
+      const configLabel = server.id === 'lemond' ? ' (configured in settings)' : ''
       maxModelsItem.tooltip = `Maximum models that can be loaded simultaneously${configLabel}`
       items.push(maxModelsItem)
     }
@@ -275,7 +275,7 @@ export class ServerViewProvider implements TreeDataProvider<TreeItem> {
       const pinnedHeader = new TreeItem(`Pinned Models (${pinnedCount})`, Collapsed)
       const pinnedColor = pinnedCount > 0 ? new vscode.ThemeColor('charts.blue') : undefined
       pinnedHeader.iconPath = new vscode.ThemeIcon('pin', pinnedColor)
-      pinnedHeader.contextValue = 'LEMOND_PINNED_HEADER'
+      pinnedHeader.contextValue = 'CHANH_PINNED_HEADER'
       items.push(pinnedHeader)
     }
 
@@ -303,7 +303,7 @@ export class ServerViewProvider implements TreeDataProvider<TreeItem> {
       const item = new TreeItem(model.model_name, None)
       item.iconPath = new vscode.ThemeIcon('pass-filled', new vscode.ThemeColor('charts.green'))
       item.tooltip = `Model: ${model.model_name}\nBusy: ${model.is_busy}\nStreaming: ${model.is_streaming}`
-      item.contextValue = 'LEMOND_LOADED_MODEL'
+      item.contextValue = 'CHANH_LOADED_MODEL'
       item.description = model.is_busy ? 'busy' : 'idle'
       return item
     })
@@ -314,7 +314,7 @@ export class ServerViewProvider implements TreeDataProvider<TreeItem> {
     for (const download of this._downloads.values()) {
       const item = new TreeItem(download.modelId, None)
       item.iconPath = new vscode.ThemeIcon('loading~spin', new vscode.ThemeColor('charts.blue'))
-      item.contextValue = 'LEMOND_DOWNLOADING_MODEL'
+      item.contextValue = 'CHANH_DOWNLOADING_MODEL'
       item.tooltip = download.message ? `${download.modelId}\n${download.message}` : download.modelId
 
       const subtextParts: string[] = []
@@ -335,7 +335,7 @@ export class ServerViewProvider implements TreeDataProvider<TreeItem> {
       const item = new TreeItem(partial.modelId, None) as vscode.TreeItem & { modelId: string }
       item.modelId = partial.modelId
       item.iconPath = new vscode.ThemeIcon('warning', new vscode.ThemeColor('charts.yellow'))
-      item.contextValue = 'LEMOND_PARTIAL_MODEL'
+      item.contextValue = 'CHANH_PARTIAL_MODEL'
       item.description = partial.pct >= 0 ? `${Math.round(partial.pct)}% downloaded - incomplete` : 'incomplete'
       item.tooltip = `${partial.modelId}\nNot fully downloaded. Retry, or Remove to delete the partial file.`
       items.push(item)
@@ -403,10 +403,10 @@ export class ServerViewProvider implements TreeDataProvider<TreeItem> {
     if (sizeText) item.description = sizeText
     item.iconPath = new vscode.ThemeIcon('cloud-download')
     item.tooltip = `Downloadable model: ${model.id}${sizeText ? `\nSize: ${sizeText}` : ''}`
-    item.contextValue = 'LEMOND_DOWNLOADABLE_MODEL'
+    item.contextValue = 'CHANH_DOWNLOADABLE_MODEL'
     // Inline pull lives in package.json view/item/context; the row click
     // also triggers it via the viewItem's default command below.
-    item.command = { command: 'lemon.downloadModel', title: 'Download Model', arguments: [item] }
+    item.command = { command: 'chanh.downloadModel', title: 'Download Model', arguments: [item] }
     return item
   }
 
@@ -442,8 +442,8 @@ export class ServerViewProvider implements TreeDataProvider<TreeItem> {
 
     item.tooltip = tooltip
 
-    if (isLoaded) item.contextValue = 'LEMOND_MODEL_LOADED'
-    else item.contextValue = 'LEMOND_MODEL_AVAILABLE'
+    if (isLoaded) item.contextValue = 'CHANHD_MODEL_LOADED'
+    else item.contextValue = 'CHANHD_MODEL_AVAILABLE'
     return item
   }
 
@@ -469,7 +469,7 @@ export class ServerViewProvider implements TreeDataProvider<TreeItem> {
         const bucket = grouped.get(category) ?? []
         const title = CAPABILITY_TITLES[category] ?? category
         const item = new TreeItem(`${title} (${bucket.length})`, Expanded)
-        item.contextValue = 'LEMOND_CAP_GROUP'
+        item.contextValue = 'CHANH_CAP_GROUP'
         ; (item as vscode.TreeItem & { capability: string }).capability = category
         item.tooltip = `${bucket.length} model(s) with ${title} capability`
         // Capability groups wear the matching colored SVG; "other" gets a dot.

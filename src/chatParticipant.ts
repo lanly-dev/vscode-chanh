@@ -18,7 +18,7 @@ export class ChatParticipant {
     this.client = new LemonadeClient(`http://localhost:${serverManager.embeddedPort}`)
 
     // Create the chat participant
-    this.participant = vscode.chat.createChatParticipant('LEMON_CHAT', this.handleRequest.bind(this))
+    this.participant = vscode.chat.createChatParticipant('CHANH_CHAT', this.handleRequest.bind(this))
     this.participant.iconPath = new vscode.ThemeIcon('sparkle')
 
     // Update client when server status changes to running
@@ -49,7 +49,7 @@ export class ChatParticipant {
     if (this.selectedModel) return this.selectedModel
 
     // Use the configured chat model if one is set.
-    const config = vscode.workspace.getConfiguration('lemon')
+    const config = vscode.workspace.getConfiguration('chanh')
     const chatModel = config.get<string>('chatModel', '')
 
     if (chatModel) {
@@ -68,7 +68,7 @@ export class ChatParticipant {
 
       if (allModels.length === 0) {
         vscode.window.showWarningMessage(
-          'No models available. Please pull a model first using the "Lemon: Pull Model" command.'
+          'No models available. Please pull a model first using the "Chanh: Pull Model" command.'
         )
         return undefined
       }
@@ -76,7 +76,7 @@ export class ChatParticipant {
       if (models.length === 0) {
         vscode.window.showWarningMessage(
           `No chat-capable models found (label "chat"). ` +
-          'Pull a chat model or change the lemon.chatModelLabel setting.'
+          'Pull a chat model or change the chanh.chatModelLabel setting.'
         )
         return undefined
       }
@@ -130,7 +130,7 @@ export class ChatParticipant {
       } else {
         response.markdown(
           'Lemonade Server is not running. '
-          + 'Please start it using the "Lemon: Start Server" command.'
+          + 'Please start it using the "Chanh: Start Server" command.'
         )
         return { errorDetails: { message: 'Server not running' } }
       }
@@ -140,8 +140,8 @@ export class ChatParticipant {
     const model = await this.getModel()
     if (!model) {
       response.markdown(
-        'No model is loaded. Please load a model first using the "Lemon: Load Model" command '
-        + 'or pull a model using the "Lemon: Pull Model" command.'
+        'No model is loaded. Please load a model first using the "Chanh: Load Model" command '
+        + 'or pull a model using the "Chanh: Pull Model" command.'
       )
       return { errorDetails: { message: 'No model available' } }
     }
@@ -229,6 +229,6 @@ export class ChatParticipant {
 
   /** Open the chat view with our participant. */
   static async openChat(): Promise<void> {
-    await vscode.commands.executeCommand('workbench.action.chat.open', { participant: 'LEMON_CHAT' })
+    await vscode.commands.executeCommand('workbench.action.chat.open', { participant: 'CHANH_CHAT' })
   }
 }

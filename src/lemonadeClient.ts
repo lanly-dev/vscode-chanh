@@ -107,7 +107,7 @@ export class LemonadeClient {
     if (status !== 200) {
       throw new Error(
         status === 409 && /slots_pinned_error/.test(data)
-          ? 'A model of this type is already loaded. Unload it first via "Lemon: Unload Model".'
+          ? 'A model of this type is already loaded. Unload it first via "Chanh: Unload Model".'
           : `Failed to load model: ${status} ${data}`
       )
     }

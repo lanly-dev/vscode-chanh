@@ -2,7 +2,7 @@ import * as vscode from 'vscode'
 
 import { BinaryManager } from './binaryManager'
 import { ChatParticipant } from './chatParticipant'
-import { LemonLanguageModelProvider } from './langModelsProvider'
+import { ChanhLanguageModelProvider } from './langModelsProvider'
 import { Logger } from './logger'
 import { ModelDecorationProvider } from './modelDecorations'
 import { ModelManager } from './modelManager'
@@ -24,29 +24,29 @@ export async function activate(context: vscode.ExtensionContext) {
   const chatParticipant = new ChatParticipant(context, serverManager)
 
   // Expose Lemonade models in the native VS Code model picker (like Ollama).
-  const lmProvider = new LemonLanguageModelProvider(serverManager)
+  const lmProvider = new ChanhLanguageModelProvider(serverManager)
 
-  const d1 = rc('lemon.startServer', () => serverManager.start())
-  const d2 = rc('lemon.stopServer', () => serverManager.stop())
-  const d3 = rc('lemon.downloadBinary', () => binaryManager.downloadBinary())
-  const d4 = rc('lemon.openChat', ChatParticipant.openChat)
-  const d5 = rc('lemon.openSettings', openSetting)
-  const d6 = rc('lemon.downloadModel', (item: { modelId: string }) => modelManager.downloadModel(item))
-  const d7 = rc('lemon.loadModel', (item: { modelId: string }) => modelManager.loadModel(item.modelId))
-  const d8 = rc('lemon.unloadModel', (item: { modelId: string }) => modelManager.unloadModel(item.modelId))
-  const d9 = rc('lemon.selectChatModel', async () => modelManager.selectChatModel(chatParticipant))
-  const d10 = rc('lemon.refreshServer', () => refreshEvents.fire())
-  const d11 = rc('lemon.setMaxLoadedModels', () => modelManager.setMaxLoadedModels())
-  const d12 = rc('lemon.selectServer', () => serverManager.selectServer())
-  const d13 = rc('lemon.openServerUrl', openUrl)
-  const d14 = rc('lemon.editServerPort', () => serverManager.editServerPort())
+  const d1 = rc('chanh.startServer', () => serverManager.start())
+  const d2 = rc('chanh.stopServer', () => serverManager.stop())
+  const d3 = rc('chanh.downloadBinary', () => binaryManager.downloadBinary())
+  const d4 = rc('chanh.openChat', ChatParticipant.openChat)
+  const d5 = rc('chanh.openSettings', openSetting)
+  const d6 = rc('chanh.downloadModel', (item: { modelId: string }) => modelManager.downloadModel(item))
+  const d7 = rc('chanh.loadModel', (item: { modelId: string }) => modelManager.loadModel(item.modelId))
+  const d8 = rc('chanh.unloadModel', (item: { modelId: string }) => modelManager.unloadModel(item.modelId))
+  const d9 = rc('chanh.selectChatModel', async () => modelManager.selectChatModel(chatParticipant))
+  const d10 = rc('chanh.refreshServer', () => refreshEvents.fire())
+  const d11 = rc('chanh.setMaxLoadedModels', () => modelManager.setMaxLoadedModels())
+  const d12 = rc('chanh.selectServer', () => serverManager.selectServer())
+  const d13 = rc('chanh.openServerUrl', openUrl)
+  const d14 = rc('chanh.editServerPort', () => serverManager.editServerPort())
 
-  const d15 = rc('lemon.removeModel', async (item: { modelId: string }) => modelManager.deleteModel(item.modelId))
-  const d16 = rc('lemon.retryModel', (item: { modelId: string }) => modelManager.startPull(item.modelId))
+  const d15 = rc('chanh.removeModel', async (item: { modelId: string }) => modelManager.deleteModel(item.modelId))
+  const d16 = rc('chanh.retryModel', (item: { modelId: string }) => modelManager.startPull(item.modelId))
   const d17 = listenConfigsChange(serverManager)
   const d18 = lmProvider.register()
   const d19 = lmProvider
-  const d20 = rc('lemon.toggleModelGrouping', () => provider.toggleModelGrouping())
+  const d20 = rc('chanh.toggleModelGrouping', () => provider.toggleModelGrouping())
   const d21 = vscode.window.registerFileDecorationProvider(
     new ModelDecorationProvider()
   )
@@ -60,14 +60,14 @@ export async function activate(context: vscode.ExtensionContext) {
 
 function listenConfigsChange(serverManager: ServerManager) {
   return vscode.workspace.onDidChangeConfiguration(async (e) => {
-    const settings = ['lemon.targetServer', 'lemon.customServerUrl', 'lemon.standalonePort', 'lemon.embeddedPort']
+    const settings = ['chanh.targetServer', 'chanh.customServerUrl', 'chanh.standalonePort', 'chanh.embeddedPort']
 
     if (settings.some((setting) => e.affectsConfiguration(setting))) {
       serverManager.applyConfiguredServerMode()
 
       // When the user switches away from embedded mode, stop the local embedded process
       // it's no longer the active server.
-      const config = vscode.workspace.getConfiguration('lemon')
+      const config = vscode.workspace.getConfiguration('chanh')
       const newMode = config.get<string>('targetServer', 'standalone')
       // TODO: Check if stop before switching away from embedded mode
       if (newMode !== 'embedded') await serverManager.stop()
@@ -80,7 +80,7 @@ function listenConfigsChange(serverManager: ServerManager) {
 // Register tree view for Lemonade status
 async function createTreeView(context: vscode.ExtensionContext, serverManager: ServerManager) {
   const provider = new ServerViewProvider(context, serverManager)
-  vscode.window.createTreeView('LEMON_TREEVIEW', { treeDataProvider: provider, showCollapseAll: true })
+  vscode.window.createTreeView('CHANH_TREEVIEW', { treeDataProvider: provider, showCollapseAll: true })
   await refreshEvents.fire()
   return provider
 }

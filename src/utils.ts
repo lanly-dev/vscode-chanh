@@ -13,7 +13,7 @@ export function formatBytes(value: number): string {
 }
 
 export function openSetting(): void {
-  vscode.commands.executeCommand('workbench.action.openSettings', '@ext:lanly-dev.lemon')
+  vscode.commands.executeCommand('workbench.action.openSettings', '@ext:lanly-dev.chanh')
 }
 
 export function openUrl(item: vscode.TreeItem): void {
