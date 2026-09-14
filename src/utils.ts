@@ -1,5 +1,10 @@
 import * as vscode from 'vscode'
 
+export function getCapIcon(uri: vscode.Uri, category: string): vscode.ThemeIcon | vscode.Uri {
+  if (category === 'other') return new vscode.ThemeIcon('circle-filled')
+  return vscode.Uri.joinPath(uri, 'media', 'capabilities', `${category}.svg`)
+}
+
 /** Format a byte count as a human-readable size (e.g. 1.2 GB). */
 export function formatBytes(value: number): string {
   const units = ['B', 'KB', 'MB', 'GB', 'TB']

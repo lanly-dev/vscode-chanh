@@ -1,29 +1,26 @@
 import {
-  ExtensionContext,
   EventEmitter,
+  ExtensionContext,
   ThemeColor,
   ThemeIcon,
   TreeDataProvider,
   TreeItem,
-  TreeItemCollapsibleState,
-  Uri
+  TreeItemCollapsibleState
 } from 'vscode'
 const { Collapsed, Expanded, None } = TreeItemCollapsibleState
 
+import { formatBytes, getCapIcon } from './utils'
+import { ModelDecorationProvider } from './modelDecorations'
+import { ModelManager } from './modelManager'
 import { refreshEvents } from './events'
 import { ServerManager } from './serverManager'
 import { ServerStatus } from './interfaces'
-import { ModelManager } from './modelManager'
-import { formatBytes } from './utils'
 
 import type { DownloadProgress, LemonadeModel, ServerInstance } from './interfaces'
 
-import { ModelDecorationProvider } from './modelDecorations'
 
 /** Capability grouping order and display titles for the tree view. */
-const CAPABILITY_ORDER = [
-  'llm', 'embedding', 'reranking', 'classification', 'transcription', 'tts', 'image', '3d'
-]
+const CAPABILITY_ORDER = ['llm', 'embedding', 'reranking', 'classification', 'transcription', 'tts', 'image', '3d']
 
 const CAPABILITY_TITLES: Readonly<Record<string, string>> = {
   llm: 'LLM / Chat',
@@ -58,19 +55,16 @@ export class ServerViewProvider implements TreeDataProvider<TreeItem> {
 
   /** In-progress model downloads, keyed by model id. */
   private _downloads = new Map<string, DownloadProgress>()
-
   /** Partial (incomplete) downloads, keyed by model id. */
   private _partials = new Map<string, DownloadProgress>()
 
   /** Whether available models are grouped by capability. */
-  private _groupModels = false
-
+  private _groupAvaModels = false
   /** Whether downloadable catalog models are grouped by capability. */
-  private _groupDownloadableModels = false
+  private _groupDowModels = false
 
   constructor(private context: ExtensionContext, private serverManager: ServerManager) {
-    // Refresh whenever another part of the extension fires the shared event,
-    // or when the underlying server status changes.
+    // Refresh whenever another part of the extension fires the shared event, or when the server status changes.
     refreshEvents.onDidRequestRefresh(() => this.refresh())
     serverManager.onStatusChange(() => this.refresh())
 
@@ -84,21 +78,21 @@ export class ServerViewProvider implements TreeDataProvider<TreeItem> {
       })
     }
 
-    this._groupModels = this.context.workspaceState.get<boolean>(GROUP_MODELS_KEY, false)
-    this._groupDownloadableModels = this.context.workspaceState.get<boolean>(GROUP_DOWNLOADABLE_MODELS_KEY, false)
+    this._groupAvaModels = this.context.workspaceState.get<boolean>(GROUP_MODELS_KEY, false)
+    this._groupDowModels = this.context.workspaceState.get<boolean>(GROUP_DOWNLOADABLE_MODELS_KEY, false)
   }
 
   /** Flip the group-models-by-capability toggle, persist it, and refresh. */
   toggleModelGrouping(): void {
-    this._groupModels = !this._groupModels
-    void this.context.workspaceState.update(GROUP_MODELS_KEY, this._groupModels)
+    this._groupAvaModels = !this._groupAvaModels
+    void this.context.workspaceState.update(GROUP_MODELS_KEY, this._groupAvaModels)
     this.refresh()
   }
 
   /** Flip the group-downloadable-models-by-capability toggle, persist it, and refresh. */
   toggleDlModelGrouping(): void {
-    this._groupDownloadableModels = !this._groupDownloadableModels
-    void this.context.workspaceState.update(GROUP_DOWNLOADABLE_MODELS_KEY, this._groupDownloadableModels)
+    this._groupDowModels = !this._groupDowModels
+    void this.context.workspaceState.update(GROUP_DOWNLOADABLE_MODELS_KEY, this._groupDowModels)
     this.refresh()
   }
 
@@ -224,8 +218,7 @@ export class ServerViewProvider implements TreeDataProvider<TreeItem> {
 
     // Downloadable (not-yet-downloaded catalog) models section
     if (this._activeServer?.downloadableModels) {
-      const dlHeader = new TreeItem(
-        `Downloadable Models (${this._activeServer.downloadableModels.length})`, Expanded)
+      const dlHeader = new TreeItem(`Downloadable Models (${this._activeServer.downloadableModels.length})`, Expanded)
       dlHeader.iconPath = new ThemeIcon('cloud-download')
       dlHeader.contextValue = 'CHANH_DOWNLOADABLE_HEADER'
       items.push(dlHeader)
@@ -277,9 +270,7 @@ export class ServerViewProvider implements TreeDataProvider<TreeItem> {
 
     // Max loaded models
     if (server.maxLoadedModels !== undefined) {
-      const maxModelsText = server.maxLoadedModels === -1
-        ? 'Unlimited'
-        : String(server.maxLoadedModels)
+      const maxModelsText = server.maxLoadedModels === -1 ? 'Unlimited' : String(server.maxLoadedModels)
       const maxModelsItem = new TreeItem(`Max Loaded Models: ${maxModelsText}`, None)
       maxModelsItem.iconPath = new ThemeIcon('symbol-number')
       const configLabel = server.id === 'lemond' ? ' (configured in settings)' : ''
@@ -397,7 +388,7 @@ export class ServerViewProvider implements TreeDataProvider<TreeItem> {
       return [noModelsItem]
     }
 
-    if (this._groupModels) return this.getCapabilityGroups(server.models)
+    if (this._groupAvaModels) return this.getCapabilityGroups(server.models)
 
     const loadedIds = new Set(server.health?.all_models_loaded.map((m) => m.model_name) ?? [])
     return server.models.map((model) => this.toModelItem(model, loadedIds.has(model.id)))
@@ -411,7 +402,7 @@ export class ServerViewProvider implements TreeDataProvider<TreeItem> {
       none.iconPath = new ThemeIcon('check')
       return [none]
     }
-    if (this._groupDownloadableModels) return this.getCapabilityGroups(models, true)
+    if (this._groupDowModels) return this.getCapabilityGroups(models, true)
     return models.map((model) => this.toDownloadableItem(model))
   }
 
@@ -419,15 +410,13 @@ export class ServerViewProvider implements TreeDataProvider<TreeItem> {
   private toDownloadableItem(model: LemonadeModel): TreeItem {
     const item = new TreeItem(model.id, None) as TreeItem & { modelId: string }
     item.modelId = model.id
-    const sizeText = model.size && model.size > 0
-      ? (model.size >= 1024 ? `${(model.size / 1024).toFixed(1)} TB` : `${model.size.toFixed(2)} GB`)
-      : ''
+    const sizeText = formatBytes(model.size ?? 0)
     if (sizeText) item.description = sizeText
     // Hot models get the flame icon so the user can spot them at a glance;
     // non-hot downloadable models keep the cloud-download icon.
     const isHot = ModelManager.isHotModel(model)
     item.iconPath = isHot
-      ? Uri.joinPath(this.context.extensionUri, 'media', 'capabilities', 'hot.svg')
+      ? getCapIcon(this.context.extensionUri, 'hot')
       : new ThemeIcon('cloud-download')
 
     let tooltip = `Downloadable model: ${model.id}${sizeText ? `\nSize: ${sizeText}` : ''}`
@@ -465,17 +454,14 @@ export class ServerViewProvider implements TreeDataProvider<TreeItem> {
 
     // Unloaded hot models wear the flame when grouped by capability; in the
     // flat list the flame is suppressed so no per-model marker is needed.
-    if (showHotFlame && isHot && !isLoaded)
-      item.iconPath = Uri.joinPath(this.context.extensionUri, 'media', 'capabilities', 'hot.svg')
-    else if (isLoaded)
-      item.iconPath = new ThemeIcon('pass-filled', new ThemeColor('charts.green'))
-    else
-      item.iconPath = new ThemeIcon('circle')
+    if (showHotFlame && isHot && !isLoaded) item.iconPath = getCapIcon(this.context.extensionUri, 'hot')
+    else if (isLoaded) item.iconPath = new ThemeIcon('pass-filled', new ThemeColor('charts.green'))
+    else item.iconPath = new ThemeIcon('circle')
 
     item.tooltip = tooltip
 
-    if (isLoaded) item.contextValue = 'CHANHD_MODEL_LOADED'
-    else item.contextValue = 'CHANHD_MODEL_AVAILABLE'
+    if (isLoaded) item.contextValue = 'CHANH_MODEL_LOADED'
+    else item.contextValue = 'CHANH_MODEL_AVAILABLE'
     return item
   }
 
@@ -502,13 +488,12 @@ export class ServerViewProvider implements TreeDataProvider<TreeItem> {
         const title = CAPABILITY_TITLES[category] ?? category
         const item = new TreeItem(`${title} (${bucket.length})`, Expanded)
         item.contextValue = 'CHANH_CAP_GROUP'
+        // TODO: Consider adding additional context or actions for capability groups.
         ; (item as TreeItem & { capability: string }).capability = category
         ; (item as TreeItem & { downloadable: boolean }).downloadable = downloadable
         item.tooltip = `${bucket.length} model(s) with ${title} capability`
         // Capability groups wear the matching colored SVG; "other" gets a dot.
-        item.iconPath = category === 'other'
-          ? new ThemeIcon('circle-filled')
-          : Uri.joinPath(this.context.extensionUri, 'media', 'capabilities', `${category}.svg`)
+        item.iconPath = getCapIcon(this.context.extensionUri, category)
         return item
       })
   }
