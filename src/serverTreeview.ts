@@ -384,7 +384,9 @@ export class ServerViewProvider implements TreeDataProvider<TreeItem> {
     if (this._groupAvaModels) return this.getCapabilityGroups(server.models)
 
     const loadedIds = new Set(server.health?.all_models_loaded.map((m) => m.model_name) ?? [])
-    return server.models.map((model) => this.toModelItem(model, loadedIds.has(model.id)))
+
+    const orderedModels = this.sortModelsLoadedFirst(server.models, loadedIds)
+    return orderedModels.map((model) => this.toModelItem(model, loadedIds.has(model.id)))
   }
 
   /** Downloadable catalog models (not yet on disk) — each pulls on click. */
@@ -458,6 +460,19 @@ export class ServerViewProvider implements TreeDataProvider<TreeItem> {
     return item
   }
 
+  /**
+   * Return a copy of `models` with loaded models sorted before unloaded ones.
+   * The original array is not mutated; load order among already-loaded (or
+   * among not-yet-loaded) models is preserved (stable sort).
+   */
+  private sortModelsLoadedFirst(models: LemonadeModel[], loadedIds: Set<string>): LemonadeModel[] {
+    return [...models].sort((a, b) => {
+      const aLoaded = loadedIds.has(a.id) ? 0 : 1
+      const bLoaded = loadedIds.has(b.id) ? 0 : 1
+      return aLoaded - bLoaded
+    })
+  }
+
   /** Group available models under one collapsible header per capability. */
   private getCapabilityGroups(models: LemonadeModel[], downloadable = false): TreeItem[] {
     const grouped = new Map<string, LemonadeModel[]>()
@@ -479,7 +494,7 @@ export class ServerViewProvider implements TreeDataProvider<TreeItem> {
       .map((category) => {
         const bucket = grouped.get(category) ?? []
         const title = CAPABILITY_TITLES[category] ?? category
-        const item = new TreeItem(`${title} (${bucket.length})`, Expanded)
+        const item = new TreeItem(`${title} (${bucket.length})`, Collapsed)
         item.contextValue = 'CHANH_CAP_GROUP'
         // TODO: Consider adding additional context or actions for capability groups.
         ; (item as TreeItem & { capability: string }).capability = category
@@ -512,7 +527,9 @@ export class ServerViewProvider implements TreeDataProvider<TreeItem> {
     if (downloadable) return filtered.map((m) => this.toDownloadableItem(m))
 
     const loadedIds = new Set(server?.health?.all_models_loaded.map((m) => m.model_name) ?? [])
-    return filtered.map((m) => this.toModelItem(m, loadedIds.has(m.id), true))
+    // Within each capability group, surface loaded models first.
+    const ordered = this.sortModelsLoadedFirst(filtered, loadedIds)
+    return ordered.map((m) => this.toModelItem(m, loadedIds.has(m.id), true))
   }
 
   /** Fetch server data for all known server instances. */
