@@ -223,7 +223,7 @@ export class ServerViewProvider implements TreeDataProvider<TreeItem> {
       const models = this._activeServer.models
       const modelsHeader = new TreeItem(`Available Models (${models.length})`, Expanded)
       modelsHeader.iconPath = new ThemeIcon('list-tree')
-      modelsHeader.contextValue = 'CHANH_MODELS_HEADER'
+      modelsHeader.contextValue = 'CHANH_AVAIL_HEADER'
 
       // Total size of every available model, summed from the sizes the server
       // reports. Models without a reported size are skipped, so the tooltip
@@ -231,9 +231,9 @@ export class ServerViewProvider implements TreeDataProvider<TreeItem> {
       const sized = models.filter((m) => (m.size ?? 0) > 0)
       const totalSizeText = formatSize(sized.reduce((sum, m) => sum + (m.size ?? 0), 0))
       const coverage = sized.length < models.length ? ` (${sized.length} of ${models.length} models)` : ''
-      modelsHeader.tooltip = totalSizeText
-        ? `${models.length} model(s) available\nTotal size${coverage}: ${totalSizeText}`
-        : `${models.length} model(s) available\nTotal size: unknown (not reported by the server)`
+      const tooltip = `${models.length} model(s) available\n`
+      const sizeTip = totalSizeText ? `Total size${coverage}: ${totalSizeText}` : `Total size: unknown`
+      modelsHeader.tooltip = `${tooltip}${sizeTip}`
       items.push(modelsHeader)
     }
 
@@ -259,9 +259,9 @@ export class ServerViewProvider implements TreeDataProvider<TreeItem> {
     if (element.contextValue === 'CHANH_DOWNLOADING_HEADER') return this.getDownloadingChildren()
     if (element.contextValue === 'CHANH_PARTIAL_HEADER') return this.getPartialDownloadChildren()
     if (element.contextValue === 'CHANH_PINNED_HEADER') return this.getPinnedModelChildren(element)
-    if (element.contextValue === 'CHANH_MODELS_HEADER') return this.getModelChildren(element)
+    if (element.contextValue === 'CHANH_AVAIL_HEADER') return this.getAvailableChildren(element)
     if (element.contextValue === 'CHANH_DOWNLOADABLE_HEADER') return this.getDownloadableChildren()
-    if (element.contextValue === 'CHANH_CAP_GROUP') return this.getCapabilityGroupChildren(element)
+    if (element.contextValue === 'CHANH_CAP_GROUP') return this.getCapGroupChildren(element)
     return []
   }
 
@@ -401,7 +401,7 @@ export class ServerViewProvider implements TreeDataProvider<TreeItem> {
     })
   }
 
-  private getModelChildren(element: TreeItem): TreeItem[] {
+  private getAvailableChildren(element: TreeItem): TreeItem[] {
     const server = this._activeServer
     if (!server?.models) return []
 
@@ -414,7 +414,6 @@ export class ServerViewProvider implements TreeDataProvider<TreeItem> {
     if (this._groupAvaModels) return this.getCapabilityGroups(server.models)
 
     const loadedIds = new Set(server.health?.all_models_loaded.map((m) => m.model_name) ?? [])
-
     const orderedModels = this.sortModelsLoadedFirst(server.models, loadedIds)
     return orderedModels.map((model) => this.toAvaModelItem(model, loadedIds.has(model.id)))
   }
@@ -443,7 +442,8 @@ export class ServerViewProvider implements TreeDataProvider<TreeItem> {
     const isHot = ModelManager.isHotModel(model)
     item.iconPath = isHot ? getCapIcon(this.context.extensionUri, 'hot') : new ThemeIcon('circle-filled')
 
-    let tooltip = `${model.id}`
+    const modelLabels = ModelManager.getModelLabel(model)
+    let tooltip = `${model.id} (${modelLabels})`
     if (isHot) tooltip = `🔥 ${tooltip}`
 
     item.tooltip = tooltip
@@ -461,12 +461,12 @@ export class ServerViewProvider implements TreeDataProvider<TreeItem> {
     item.resourceUri = ModelDecorationProvider.uriFor(model.id, isLoaded)
 
     // Subtext: size only (the capability label is not listed here anymore)
-    const modelLabel = ModelManager.getModelLabel(model)
+    const modelLabels = ModelManager.getModelLabel(model)
     const sizeText = formatSize(model.size)
     if (sizeText) item.description = sizeText
 
     const isHot = ModelManager.isHotModel(model)
-    let tooltip = `${model.id} (${modelLabel})`
+    let tooltip = `${model.id} (${modelLabels})`
 
     // Unloaded hot models wear the flame when grouped by capability; in the
     // flat list the flame is suppressed so no per-model marker is needed.
@@ -528,7 +528,7 @@ export class ServerViewProvider implements TreeDataProvider<TreeItem> {
   }
 
   /** Models (available or downloadable) under one capability group header. */
-  private getCapabilityGroupChildren(element: TreeItem): TreeItem[] {
+  private getCapGroupChildren(element: TreeItem): TreeItem[] {
     const capability = (element as TreeItem & { capability?: string }).capability
     const downloadable = (element as TreeItem & { downloadable?: boolean }).downloadable
     const server = this._activeServer

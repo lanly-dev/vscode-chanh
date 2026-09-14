@@ -205,7 +205,7 @@
         },
         {
           "command": "chanh.toggleModelGrouping",
-          "when": "view == CHANH_TREEVIEW && viewItem == CHANH_MODELS_HEADER",
+          "when": "view == CHANH_TREEVIEW && viewItem == CHANH_AVAIL_HEADER",
           "group": "inline"
         },
         {

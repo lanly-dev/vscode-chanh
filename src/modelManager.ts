@@ -36,12 +36,12 @@ export class ModelManager {
     const l = raw.toLowerCase()
     if (l === 'chat' || l === 'llm') return 'llm'
     if (l === 'embedding') return 'embedding'
-    if (l.startsWith('rerank')) return 'reranking'
-    if (l.startsWith('classif')) return 'classification'
-    if (l.startsWith('transcri')) return 'transcription'
+    if (l === 'reranking') return 'reranking'
+    if (l === 'classification') return 'classification'
+    if (l === 'transcription') return 'transcription'
     if (l === 'tts' || l.includes('speech')) return 'tts'
     if (l === 'image' || l.includes('vision')) return 'image'
-    if (l.startsWith('3d') || l.startsWith('trellis')) return '3d'
+    if (l === '3d') return '3d'
     return undefined
   }
 
