@@ -107,6 +107,11 @@
         "icon": "$(clear-all)"
       },
       {
+        "command": "chanh.showModelInfo",
+        "title": "Chanh: Show Model Info",
+        "icon": "$(info)"
+      },
+      {
         "command": "chanh.loadModel",
         "title": "Chanh: Load Model",
         "icon": "$(run-above)"
@@ -260,6 +265,11 @@
           "command": "chanh.resetModelContext",
           "when": "view == CHANH_TREEVIEW && (viewItem == CHANH_MODEL_AVAILABLE || viewItem == CHANH_MODEL_LOADED)",
           "group": "1_context@2"
+        },
+        {
+          "command": "chanh.showModelInfo",
+          "when": "view == CHANH_TREEVIEW && (viewItem == CHANH_MODEL_AVAILABLE || viewItem == CHANH_MODEL_LOADED)",
+          "group": "inline"
         },
         {
           "command": "chanh.retryModel",

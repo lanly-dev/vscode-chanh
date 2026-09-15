@@ -135,17 +135,19 @@ export class LemonadeClient {
   /**
    * Read a model's saved, effective, and default recipe options
    * (`ctx_size`, backend, ...). Used to pre-fill the context-size dialog and
-   * to show the model's default context length.
+   * to show the model's default context length. Note: the server's response
+   * key for the default layer is `defaults` (plural).
    */
   async getModelOptions(modelName: string): Promise<{
     saved?: Record<string, unknown>
     effective?: Record<string, unknown>
-    default?: Record<string, unknown>
+    defaults?: Record<string, unknown>
   }> {
     const { status, data } = await this.request(
       'GET', `/v1/models/${encodeURIComponent(modelName)}/options`
     )
     if (status !== 200) throw new Error(`Failed to read model options: ${status} ${data}`)
+    Logger.info(`Model options for ${modelName}: ${data}`)
     return JSON.parse(data)
   }
 

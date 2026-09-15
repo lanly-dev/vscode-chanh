@@ -1,8 +1,10 @@
-import { ConfigurationTarget, ProgressLocation, QuickPickItem } from 'vscode'
+import { ConfigurationTarget, ProgressLocation, QuickPickItem, ViewColumn } from 'vscode'
 import { window, workspace } from 'vscode'
 
 import { Logger } from './logger'
+import { formatSize } from './utils'
 import { ServerManager } from './serverManager'
+import type { LemonadeClient } from './lemonadeClient'
 import { LemonadeModel, ServerStatus } from './interfaces'
 import type { ChatParticipant } from './chatParticipant'
 import type { ChanhLmcProvider } from './lmcProvider'
@@ -196,9 +198,22 @@ export class ModelManager {
     try {
       const options = await this.client.getModelOptions(modelId)
       effective = ModelManager.readCtxSize(options.effective)
-      defaultCtx = ModelManager.readCtxSize(options.default)
+      const savedCtx = ModelManager.readCtxSize(options.saved)
+      // The server reports the default layer under `defaults` (plural).
+      defaultCtx = ModelManager.readCtxSize(options.defaults)
     } catch (err: unknown) {
       Logger.warn(`Could not read options for ${modelId}: ${err}`)
+    }
+    // Options endpoint unavailable or missing the value — fall back to the
+    // context length reported by the model list.
+    if (effective === undefined) {
+      try {
+        const models = await this.client.listModels()
+        effective = models.find((m) => m.id === modelId)?.context_length
+        if (defaultCtx === undefined) defaultCtx = effective
+      } catch {
+        // Leave both undefined; the dialog still works with a blank input.
+      }
     }
 
     const defaultHint = defaultCtx && defaultCtx > 0
@@ -231,6 +246,131 @@ export class ModelManager {
     }
     if (!await this.serverManager.ensureRunning()) return
     await this.applyContextChange(modelId, { kind: 'reset' })
+  }
+
+  /**
+   * Show every server-reported detail for a model in a popup panel:
+   * capabilities, size, context (effective/saved/default), recipe, ownership,
+   * add date, and current runtime state when loaded.
+   */
+  async showModelInfo(item?: { modelId?: string }): Promise<void> {
+    const modelId = item?.modelId
+    if (!modelId) {
+      showErrorMessage('Right-click a model in the Chanh view to show its info')
+      return
+    }
+    if (!await this.serverManager.ensureRunning()) return
+
+    try {
+      // Options and health are best-effort: older servers may not expose them.
+      const [models, health, options] = await Promise.all([
+        this.client.listModels(),
+        this.client.getHealth().catch(() => undefined),
+        this.client.getModelOptions(modelId).catch(() => undefined)
+      ])
+      const model = models.find((m) => m.id === modelId)
+      if (!model) {
+        showErrorMessage(`Model '${modelId}' was not found on the server`)
+        return
+      }
+      const loaded = health?.all_models_loaded.find((m) => m.model_name === modelId)
+      // Log the raw server data so missing fields can be diagnosed from the
+      // Chanh output channel.
+      Logger.info(`Model entry for ${modelId}: ${JSON.stringify(model)}`)
+
+      const panel = window.createWebviewPanel(
+        'chanhModelInfo',
+        modelId,
+        ViewColumn.Active,
+        { enableScripts: false }
+      )
+      panel.webview.html = this.buildModelInfoHtml(model, options, loaded)
+    } catch (err: unknown) {
+      Logger.error('Failed to show model info', err)
+      showErrorMessage(`Failed to show model info: ${err}`)
+    }
+  }
+
+  /** Render the model-info popup as a self-contained HTML page. */
+  private buildModelInfoHtml(
+    model: LemonadeModel,
+    options?: Awaited<ReturnType<LemonadeClient['getModelOptions']>>,
+    loaded?: { is_busy?: boolean, is_streaming?: boolean, backend_url?: string }
+  ): string {
+    const esc = (value: unknown): string => String(value ?? '')
+      .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    const row = (label: string, value?: string): string | undefined => {
+      if (!value) return undefined
+      return `<div class="row"><span class="label">${esc(label)}</span>` +
+        `<span class="value">${esc(value)}</span></div>`
+    }
+
+    // -1 means "automatic context sizing" — display it rather than hiding the
+    // row, so missing values and automatic values are distinguishable.
+    const fmtCtx = (n?: number): string | undefined => {
+      if (n === undefined) return undefined
+      if (n === -1) return 'Automatic (server decides)'
+      return n > 0 ? `${n.toLocaleString()} tokens` : undefined
+    }
+
+    const effectiveCtx = ModelManager.readCtxSize(options?.effective) ?? model.context_length
+    const savedCtx = ModelManager.readCtxSize(options?.saved)
+    // The server reports the default layer under `defaults` (plural); older
+    // builds without the options endpoint still get a default via the
+    // effective value when no override is saved.
+    const defaultCtx = ModelManager.readCtxSize(options?.defaults)
+      ?? (savedCtx === undefined ? effectiveCtx : undefined)
+
+    const rows = [
+      row('Capabilities', ModelManager.getModelLabel(model)),
+      row('Status', loaded
+        ? ['Loaded', loaded.is_busy ? 'busy' : 'idle', loaded.is_streaming ? 'streaming' : undefined]
+          .filter(Boolean).join(' — ')
+        : 'Downloaded (not loaded)'),
+      row('Size', formatSize(model.size)),
+      row('Context (effective)', fmtCtx(effectiveCtx)),
+      row('Context (saved override)', savedCtx === undefined ? undefined : fmtCtx(savedCtx)),
+      row('Context (default)', fmtCtx(defaultCtx)),
+      row('Recipe', model.recipe),
+      row('Type', model.type),
+      row('Owned by', model.owned_by),
+      row('Added', typeof model.created === 'number' && model.created > 0
+        ? new Date(model.created * 1000).toISOString().slice(0, 10)
+        : undefined),
+      row('Backend', loaded?.backend_url)
+    ].filter((r): r is string => r !== undefined)
+
+    const labels = (model.labels ?? []).map((l) => `<span class="chip">${esc(l)}</span>`).join(' ')
+    const updateNote = model.update_available
+      ? '<div class="note">&#9888; An update is available upstream — pull the model again to update it.</div>'
+      : ''
+
+    return `<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<style>
+  body { font-family: var(--vscode-font-family); color: var(--vscode-foreground);
+         padding: 12px 16px; font-size: var(--vscode-font-size); }
+  h2 { margin: 0 0 4px; font-weight: 600; }
+  .sub { color: var(--vscode-descriptionForeground); margin-bottom: 12px; }
+  .chip { display: inline-block; margin: 0 4px 4px 0; padding: 1px 8px;
+          border: 1px solid var(--vscode-panel-border); border-radius: 8px;
+          font-size: 0.85em; color: var(--vscode-descriptionForeground); }
+  .row { display: flex; padding: 5px 0; border-bottom: 1px solid var(--vscode-panel-border); }
+  .label { width: 190px; flex: none; color: var(--vscode-descriptionForeground); }
+  .value { white-space: pre-wrap; word-break: break-word; }
+  .note { margin-top: 12px; padding: 8px 10px; border-radius: 4px;
+          background: var(--vscode-inputValidation-warningBackground); }
+</style>
+</head>
+<body>
+  <h2>${esc(model.id)}</h2>
+  <div class="sub">${labels || 'Local model served by Lemonade Server'}</div>
+  ${rows.join('\n  ')}
+  ${updateNote}
+</body>
+</html>`
   }
 
   /**
