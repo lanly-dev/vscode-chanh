@@ -184,6 +184,7 @@ export class ModelManager {
     this.treeViewProvider.refresh()
   }
 
+  // TODO: check this
   /** Prompt for a context size and persist it for the given model. */
   async setModelContext(item?: { modelId?: string }): Promise<void> {
     const modelId = item?.modelId
@@ -198,7 +199,6 @@ export class ModelManager {
     try {
       const options = await this.client.getModelOptions(modelId)
       effective = ModelManager.readCtxSize(options.effective)
-      const savedCtx = ModelManager.readCtxSize(options.saved)
       // The server reports the default layer under `defaults` (plural).
       defaultCtx = ModelManager.readCtxSize(options.defaults)
     } catch (err: unknown) {

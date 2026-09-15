@@ -143,9 +143,7 @@ export class LemonadeClient {
     effective?: Record<string, unknown>
     defaults?: Record<string, unknown>
   }> {
-    const { status, data } = await this.request(
-      'GET', `/v1/models/${encodeURIComponent(modelName)}/options`
-    )
+    const { status, data } = await this.request('GET', `/v1/models/${encodeURIComponent(modelName)}/options`)
     if (status !== 200) throw new Error(`Failed to read model options: ${status} ${data}`)
     Logger.info(`Model options for ${modelName}: ${data}`)
     return JSON.parse(data)
@@ -157,18 +155,14 @@ export class LemonadeClient {
    * value persists across restarts and applies at load time.
    */
   async setModelOptions(modelName: string, options: Record<string, unknown>): Promise<void> {
-    const { status, data } = await this.request(
-      'POST', `/v1/models/${encodeURIComponent(modelName)}/options`, options
-    )
+    const { status, data } = await this.request('POST', `/v1/models/${encodeURIComponent(modelName)}/options`, options)
     if (status !== 200) throw new Error(`Failed to save model options: ${status} ${data}`)
     Logger.info(`Saved options for ${modelName}: ${JSON.stringify(options)}`)
   }
 
   /** Reset a model's saved recipe options, restoring its defaults. */
   async resetModelOptions(modelName: string): Promise<void> {
-    const { status, data } = await this.request(
-      'DELETE', `/v1/models/${encodeURIComponent(modelName)}/options`
-    )
+    const { status, data } = await this.request('DELETE', `/v1/models/${encodeURIComponent(modelName)}/options`)
     if (status !== 200) throw new Error(`Failed to reset model options: ${status} ${data}`)
     Logger.info(`Reset options for ${modelName}`)
   }
@@ -249,9 +243,7 @@ export class LemonadeClient {
         }
       )
 
-      req.on('error', (err) => {
-        reject(new Error(`Request error: ${err.message}`))
-      })
+      req.on('error', (err) => reject(new Error(`Request error: ${err.message}`)))
 
       if (signal) {
         signal.addEventListener('abort', () => {
