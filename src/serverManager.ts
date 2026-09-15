@@ -64,8 +64,22 @@ export class ServerManager {
     return this._standalonePort
   }
 
-  /** Get the server URL. */
+  /** Get the URL of the configured target server (mode-aware). */
   get url(): string {
+    const config = workspace.getConfiguration('chanh')
+    const mode = config.get<TargetServer>('targetServer', TargetServer.STANDALONE)
+    if (mode === TargetServer.EMBEDDED) return this.embeddedUrl
+    if (mode === TargetServer.CUSTOM) {
+      // Custom mode without a configured URL has no valid target; fall back to
+      // the standalone default rather than silently pointing at the embedded port.
+      const customUrl = config.get<string>('customServerUrl', '')
+      if (customUrl) return customUrl
+    }
+    return `http://localhost:${this._standalonePort}`
+  }
+
+  /** Get the URL of the embedded lemond server, regardless of the selected mode. */
+  get embeddedUrl(): string {
     return `http://localhost:${this._embedPort}`
   }
 
@@ -83,7 +97,7 @@ export class ServerManager {
 
   /** Get whether the embedded server is selected. */
   get isEmbeddedSelected(): boolean {
-    return !this._serverUrl || this.selectedServerUrl === this.url
+    return this.selectedServerUrl === this.embeddedUrl
   }
 
   /** A client bound to the currently selected server for model operations. */
@@ -193,14 +207,14 @@ export class ServerManager {
       return {
         id: 'lemond',
         name: 'lemond (Embedded)',
-        url: this.url,
+        url: this.embeddedUrl,
         status: this._status,
         version: this.binaryManager.getInstalledVersion() ?? undefined,
         maxLoadedModels: config.get<number>('maxLoadedModels', 1)
       }
     }
 
-    const embeddedClient = new LemonadeClient(this.url)
+    const embeddedClient = new LemonadeClient(this.embeddedUrl)
     try {
       const health = await embeddedClient.getHealth()
       const { models, downloadableModels } = await this.fetchAllCatalogModels(embeddedClient)
@@ -218,7 +232,7 @@ export class ServerManager {
       return {
         id: 'lemond',
         name: 'lemond (Embedded)',
-        url: this.url,
+        url: this.embeddedUrl,
         status: ServerStatus.RUNNING,
         version: this.binaryManager.getInstalledVersion() ?? undefined,
         health,
@@ -485,7 +499,7 @@ export class ServerManager {
     }
 
     // Embedded mode: always start the embedded binary (do not auto-connect to standalone).
-    if (serverMode === TargetServer.EMBEDDED) this.setSelectedServer(this.url, 'lemond (Embedded)')
+    if (serverMode === TargetServer.EMBEDDED) this.setSelectedServer(this.embeddedUrl, 'lemond (Embedded)')
 
     // No standalone server found (or embedded mode forced), start embedded lemond
     this._client = new LemonadeClient(`http://localhost:${this._embedPort}`)
