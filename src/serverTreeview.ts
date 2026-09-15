@@ -337,7 +337,19 @@ export class ServerViewProvider implements TreeDataProvider<TreeItem> {
     return loadedModels.map((model) => {
       const item = new TreeItem(model.model_name, None)
       item.iconPath = new ThemeIcon('pass-filled', new ThemeColor('charts.green'))
-      item.tooltip = `Model: ${model.model_name}\nBusy: ${model.is_busy}\nStreaming: ${model.is_streaming}`
+      // Enrich the runtime status with the downloaded model's catalog metadata
+      // (size, context, recipe...) when the model is in the server's model list.
+      const catalogModel = server.models?.find((m) => m.id === model.model_name)
+      if (catalogModel) {
+        item.tooltip = this.buildModelTooltip(catalogModel, {
+          isLoaded: true,
+          busy: model.is_busy,
+          streaming: model.is_streaming,
+          backend: model.backend_url
+        })
+      } else
+        item.tooltip = `Model: ${model.model_name}\nBusy: ${model.is_busy}\nStreaming: ${model.is_streaming}`
+
       item.contextValue = 'CHANH_LOADED_MODEL'
       item.description = model.is_busy ? 'busy' : 'idle'
       return item
@@ -431,6 +443,56 @@ export class ServerViewProvider implements TreeDataProvider<TreeItem> {
     return displayModels.map((model) => this.toDowItem(model))
   }
 
+  /**
+   * Build a detailed multi-line tooltip for a model, appending all
+   * server-reported metadata (capabilities, size, context length, recipe,
+   * ownership, add date, runtime status, upstream updates) below the model id.
+   */
+  private buildModelTooltip(
+    model: LemonadeModel,
+    opts: {
+      isDownloadable?: boolean
+      isLoaded?: boolean
+      busy?: boolean
+      streaming?: boolean
+      backend?: string
+    } = {}
+  ): string {
+    const lines: string[] = [model.id]
+
+    const label = ModelManager.getModelLabel(model)
+    if (label) lines.push(`Capabilities: ${label}`)
+
+    const sizeText = formatSize(model.size)
+    if (sizeText) lines.push(`Size: ${sizeText}`)
+
+    if (typeof model.context_length === 'number' && model.context_length > 0)
+      lines.push(`Context: ${model.context_length.toLocaleString()} tokens`)
+
+    if (model.recipe) lines.push(`Recipe: ${model.recipe}`)
+    if (model.type) lines.push(`Type: ${model.type}`)
+    if (model.owned_by) lines.push(`Owned By: ${model.owned_by}`)
+
+    // if (typeof model.created === 'number' && model.created > 0)
+    //   lines.push(`Added: ${new Date(model.created * 1000).toISOString().slice(0, 10)}`)
+
+    // if (opts.isLoaded) {
+    //   const status = ['loaded']
+    //   if (opts.busy) status.push('busy')
+    //   if (opts.streaming) status.push('streaming')
+    //   lines.push(`Status: ${status.join(', ')}`)
+    // } else if (opts.isDownloadable)
+    //   lines.push('Status: not downloaded — pull to install')
+    // else
+    //   lines.push('Status: downloaded — load to use')
+
+
+    if (opts.backend) lines.push(`Backend: ${opts.backend}`)
+    if (model.update_available) lines.push('⚠ Update available upstream — pull again to update')
+
+    return lines.join('\n')
+  }
+
   /** Build one downloadable-model leaf row with a pull affordance. */
   private toDowItem(model: LemonadeModel): TreeItem {
     const item = new TreeItem(model.id, None) as TreeItem & { modelId: string }
@@ -442,8 +504,7 @@ export class ServerViewProvider implements TreeDataProvider<TreeItem> {
     const isHot = ModelManager.isHotModel(model)
     item.iconPath = isHot ? getCapIcon(this.context.extensionUri, 'hot') : new ThemeIcon('circle-filled')
 
-    const modelLabels = ModelManager.getModelLabel(model)
-    let tooltip = `${model.id} (${modelLabels})`
+    let tooltip = this.buildModelTooltip(model, { isDownloadable: true })
     if (isHot) tooltip = `🔥 ${tooltip}`
 
     item.tooltip = tooltip
@@ -461,12 +522,22 @@ export class ServerViewProvider implements TreeDataProvider<TreeItem> {
     item.resourceUri = ModelDecorationProvider.uriFor(model.id, isLoaded)
 
     // Subtext: size only (the capability label is not listed here anymore)
-    const modelLabels = ModelManager.getModelLabel(model)
     const sizeText = formatSize(model.size)
     if (sizeText) item.description = sizeText
 
     const isHot = ModelManager.isHotModel(model)
-    let tooltip = `${model.id} (${modelLabels})`
+
+    // Tooltip: append the model's server-reported metadata; loaded models also
+    // report their runtime state (busy/streaming/backend).
+    const loadedEntry = isLoaded
+      ? this._activeServer?.health?.all_models_loaded.find((m) => m.model_name === model.id)
+      : undefined
+    const tooltip = this.buildModelTooltip(model, {
+      isLoaded,
+      busy: loadedEntry?.is_busy,
+      streaming: loadedEntry?.is_streaming,
+      backend: loadedEntry?.backend_url
+    })
 
     // Unloaded hot models wear the flame when grouped by capability; in the
     // flat list the flame is suppressed so no per-model marker is needed.
