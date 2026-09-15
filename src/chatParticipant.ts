@@ -31,7 +31,7 @@ export class ChatParticipant {
   private selectedModel: string | undefined
 
   constructor(private context: ExtensionContext, private serverManager: ServerManager) {
-    this.client = new LemonadeClient(`http://localhost:${serverManager.embeddedPort}`)
+    this.client = new LemonadeClient(serverManager.selectedServerUrl)
 
     // Create the chat participant
     this.participant = chat.createChatParticipant('CHANH_CHAT', this.handleRequest.bind(this))

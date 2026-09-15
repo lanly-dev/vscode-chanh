@@ -65,24 +65,29 @@ export class ChanhLmcProvider implements vscode.LanguageModelChatProvider, vscod
       return []
     }
 
-    return models.map((m) => ({
-      id: m.id,
-      name: m.id,
-      family: m.recipe ?? 'llamacpp',
-      tooltip: `Local model served by Lemonade Server (${this.serverManager.selectedServerName})`,
-      detail: ModelManager.getModelLabel(m),
-      version: String(m.created ?? 1),
-      maxInputTokens: 8192,
-      maxOutputTokens: 4096,
-      // Lemonade tags tool-capable and vision models with the `tool-calling`
-      // and `vision` labels. These must be mapped through: the VS Code picker
-      // hides models without tool calling in Agent mode and in inline chat,
-      // so hardcoding them off keeps the models out of the dropdown.
-      capabilities: {
-        toolCalling: ChanhLmcProvider.hasLabel(m, 'tool-calling'),
-        imageInput: ChanhLmcProvider.hasLabel(m, 'vision')
+    return models.map((m) => {
+      const contextWindow = m.context_length ?? 4096
+      const maxOutputTokens = Math.min(1024, Math.max(256, Math.floor(contextWindow / 4)))
+
+      return {
+        id: m.id,
+        name: m.id,
+        family: m.recipe ?? 'llamacpp',
+        tooltip: `Local model served by Lemonade Server (${this.serverManager.selectedServerName})`,
+        detail: ModelManager.getModelLabel(m),
+        version: String(m.created ?? 1),
+        maxInputTokens: contextWindow - maxOutputTokens,
+        maxOutputTokens,
+        // Lemonade tags tool-capable and vision models with the `tool-calling`
+        // and `vision` labels. These must be mapped through: the VS Code picker
+        // hides models without tool calling in Agent mode and in inline chat,
+        // so hardcoding them off keeps the models out of the dropdown.
+        capabilities: {
+          toolCalling: ChanhLmcProvider.hasLabel(m, 'tool-calling'),
+          imageInput: ChanhLmcProvider.hasLabel(m, 'vision')
+        }
       }
-    }))
+    })
   }
 
   /** Stream a chat completion from the Lemonade Server for the given model. */
@@ -95,6 +100,13 @@ export class ChanhLmcProvider implements vscode.LanguageModelChatProvider, vscod
   ): Promise<void> {
     void options
     const client = this.serverManager.client
+
+    const health = await client.getHealth()
+    const isLoaded = health.all_models_loaded.some((loaded) => loaded.model_name === model.id)
+    if (!isLoaded) {
+      Logger.info(`Loading language model selected in VS Code: ${model.id}`)
+      await client.loadModel(model.id)
+    }
 
     const chatMessages: ChatMessage[] = messages.map((m) => ({
       role: ChanhLmcProvider.toRole(m.role),

@@ -16,7 +16,9 @@ export enum TargetServer {
 export interface ChatChoice {
   index: number
   message?: ChatMessage
-  delta?: Partial<ChatMessage>
+  delta?: Partial<ChatMessage> & {
+    reasoning_content?: string | null
+  }
   finish_reason?: string | null
 }
 /** Request body for `/v1/chat/completions`. */
@@ -97,6 +99,8 @@ export interface LemonadeModel {
   type?: string
   /** Recipe (backend) used to load/run the model, e.g. "llamacpp". */
   recipe?: string
+  /** Runtime context limit reported by the server, in tokens. */
+  context_length?: number
   /** Suggested models come from the server's built-in catalog: they are pullable but may not be downloaded yet. */
   suggested?: boolean
   /** Whether the model is already downloaded on disk (present when using `?show_all=true`). */

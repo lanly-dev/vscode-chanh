@@ -321,9 +321,29 @@ export class LemonadeClient {
     signal?: AbortSignal
   ): Promise<string> {
     return new Promise((resolve, reject) => {
+      let settled = false
+      let lastEvent = ''
+      const finish = (content: string): void => {
+        if (settled) return
+        settled = true
+        if (!content) {
+          reject(new Error(
+            `Chat completion returned no content from ${this.baseUrl} for model ${request.model}. ` +
+            `Last server event: ${lastEvent || 'none'}`
+          ))
+          return
+        }
+        resolve(content)
+      }
+      const fail = (error: Error): void => {
+        if (settled) return
+        settled = true
+        reject(error)
+      }
       const body = JSON.stringify({ ...request, stream: true })
       const headers: Record<string, string> = {
         'Content-Type': 'application/json',
+        Accept: 'text/event-stream',
         'Content-Length': Buffer.byteLength(body).toString()
       }
 
@@ -335,78 +355,75 @@ export class LemonadeClient {
             let errorData = ''
             res.on('data', (chunk) => { errorData += chunk })
             res.on('end', () => {
-              reject(new Error(`Chat completion failed: ${res.statusCode} ${errorData}`))
+              fail(new Error(`Chat completion failed: ${res.statusCode} ${errorData}`))
             })
             return
           }
 
           let fullContent = ''
           let buffer = ''
+          const processEvent = (event: string): void => {
+            const trimmed = event.trim()
+            if (!trimmed || !trimmed.startsWith('data: ')) return
+
+            const jsonStr = trimmed.slice(6)
+            if (jsonStr === '[DONE]') {
+              finish(fullContent)
+              return
+            }
+            lastEvent = jsonStr.slice(0, 500)
+
+            try {
+              const parsed = JSON.parse(jsonStr) as ChatCompletionResponse & {
+                error?: { message?: string } | string
+                detail?: string
+              }
+              const serverError = typeof parsed.error === 'string'
+                ? parsed.error
+                : parsed.error?.message ?? parsed.detail
+              if (serverError) {
+                fail(new Error(`Chat completion failed: ${serverError}`))
+                return
+              }
+              const choice = parsed.choices?.[0]
+              const content = choice?.delta?.content
+                ?? choice?.delta?.reasoning_content
+                ?? choice?.message?.content
+              if (content) {
+                fullContent += content
+                onToken(content)
+              }
+            } catch (err) {
+              Logger.warn(`Failed to parse SSE chunk: ${err}`)
+            }
+          }
 
           res.on('data', (chunk: Buffer) => {
             buffer += chunk.toString()
             const lines = buffer.split('\n')
             buffer = lines.pop() ?? ''
-
-            for (const line of lines) {
-              const trimmed = line.trim()
-              if (!trimmed || !trimmed.startsWith('data: ')) continue
-
-              const jsonStr = trimmed.slice(6) // Remove 'data: ' prefix
-              if (jsonStr === '[DONE]') {
-                resolve(fullContent)
-                return
-              }
-
-              try {
-                const parsed = JSON.parse(jsonStr) as ChatCompletionResponse
-                const delta = parsed.choices?.[0]?.delta
-                if (delta?.content) {
-                  fullContent += delta.content
-                  onToken(delta.content)
-                }
-              } catch (err) {
-                Logger.warn(`Failed to parse SSE chunk: ${err}`)
-              }
-            }
+            for (const line of lines) processEvent(line)
           })
 
           res.on('end', () => {
-            // Process any remaining buffer
-            if (buffer.trim().startsWith('data: ')) {
-              const jsonStr = buffer.trim().slice(6)
-              if (jsonStr === '[DONE]') {
-                resolve(fullContent)
-                return
-              }
-              try {
-                const parsed = JSON.parse(jsonStr) as ChatCompletionResponse
-                const delta = parsed.choices?.[0]?.delta
-                if (delta?.content) {
-                  fullContent += delta.content
-                  onToken(delta.content)
-                }
-              } catch {
-                // Ignore parse errors on final buffer
-              }
-            }
-            resolve(fullContent)
+            processEvent(buffer)
+            finish(fullContent)
           })
 
           res.on('error', (err) => {
-            reject(new Error(`Stream error: ${err.message}`))
+            fail(new Error(`Stream error: ${err.message}`))
           })
         }
       )
 
       req.on('error', (err) => {
-        reject(new Error(`Request error: ${err.message}`))
+        fail(new Error(`Request error: ${err.message}`))
       })
 
       if (signal) {
         signal.addEventListener('abort', () => {
           req.destroy()
-          reject(new Error('Request aborted'))
+          fail(new Error('Request aborted'))
         })
       }
 

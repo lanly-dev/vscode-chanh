@@ -205,6 +205,13 @@ export class ModelManager {
     if (!await this.serverManager.ensureRunning()) return undefined
     const selected = await this.promptForModel('Select active model for chat')
     if (!selected) return
+    try {
+      await this.client.loadModel(selected)
+    } catch (err) {
+      Logger.error('Failed to load selected chat model', err)
+      showErrorMessage(`Failed to load chat model: ${err}`)
+      return
+    }
     // TODO: what is vscode.ChatParticipant about
     chatParticipant.setSelectedModel(selected)
     showInformationMessage(`Selected model for chat: ${selected}`)
