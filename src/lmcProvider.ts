@@ -5,7 +5,7 @@ import { ModelManager } from './modelManager'
 import type { ServerManager } from './serverManager'
 import { ServerStatus } from './interfaces'
 
-import type { ChatMessage } from './interfaces'
+import type { ChatMessage, LemonadeModel } from './interfaces'
 
 /**
  * Registers Lemonade Server models with the VS Code Language Model API
@@ -58,9 +58,7 @@ export class ChanhLmcProvider implements vscode.LanguageModelChatProvider, vscod
       const client = this.serverManager.client
       const all = await client.listModels()
       // Only expose downloaded chat models — the picker should behave like
-      models = all.filter((m) => m.downloaded !== false && (m.labels ?? []).some(
-        (l) => l.toLowerCase() === 'chat'
-      ))
+      models = all.filter((m) => m.downloaded !== false && ChanhLmcProvider.hasLabel(m, 'chat'))
     } catch (err) {
       // Server offline or unreachable — VS Code will retry via our change event.
       Logger.warn(`Could not list Lemonade models for the model picker: ${err}`)
@@ -76,9 +74,13 @@ export class ChanhLmcProvider implements vscode.LanguageModelChatProvider, vscod
       version: String(m.created ?? 1),
       maxInputTokens: 8192,
       maxOutputTokens: 4096,
+      // Lemonade tags tool-capable and vision models with the `tool-calling`
+      // and `vision` labels. These must be mapped through: the VS Code picker
+      // hides models without tool calling in Agent mode and in inline chat,
+      // so hardcoding them off keeps the models out of the dropdown.
       capabilities: {
-        toolCalling: false,
-        imageInput: false
+        toolCalling: ChanhLmcProvider.hasLabel(m, 'tool-calling'),
+        imageInput: ChanhLmcProvider.hasLabel(m, 'vision')
       }
     }))
   }
@@ -127,6 +129,11 @@ export class ChanhLmcProvider implements vscode.LanguageModelChatProvider, vscod
     void token
     const str = typeof text === 'string' ? text : ChanhLmcProvider.extractText(text)
     return Math.ceil(str.length / 4)
+  }
+
+  /** Whether a model carries the given Lemonade label (case-insensitive). */
+  private static hasLabel(model: LemonadeModel, label: string): boolean {
+    return (model.labels ?? []).some((l) => l.toLowerCase() === label)
   }
 
   /** Map a VS Code language model role to an OpenAI-style chat role. */
