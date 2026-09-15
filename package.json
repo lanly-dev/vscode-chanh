@@ -32,7 +32,7 @@
   "contributes": {
     "languageModelChatProviders": [
       {
-        "vendor": "lemonade",
+        "vendor": "chanh",
         "displayName": "Chanh"
       }
     ],

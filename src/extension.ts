@@ -2,7 +2,7 @@ import * as vscode from 'vscode'
 
 import { BinaryManager } from './binaryManager'
 import { ChatParticipant } from './chatParticipant'
-import { ChanhLanguageModelProvider } from './langModelsProvider'
+import { ChanhLmcProvider } from './lmcProvider'
 import { Logger } from './logger'
 import { ModelDecorationProvider } from './modelDecorations'
 import { ModelManager } from './modelManager'
@@ -24,7 +24,7 @@ export async function activate(context: vscode.ExtensionContext) {
   const chatParticipant = new ChatParticipant(context, serverManager)
 
   // Expose Lemonade models in the native VS Code model picker (like Ollama).
-  const lmProvider = new ChanhLanguageModelProvider(serverManager)
+  const lmcProvider = new ChanhLmcProvider(serverManager)
 
   const d1 = rc('chanh.startServer', () => serverManager.start())
   const d2 = rc('chanh.stopServer', () => serverManager.stop())
@@ -43,8 +43,8 @@ export async function activate(context: vscode.ExtensionContext) {
   const d15 = rc('chanh.removeModel', async (item: { modelId: string }) => modelManager.deleteModel(item.modelId))
   const d16 = rc('chanh.retryModel', (item: { modelId: string }) => modelManager.startPull(item.modelId))
   const d17 = listenConfigsChange(serverManager)
-  const d18 = lmProvider.register()
-  const d19 = lmProvider
+  const d18 = lmcProvider.register()
+  const d19 = lmcProvider
   const d20 = rc('chanh.toggleModelGrouping', () => provider.toggleModelGrouping())
   const d21 = vscode.window.registerFileDecorationProvider(new ModelDecorationProvider())
   const d22 = rc('chanh.toggleDlModelGrouping', () => provider.toggleDlModelGrouping())

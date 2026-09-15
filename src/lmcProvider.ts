@@ -1,6 +1,5 @@
 import * as vscode from 'vscode'
 
-import { LemonadeClient } from './lemonadeClient'
 import { Logger } from './logger'
 import { ModelManager } from './modelManager'
 import type { ServerManager } from './serverManager'
@@ -11,10 +10,9 @@ import type { ChatMessage } from './interfaces'
 /**
  * Registers Lemonade Server models with the VS Code Language Model API
  * (`vscode.lm.registerLanguageModelChatProvider`) so they show up in the
- * native VS Code model picker under the "Chanh" provider — the same way
- * Ollama exposes its models.
+ * native VS Code model picker under the "Chanh" provider
  */
-export class ChanhLanguageModelProvider implements vscode.LanguageModelChatProvider, vscode.Disposable {
+export class ChanhLmcProvider implements vscode.LanguageModelChatProvider, vscode.Disposable {
   /** Fired when the available model list may have changed. */
   readonly onDidChangeLanguageModelChatInformation: vscode.Event<void>
 
@@ -34,8 +32,8 @@ export class ChanhLanguageModelProvider implements vscode.LanguageModelChatProvi
 
   /** Register the provider with VS Code. Returns the disposable to add to subscriptions. */
   register(): vscode.Disposable {
-    const registration = vscode.lm.registerLanguageModelChatProvider('lemonade', this)
-    Logger.info('Registered Lemonade language model provider')
+    const registration = vscode.lm.registerLanguageModelChatProvider('chanh', this)
+    Logger.info('Registered Chanh language model provider')
     return registration
   }
 
@@ -60,7 +58,6 @@ export class ChanhLanguageModelProvider implements vscode.LanguageModelChatProvi
       const client = this.serverManager.client
       const all = await client.listModels()
       // Only expose downloaded chat models — the picker should behave like
-      // Ollama's: what's installed is what's offered.
       models = all.filter((m) => m.downloaded !== false && (m.labels ?? []).some(
         (l) => l.toLowerCase() === 'chat'
       ))
@@ -98,8 +95,8 @@ export class ChanhLanguageModelProvider implements vscode.LanguageModelChatProvi
     const client = this.serverManager.client
 
     const chatMessages: ChatMessage[] = messages.map((m) => ({
-      role: ChanhLanguageModelProvider.toRole(m.role),
-      content: ChanhLanguageModelProvider.extractText(m)
+      role: ChanhLmcProvider.toRole(m.role),
+      content: ChanhLmcProvider.extractText(m)
     })).filter((m) => m.content.length > 0)
 
     const abortController = new AbortController()
@@ -128,7 +125,7 @@ export class ChanhLanguageModelProvider implements vscode.LanguageModelChatProvi
   ): Promise<number> {
     void model
     void token
-    const str = typeof text === 'string' ? text : ChanhLanguageModelProvider.extractText(text)
+    const str = typeof text === 'string' ? text : ChanhLmcProvider.extractText(text)
     return Math.ceil(str.length / 4)
   }
 
