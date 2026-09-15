@@ -630,23 +630,6 @@ export class ServerManager {
     return false
   }
 
-  /** Check if a Lemonade Server is already running on the standalone port. */
-  private async checkExistingServer(): Promise<boolean> {
-    try {
-      Logger.info(`Checking for existing server on port ${this._standalonePort}...`)
-      const standaloneClient = new LemonadeClient(`http://localhost:${this._standalonePort}`)
-      const healthy = await standaloneClient.checkHealth()
-      if (healthy) {
-        Logger.info('Found existing Lemonade Server')
-        return true
-      }
-    } catch {
-      // No server running on this port
-      Logger.info('No existing server found')
-    }
-    return false
-  }
-
   /** Check if a port is in use (by any application). */
   private async isPortInUse(port: number): Promise<boolean> {
     return new Promise((resolve) => {

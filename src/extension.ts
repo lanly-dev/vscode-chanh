@@ -29,30 +29,29 @@ export async function activate(context: vscode.ExtensionContext) {
   const d1 = rc('chanh.startServer', () => serverManager.start())
   const d2 = rc('chanh.stopServer', () => serverManager.stop())
   const d3 = rc('chanh.downloadBinary', () => binaryManager.downloadBinary())
-  const d5 = rc('chanh.openSettings', openSetting)
-  const d6 = rc('chanh.downloadModel', (item: { modelId: string }) => modelManager.downloadModel(item))
-  const d7 = rc('chanh.loadModel', (item: { modelId: string }) => modelManager.loadModel(item.modelId))
-  const d8 = rc('chanh.unloadModel', (item: { modelId: string }) => modelManager.unloadModel(item.modelId))
-  const d9 = rc('chanh.selectChatModel', async () => modelManager.selectChatModel(chatParticipant))
-  const d10 = rc('chanh.refreshServer', () => refreshEvents.fire())
-  const d11 = rc('chanh.setMaxLoadedModels', () => modelManager.setMaxLoadedModels())
-  const d12 = rc('chanh.selectServer', () => serverManager.selectServer())
-  const d13 = rc('chanh.openServerUrl', openUrl)
-  const d14 = rc('chanh.editServerPort', () => serverManager.editServerPort())
+  const d4 = rc('chanh.openSettings', openSetting)
+  const d5 = rc('chanh.downloadModel', (item: { modelId: string }) => modelManager.downloadModel(item))
+  const d6 = rc('chanh.loadModel', (item: { modelId: string }) => modelManager.loadModel(item.modelId))
+  const d7 = rc('chanh.unloadModel', (item: { modelId: string }) => modelManager.unloadModel(item.modelId))
+  const d8 = rc('chanh.selectChatModel', async () => modelManager.selectChatModel(chatParticipant))
+  const d9 = rc('chanh.refreshServer', () => refreshEvents.fire())
+  const d10 = rc('chanh.setMaxLoadedModels', () => modelManager.setMaxLoadedModels())
+  const d11 = rc('chanh.selectServer', () => serverManager.selectServer())
+  const d12 = rc('chanh.openServerUrl', openUrl)
+  const d13 = rc('chanh.editServerPort', () => serverManager.editServerPort())
 
-  const d15 = rc('chanh.removeModel', async (item: { modelId: string }) => modelManager.deleteModel(item.modelId))
-  const d16 = rc('chanh.retryModel', (item: { modelId: string }) => modelManager.startPull(item.modelId))
-  const d17 = listenConfigsChange(serverManager)
-  const d18 = lmcProvider.register()
-  const d19 = lmcProvider
-  const d20 = rc('chanh.toggleModelGrouping', () => provider.toggleModelGrouping())
-  const d21 = vscode.window.registerFileDecorationProvider(new ModelDecorationProvider())
-  const d22 = rc('chanh.toggleDlModelGrouping', () => provider.toggleDlModelGrouping())
-  const d23 = rc('chanh.toggleHotModels', () => provider.toggleHotModels())
+  const d14 = rc('chanh.removeModel', async (item: { modelId: string }) => modelManager.deleteModel(item.modelId))
+  const d15 = rc('chanh.retryModel', (item: { modelId: string }) => modelManager.startPull(item.modelId))
+  const d16 = listenConfigsChange(serverManager)
+  const d17 = lmcProvider.register()
+  const d18 = rc('chanh.toggleModelGrouping', () => provider.toggleModelGrouping())
+  const d19 = vscode.window.registerFileDecorationProvider(new ModelDecorationProvider())
+  const d20 = rc('chanh.toggleDlModelGrouping', () => provider.toggleDlModelGrouping())
+  const d21 = rc('chanh.toggleHotModels', () => provider.toggleHotModels())
 
   context.subscriptions.push(
-    d1, d2, d3, d5, d6, d7, d8, d9, d10, d11, d12, d13, d14, d15, d16, d17, d18,
-    d19, d20, d21, d22, d23
+    d1, d2, d3, d4, d5, d6, d7, d8, d9, d10, d11, d12, d13, d14, d15, d16, d17,
+    d18, d19, d20, d21
   )
   binaryManager.checkForUpdates()
 }

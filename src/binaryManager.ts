@@ -303,7 +303,7 @@ export class BinaryManager {
       }
     } catch (error) {
       // Ignore errors reading directories
-      console.error(`Error reading directory: ${dir}`, error)
+      Logger.error(`Error reading directory: ${dir}`, error)
     }
     return null
   }

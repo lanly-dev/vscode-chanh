@@ -132,22 +132,6 @@ export class LemonadeClient {
     await this.unloadModel()
   }
 
-  /** Pull (download) a model from the server registry. */
-  async pullModel(modelName: string, onProgress?: (progress: string) => void): Promise<void> {
-    Logger.info(`Pulling model: ${modelName}`)
-
-    // Use non-streaming pull for simplicity
-    const { status, data } = await this.request('POST', '/v1/pull', {
-      model_name: modelName,
-      stream: false
-    })
-
-    if (status !== 200) throw new Error(`Failed to pull model: ${status} ${data}`)
-
-    if (onProgress) onProgress('Model pulled successfully')
-    Logger.info(`Model pulled: ${modelName}`)
-  }
-
   /** Pull (download) a model using the streaming `/v1/pull` endpoint so callers
    * can display live download progress. `onProgress` is called for each event
    * with a percent (0-100, or -1 when the server doesn't report a ratio) and a
