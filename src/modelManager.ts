@@ -5,6 +5,7 @@ import { Logger } from './logger'
 import { ServerManager } from './serverManager'
 import { LemonadeModel, ServerStatus } from './interfaces'
 import type { ChatParticipant } from './chatParticipant'
+import type { ChanhLmcProvider } from './lmcProvider'
 
 import type { ServerViewProvider } from './serverTreeview'
 
@@ -65,7 +66,11 @@ export class ModelManager {
     return categories
   }
 
-  constructor(private serverManager: ServerManager, private treeViewProvider: ServerViewProvider) { }
+  constructor(
+    private serverManager: ServerManager,
+    private treeViewProvider: ServerViewProvider,
+    private lmcProvider?: ChanhLmcProvider
+  ) { }
 
   /** The client bound to the currently selected server. */
   private get client() {
@@ -117,6 +122,115 @@ export class ModelManager {
       showErrorMessage(`Failed to unload model: ${err}`)
     }
     this.treeViewProvider.refresh()
+  }
+
+  /** Parse an effective/default ctx_size out of a model options response. */
+  private static readCtxSize(options: Record<string, unknown> | undefined): number | undefined {
+    const value = options?.ctx_size
+    return typeof value === 'number' && Number.isFinite(value) ? value : undefined
+  }
+
+  /**
+   * Shared flow for context-size changes: persist the option, auto-reload the
+   * model when it is loaded (saved ctx_size only applies at load time), then
+   * refresh the tree and the VS Code model picker so its token budget matches.
+   */
+  private async applyContextChange(
+    modelId: string,
+    change: { kind: 'set', ctxSize: number } | { kind: 'reset' }
+  ): Promise<void> {
+    try {
+      await window.withProgress(
+        {
+          location: ProgressLocation.Notification,
+          title: `Updating context size for: ${modelId}`,
+          cancellable: false
+        },
+        async (progress) => {
+          progress.report({ message: 'Saving...' })
+          if (change.kind === 'set') await this.client.setModelOptions(modelId, { ctx_size: change.ctxSize })
+          else await this.client.resetModelOptions(modelId)
+
+          // Saved options apply at load time — reload automatically if the
+          // model is currently loaded so the change takes effect immediately.
+          const health = await this.client.getHealth()
+          if (health.all_models_loaded.some((loaded) => loaded.model_name === modelId)) {
+            progress.report({ message: 'Reloading...' })
+            await this.client.unloadModel(modelId)
+            try {
+              await this.client.loadModel(modelId)
+            } catch (err: unknown) {
+              throw new Error(`Context size was saved, but reloading '${modelId}' failed: ${err}`)
+            }
+          }
+
+          // Re-query /v1/models so VS Code's token budget picks up the new context.
+          this.lmcProvider?.refresh()
+        }
+      )
+      showInformationMessage(
+        change.kind === 'set'
+          ? (change.ctxSize === -1
+            ? `Model '${modelId}' will use automatic context sizing`
+            : `Context size for '${modelId}' set to ${change.ctxSize.toLocaleString()} tokens`)
+          : `Model '${modelId}' reset to its default context size`
+      )
+    } catch (err: unknown) {
+      Logger.error('Failed to update context size', err)
+      showErrorMessage(`Failed to update context size: ${err}`)
+    }
+    this.treeViewProvider.refresh()
+  }
+
+  /** Prompt for a context size and persist it for the given model. */
+  async setModelContext(item?: { modelId?: string }): Promise<void> {
+    const modelId = item?.modelId
+    if (!modelId) {
+      showErrorMessage('Right-click a model in the Chanh view to set its context size')
+      return
+    }
+    if (!await this.serverManager.ensureRunning()) return
+
+    let effective: number | undefined
+    let defaultCtx: number | undefined
+    try {
+      const options = await this.client.getModelOptions(modelId)
+      effective = ModelManager.readCtxSize(options.effective)
+      defaultCtx = ModelManager.readCtxSize(options.default)
+    } catch (err: unknown) {
+      Logger.warn(`Could not read options for ${modelId}: ${err}`)
+    }
+
+    const defaultHint = defaultCtx && defaultCtx > 0
+      ? `. Default for this model: ${defaultCtx.toLocaleString()}. -1 for automatic`
+      : '. -1 for automatic sizing'
+    const input = await window.showInputBox({
+      title: `Context size for ${modelId}`,
+      prompt: `Tokens in${defaultHint}`,
+      value: effective && effective > 0 ? String(effective) : undefined,
+      placeHolder: defaultCtx && defaultCtx > 0 ? String(defaultCtx) : '4096',
+      validateInput: (raw) => {
+        const trimmed = raw.trim()
+        if (!/^-?\d+$/.test(trimmed)) return 'Enter a whole number of tokens (or -1 for automatic).'
+        const n = Number(trimmed)
+        if (n === 0 || n < -1) return 'Enter -1 (automatic) or a positive number.'
+        return undefined
+      }
+    })
+    if (input === undefined) return
+
+    await this.applyContextChange(modelId, { kind: 'set', ctxSize: Number(input.trim()) })
+  }
+
+  /** Clear a model's saved context size, restoring its default. */
+  async resetModelContext(item?: { modelId?: string }): Promise<void> {
+    const modelId = item?.modelId
+    if (!modelId) {
+      showErrorMessage('Right-click a model in the Chanh view to reset its context size')
+      return
+    }
+    if (!await this.serverManager.ensureRunning()) return
+    await this.applyContextChange(modelId, { kind: 'reset' })
   }
 
   /**

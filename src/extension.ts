@@ -20,11 +20,11 @@ export async function activate(context: vscode.ExtensionContext) {
   const serverManager = new ServerManager(binaryManager)
   const provider = await createTreeView(context, serverManager)
 
-  const modelManager = new ModelManager(serverManager, provider)
-  const chatParticipant = new ChatParticipant(context, serverManager)
-
   // Expose Lemonade models in the native VS Code model picker (like Ollama).
   const lmcProvider = new ChanhLmcProvider(serverManager)
+
+  const modelManager = new ModelManager(serverManager, provider, lmcProvider)
+  const chatParticipant = new ChatParticipant(context, serverManager)
 
   const d1 = rc('chanh.startServer', () => serverManager.start())
   const d2 = rc('chanh.stopServer', () => serverManager.stop())
@@ -48,10 +48,12 @@ export async function activate(context: vscode.ExtensionContext) {
   const d19 = vscode.window.registerFileDecorationProvider(new ModelDecorationProvider())
   const d20 = rc('chanh.toggleDlModelGrouping', () => provider.toggleDlModelGrouping())
   const d21 = rc('chanh.toggleHotModels', () => provider.toggleHotModels())
+  const d22 = rc('chanh.setModelContext', (item: { modelId?: string }) => modelManager.setModelContext(item))
+  const d23 = rc('chanh.resetModelContext', (item: { modelId?: string }) => modelManager.resetModelContext(item))
 
   context.subscriptions.push(
     d1, d2, d3, d4, d5, d6, d7, d8, d9, d10, d11, d12, d13, d14, d15, d16, d17,
-    d18, d19, d20, d21, serverManager
+    d18, d19, d20, d21, d22, d23, serverManager
   )
   binaryManager.checkForUpdates()
 }

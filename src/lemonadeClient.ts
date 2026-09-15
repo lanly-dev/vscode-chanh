@@ -132,6 +132,45 @@ export class LemonadeClient {
     await this.unloadModel()
   }
 
+  /**
+   * Read a model's saved, effective, and default recipe options
+   * (`ctx_size`, backend, ...). Used to pre-fill the context-size dialog and
+   * to show the model's default context length.
+   */
+  async getModelOptions(modelName: string): Promise<{
+    saved?: Record<string, unknown>
+    effective?: Record<string, unknown>
+    default?: Record<string, unknown>
+  }> {
+    const { status, data } = await this.request(
+      'GET', `/v1/models/${encodeURIComponent(modelName)}/options`
+    )
+    if (status !== 200) throw new Error(`Failed to read model options: ${status} ${data}`)
+    return JSON.parse(data)
+  }
+
+  /**
+   * Save per-model recipe options (e.g. `{ ctx_size: 32768 }`) without loading
+   * the model. The server merges this into its `recipe_options.json`, so the
+   * value persists across restarts and applies at load time.
+   */
+  async setModelOptions(modelName: string, options: Record<string, unknown>): Promise<void> {
+    const { status, data } = await this.request(
+      'POST', `/v1/models/${encodeURIComponent(modelName)}/options`, options
+    )
+    if (status !== 200) throw new Error(`Failed to save model options: ${status} ${data}`)
+    Logger.info(`Saved options for ${modelName}: ${JSON.stringify(options)}`)
+  }
+
+  /** Reset a model's saved recipe options, restoring its defaults. */
+  async resetModelOptions(modelName: string): Promise<void> {
+    const { status, data } = await this.request(
+      'DELETE', `/v1/models/${encodeURIComponent(modelName)}/options`
+    )
+    if (status !== 200) throw new Error(`Failed to reset model options: ${status} ${data}`)
+    Logger.info(`Reset options for ${modelName}`)
+  }
+
   /** Pull (download) a model using the streaming `/v1/pull` endpoint so callers
    * can display live download progress. `onProgress` is called for each event
    * with a percent (0-100, or -1 when the server doesn't report a ratio) and a

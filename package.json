@@ -97,6 +97,16 @@
         "icon": "$(flame)"
       },
       {
+        "command": "chanh.setModelContext",
+        "title": "Chanh: Set Context Size",
+        "icon": "$(symbol-numeric)"
+      },
+      {
+        "command": "chanh.resetModelContext",
+        "title": "Chanh: Reset Context Size to Default",
+        "icon": "$(clear-all)"
+      },
+      {
         "command": "chanh.loadModel",
         "title": "Chanh: Load Model",
         "icon": "$(run-above)"
@@ -240,6 +250,16 @@
           "command": "chanh.removeModel",
           "when": "view == CHANH_TREEVIEW && (viewItem == CHANH_MODEL_AVAILABLE || viewItem == CHANH_MODEL_LOADED || viewItem == CHANH_LOADED_MODEL)",
           "group": "2_remove"
+        },
+        {
+          "command": "chanh.setModelContext",
+          "when": "view == CHANH_TREEVIEW && (viewItem == CHANH_MODEL_AVAILABLE || viewItem == CHANH_MODEL_LOADED)",
+          "group": "1_context@1"
+        },
+        {
+          "command": "chanh.resetModelContext",
+          "when": "view == CHANH_TREEVIEW && (viewItem == CHANH_MODEL_AVAILABLE || viewItem == CHANH_MODEL_LOADED)",
+          "group": "1_context@2"
         },
         {
           "command": "chanh.retryModel",

@@ -30,6 +30,14 @@ export class ChanhLmcProvider implements vscode.LanguageModelChatProvider, vscod
     this.serverManager.onServerSelectionChange(() => this._onDidChange.fire())
   }
 
+  /**
+   * Ask VS Code to re-query the model list so the picker picks up changed
+   * metadata (e.g. a model's context size after `ctx_size` is updated).
+   */
+  refresh(): void {
+    if (!this.disposed) this._onDidChange.fire()
+  }
+
   /** Register the provider with VS Code. Returns the disposable to add to subscriptions. */
   register(): vscode.Disposable {
     const registration = vscode.lm.registerLanguageModelChatProvider('chanh', this)
@@ -106,6 +114,9 @@ export class ChanhLmcProvider implements vscode.LanguageModelChatProvider, vscod
     if (!isLoaded) {
       Logger.info(`Loading language model selected in VS Code: ${model.id}`)
       await client.loadModel(model.id)
+      // A freshly loaded model may report a different effective context size,
+      // so have VS Code re-query the picker metadata.
+      this.refresh()
     }
 
     const chatMessages: ChatMessage[] = messages.map((m) => ({
