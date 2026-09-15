@@ -101,6 +101,14 @@ export interface LemonadeModel {
   recipe?: string
   /** Runtime context limit reported by the server, in tokens. */
   context_length?: number
+  /** Maximum context window the model/backends support, in tokens. */
+  max_context_window?: number
+  /** Hugging Face/ModelScope checkpoint the model resolves to. */
+  checkpoint?: string
+  /** Registry the model was downloaded from (e.g. "huggingface"). */
+  registry_source?: string
+  /** Currently saved per-model recipe options on the server (may be empty). */
+  recipe_options?: Record<string, unknown>
   /** Suggested models come from the server's built-in catalog: they are pullable but may not be downloaded yet. */
   suggested?: boolean
   /** Whether the model is already downloaded on disk (present when using `?show_all=true`). */

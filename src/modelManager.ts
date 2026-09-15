@@ -204,17 +204,8 @@ export class ModelManager {
     } catch (err: unknown) {
       Logger.warn(`Could not read options for ${modelId}: ${err}`)
     }
-    // Options endpoint unavailable or missing the value — fall back to the
-    // context length reported by the model list.
-    if (effective === undefined) {
-      try {
-        const models = await this.client.listModels()
-        effective = models.find((m) => m.id === modelId)?.context_length
-        if (defaultCtx === undefined) defaultCtx = effective
-      } catch {
-        // Leave both undefined; the dialog still works with a blank input.
-      }
-    }
+    // No fallbacks: if the server doesn't report a context number, leave the
+    // input empty so the user isn't shown an invented value.
 
     const defaultHint = defaultCtx && defaultCtx > 0
       ? `. Default for this model: ${defaultCtx.toLocaleString()}. -1 for automatic`
@@ -223,7 +214,7 @@ export class ModelManager {
       title: `Context size for ${modelId}`,
       prompt: `Tokens in${defaultHint}`,
       value: effective && effective > 0 ? String(effective) : undefined,
-      placeHolder: defaultCtx && defaultCtx > 0 ? String(defaultCtx) : '4096',
+      placeHolder: defaultCtx && defaultCtx > 0 ? String(defaultCtx) : 'e.g. 4096',
       validateInput: (raw) => {
         const trimmed = raw.trim()
         if (!/^-?\d+$/.test(trimmed)) return 'Enter a whole number of tokens (or -1 for automatic).'
@@ -305,21 +296,17 @@ export class ModelManager {
         `<span class="value">${esc(value)}</span></div>`
     }
 
-    // -1 means "automatic context sizing" — display it rather than hiding the
-    // row, so missing values and automatic values are distinguishable.
-    const fmtCtx = (n?: number): string | undefined => {
-      if (n === undefined) return undefined
-      if (n === -1) return 'Automatic (server decides)'
-      return n > 0 ? `${n.toLocaleString()} tokens` : undefined
+    // -1 means "automatic context sizing"; missing values render as empty.
+    // No fallbacks: only what the server actually reports is shown.
+    const fmtCtx = (n?: number): string => {
+      if (n === -1) return 'Automatic'
+      return n !== undefined && n > 0 ? `${n.toLocaleString()} tokens` : ''
     }
 
-    const effectiveCtx = ModelManager.readCtxSize(options?.effective) ?? model.context_length
+    const effectiveCtx = ModelManager.readCtxSize(options?.effective)
     const savedCtx = ModelManager.readCtxSize(options?.saved)
-    // The server reports the default layer under `defaults` (plural); older
-    // builds without the options endpoint still get a default via the
-    // effective value when no override is saved.
+    // The server reports the default layer under `defaults` (plural).
     const defaultCtx = ModelManager.readCtxSize(options?.defaults)
-      ?? (savedCtx === undefined ? effectiveCtx : undefined)
 
     const rows = [
       row('Capabilities', ModelManager.getModelLabel(model)),
@@ -329,14 +316,19 @@ export class ModelManager {
         : 'Downloaded (not loaded)'),
       row('Size', formatSize(model.size)),
       row('Context (effective)', fmtCtx(effectiveCtx)),
-      row('Context (saved override)', savedCtx === undefined ? undefined : fmtCtx(savedCtx)),
+      row('Context (reported)', fmtCtx(model.context_length)),
+      row('Max context window', fmtCtx(model.max_context_window)),
+      row('Context (saved override)', savedCtx === undefined ? '' : fmtCtx(savedCtx)),
       row('Context (default)', fmtCtx(defaultCtx)),
+      row('Checkpoint', model.checkpoint),
+      row('Registry', model.registry_source),
       row('Recipe', model.recipe),
       row('Type', model.type),
       row('Owned by', model.owned_by),
-      row('Added', typeof model.created === 'number' && model.created > 0
+      row('Created', typeof model.created === 'number' && model.created > 0
         ? new Date(model.created * 1000).toISOString().slice(0, 10)
         : undefined),
+      row('Created value', model.created?.toString()),
       row('Backend', loaded?.backend_url)
     ].filter((r): r is string => r !== undefined)
 
