@@ -240,6 +240,36 @@ export class ModelManager {
   }
 
   /**
+   * Extract the request/context sizes from the server's context-overflow
+   * error, e.g. "...request (7270 tokens) exceeds the available context size
+   * (4096 tokens), try increasing it".
+   */
+  static detectContextOverflow(err: unknown): { used: number, available: number } | undefined {
+    const message = err instanceof Error ? err.message : String(err)
+    const match = message.match(/request \((\d+) tokens\) exceeds the available context size \((\d+) tokens\)/)
+    if (!match) return undefined
+    return { used: Number(match[1]), available: Number(match[2]) }
+  }
+
+  /**
+   * When a chat completion fails because the prompt exceeds the model's
+   * context size, offer the user a one-click way to raise it.
+   */
+  async offerContextIncrease(modelId: string, err: unknown): Promise<void> {
+    const overflow = ModelManager.detectContextOverflow(err)
+    if (!overflow) return
+    Logger.warn(
+      `Context overflow on '${modelId}': request ${overflow.used} tokens > ${overflow.available} tokens`
+    )
+    const action = await window.showWarningMessage(
+      `'${modelId}' has a ${overflow.available.toLocaleString()}-token context size, but the request `
+        + `needs ${overflow.used.toLocaleString()} tokens. Set a larger context size?`,
+      'Set Context Size'
+    )
+    if (action === 'Set Context Size') await this.setModelContext({ modelId })
+  }
+
+  /**
    * Show every server-reported detail for a model in a popup panel:
    * capabilities, size, context (effective/saved/default), recipe, ownership,
    * add date, and current runtime state when loaded.

@@ -24,7 +24,8 @@ export async function activate(context: vscode.ExtensionContext) {
   const lmcProvider = new ChanhLmcProvider(serverManager)
 
   const modelManager = new ModelManager(serverManager, provider, lmcProvider)
-  const chatParticipant = new ChatParticipant(context, serverManager)
+  lmcProvider.setModelManager(modelManager)
+  const chatParticipant = new ChatParticipant(context, serverManager, modelManager)
 
   const d1 = rc('chanh.startServer', () => serverManager.start())
   const d2 = rc('chanh.stopServer', () => serverManager.stop())

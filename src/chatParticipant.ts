@@ -30,7 +30,11 @@ export class ChatParticipant {
   private participant: VSCodeChatParticipant
   private selectedModel: string | undefined
 
-  constructor(private context: ExtensionContext, private serverManager: ServerManager) {
+  constructor(
+    private context: ExtensionContext,
+    private serverManager: ServerManager,
+    private modelManager: ModelManager
+  ) {
     this.client = new LemonadeClient(serverManager.selectedServerUrl)
 
     // Create the chat participant
@@ -171,6 +175,8 @@ export class ChatParticipant {
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err)
       Logger.error('Chat completion failed', err)
+      // Offer a one-click fix when the model's context size is too small.
+      await this.modelManager.offerContextIncrease(model, err)
       response.markdown(`\n\n**Error:** ${message}`)
       return { errorDetails: { message } }
     }

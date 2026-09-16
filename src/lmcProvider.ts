@@ -18,6 +18,13 @@ export class ChanhLmcProvider implements vscode.LanguageModelChatProvider, vscod
 
   private readonly _onDidChange = new vscode.EventEmitter<void>()
   private disposed = false
+  /** Injected after construction so context-overflow errors can offer a fix. */
+  private modelManager?: ModelManager
+
+  /** Late-bind the ModelManager (it needs this provider at construction). */
+  setModelManager(modelManager: ModelManager): void {
+    this.modelManager = modelManager
+  }
 
   constructor(private serverManager: ServerManager) {
     this.onDidChangeLanguageModelChatInformation = this._onDidChange.event
@@ -134,6 +141,11 @@ export class ChanhLmcProvider implements vscode.LanguageModelChatProvider, vscod
         abortController.signal
       )
       Logger.info(`Language model response complete for ${model.id}`)
+    } catch (err) {
+      // Offer a one-click fix when the model's context size is too small,
+      // then rethrow so VS Code still surfaces the failure.
+      await this.modelManager?.offerContextIncrease(model.id, err)
+      throw err
     } finally {
       subscription.dispose()
     }
