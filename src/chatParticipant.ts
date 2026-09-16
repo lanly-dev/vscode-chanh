@@ -30,11 +30,7 @@ export class ChatParticipant {
   private participant: VSCodeChatParticipant
   private selectedModel: string | undefined
 
-  constructor(
-    private context: ExtensionContext,
-    private serverManager: ServerManager,
-    private modelManager: ModelManager
-  ) {
+  constructor(private serverManager: ServerManager, private modelManager: ModelManager) {
     this.client = new LemonadeClient(serverManager.selectedServerUrl)
 
     // Create the chat participant

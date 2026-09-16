@@ -124,17 +124,19 @@ export class BinaryManager {
           return reject(new Error(`Download failed with status ${res.statusCode}`))
         }
 
-        const totalBytes = parseInt(
-          res.headers['content-range']?.split('/')[1]
-          ?? res.headers['content-length']
-          ?? '0',
-          10
-        )
+        // No fallbacks: rely on the Content-Length header only. When the
+        // server doesn't send it, no progress percentage can be computed and
+        // the download simply proceeds without one.
+        const contentLength = res.headers['content-length']
+        const totalBytes = contentLength ? parseInt(contentLength, 10) : NaN
         let receivedBytes = 0
 
         res.on('data', (chunk) => {
           receivedBytes += chunk.length
-          if (totalBytes > 0 && progress) progress(Math.round((receivedBytes / totalBytes) * 100))
+          if (Number.isFinite(totalBytes) && totalBytes > 0 && progress) {
+            const percent = Math.round((receivedBytes / totalBytes) * 100)
+            progress(percent)
+          }
         })
 
         res.pipe(file)
@@ -148,6 +150,7 @@ export class BinaryManager {
         })
       }).on('error', (err) => {
         file.close()
+        // Remove the partially downloaded file if it exists
         if (fs.existsSync(dest)) fs.unlinkSync(dest)
         reject(err)
       })
