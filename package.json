@@ -243,32 +243,32 @@
         },
         {
           "command": "chanh.loadModel",
-          "when": "view == CHANH_TREEVIEW && viewItem == CHANH_MODEL_AVAILABLE",
+          "when": "view == CHANH_TREEVIEW && viewItem =~ /CHANH_MODEL_AVAILABLE/",
           "group": "inline"
         },
         {
           "command": "chanh.unloadModel",
-          "when": "view == CHANH_TREEVIEW && (viewItem == CHANH_MODEL_LOADED || viewItem == CHANH_LOADED_MODEL)",
+          "when": "view == CHANH_TREEVIEW && (viewItem =~ /CHANH_MODEL_LOADED/ || viewItem == CHANH_LOADED_MODEL)",
           "group": "inline"
         },
         {
           "command": "chanh.removeModel",
-          "when": "view == CHANH_TREEVIEW && (viewItem == CHANH_MODEL_AVAILABLE || viewItem == CHANH_MODEL_LOADED || viewItem == CHANH_LOADED_MODEL)",
+          "when": "view == CHANH_TREEVIEW && (viewItem =~ /CHANH_MODEL_(AVAILABLE|LOADED)/ || viewItem == CHANH_LOADED_MODEL)",
           "group": "2_remove"
         },
         {
           "command": "chanh.setModelContext",
-          "when": "view == CHANH_TREEVIEW && (viewItem == CHANH_MODEL_AVAILABLE || viewItem == CHANH_MODEL_LOADED)",
+          "when": "view == CHANH_TREEVIEW && viewItem =~ /CHANH_MODEL_(AVAILABLE|LOADED)/",
           "group": "1_context@1"
         },
         {
           "command": "chanh.resetModelContext",
-          "when": "view == CHANH_TREEVIEW && (viewItem == CHANH_MODEL_AVAILABLE || viewItem == CHANH_MODEL_LOADED)",
+          "when": "view == CHANH_TREEVIEW && viewItem =~ /CHANH_MODEL_(AVAILABLE|LOADED)_CTX_SET/",
           "group": "1_context@2"
         },
         {
           "command": "chanh.showModelInfo",
-          "when": "view == CHANH_TREEVIEW && (viewItem == CHANH_MODEL_AVAILABLE || viewItem == CHANH_MODEL_LOADED)",
+          "when": "view == CHANH_TREEVIEW && viewItem =~ /CHANH_MODEL_(AVAILABLE|LOADED)/",
           "group": "inline"
         },
         {

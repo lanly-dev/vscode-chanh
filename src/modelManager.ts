@@ -74,6 +74,17 @@ export class ModelManager {
     private lmcProvider?: ChanhLmcProvider
   ) { }
 
+  /** Preset context sizes offered in the Set Context Size quick pick. */
+  private static readonly QUICK_CTX_SIZES = [
+    { label: '8K', tokens: 8192 },
+    { label: '16K', tokens: 16384 },
+    { label: '32K', tokens: 32768 },
+    { label: '48K', tokens: 49152 }
+  ]
+
+  /** Lower bound (4K) for a custom context size entry. */
+  private static readonly MIN_CUSTOM_CTX = 4096
+
   /** The client bound to the currently selected server. */
   private get client() {
     return this.serverManager.client
@@ -206,26 +217,99 @@ export class ModelManager {
     }
     // No fallbacks: if the server doesn't report a context number, leave the
     // input empty so the user isn't shown an invented value.
+    if (defaultCtx && defaultCtx > 0) Logger.info(`Default context for ${modelId}: ${defaultCtx}`)
 
-    const defaultHint = defaultCtx && defaultCtx > 0
-      ? `. Default for this model: ${defaultCtx.toLocaleString()}. -1 for automatic`
-      : '. -1 for automatic sizing'
-    const input = await window.showInputBox({
-      title: `Context size for ${modelId}`,
-      prompt: `Tokens in${defaultHint}`,
-      value: effective && effective > 0 ? String(effective) : undefined,
-      placeHolder: defaultCtx && defaultCtx > 0 ? String(defaultCtx) : 'e.g. 4096',
-      validateInput: (raw) => {
-        const trimmed = raw.trim()
-        if (!/^-?\d+$/.test(trimmed)) return 'Enter a whole number of tokens (or -1 for automatic).'
-        const n = Number(trimmed)
-        if (n === 0 || n < -1) return 'Enter -1 (automatic) or a positive number.'
-        return undefined
+    // The model's supported ceiling (4K floor for custom entries). Without a
+    // reported max_context_window the custom field stays unconstrained upward.
+    let maxCtx: number | undefined
+    try {
+      const models = await this.client.listModels()
+      const max = models.find((m) => m.id === modelId)?.max_context_window
+      if (typeof max === 'number' && max > 0) maxCtx = max
+    } catch (err: unknown) {
+      Logger.warn(`Could not read max context window for ${modelId}: ${err}`)
+    }
+
+    const pick = await this.promptContextSize(modelId, effective, defaultCtx, maxCtx)
+    if (pick === undefined) return
+
+    if (pick === 'custom') {
+      const rangeHint = maxCtx && maxCtx > 0
+        ? ` (${ModelManager.MIN_CUSTOM_CTX.toLocaleString()} – ${maxCtx.toLocaleString()} tokens)`
+        : ` (at least ${ModelManager.MIN_CUSTOM_CTX.toLocaleString()} tokens)`
+      const input = await window.showInputBox({
+        title: `Custom context size for ${modelId}`,
+        prompt: `Tokens in${rangeHint}. -1 for automatic sizing`,
+        value: effective && effective > 0 ? String(effective) : undefined,
+        placeHolder: defaultCtx && defaultCtx > 0 ? String(defaultCtx) : 'e.g. 4096',
+        validateInput: (raw) => {
+          const trimmed = raw.trim()
+          if (!/^-?\d+$/.test(trimmed)) return 'Enter a whole number of tokens (or -1 for automatic).'
+          const n = Number(trimmed)
+          if (n === 0 || n < -1) return 'Enter -1 (automatic) or a positive number.'
+          if (n !== -1 && n < ModelManager.MIN_CUSTOM_CTX)
+            return `Minimum is ${ModelManager.MIN_CUSTOM_CTX.toLocaleString()} tokens (4K).`
+
+          if (maxCtx && n > maxCtx)
+            return `Maximum for this model is ${maxCtx.toLocaleString()} tokens.`
+
+          return undefined
+        }
+      })
+      if (input === undefined) return
+      await this.applyContextChange(modelId, { kind: 'set', ctxSize: Number(input.trim()) })
+      return
+    }
+
+    await this.applyContextChange(modelId, { kind: 'set', ctxSize: pick })
+  }
+
+  /**
+   * Quick-pick of common context sizes up to the model's supported maximum
+   * (with the current/default marked), an automatic option, and a
+   * custom-number entry bounded by [4K, max].
+   * Returns the chosen size in tokens, -1 for automatic, 'custom' to ask for
+   * a specific number, or undefined when cancelled.
+   */
+  private async promptContextSize(
+    modelId: string,
+    effective: number | undefined,
+    defaultCtx: number | undefined,
+    maxCtx?: number
+  ): Promise<number | 'custom' | undefined> {
+    const mark = (tokens: number): string => {
+      const tags: string[] = []
+      if (effective === tokens) tags.push('current')
+      if (defaultCtx === tokens) tags.push('default')
+      return tags.length ? ` — ${tags.join(', ')}` : ''
+    }
+
+    const items: Array<QuickPickItem & { value: number | 'custom' }> = [
+      ...ModelManager.QUICK_CTX_SIZES
+        .filter((size) => !maxCtx || size.tokens <= maxCtx)
+        .map((size) => ({
+          label: `${size.label} — ${size.tokens.toLocaleString()} tokens${mark(size.tokens)}`,
+          value: size.tokens
+        })),
+      {
+        label: 'Automatic',
+        description: 'Server decides the context size (-1)',
+        value: -1
+      },
+      {
+        label: 'Custom…',
+        description: maxCtx && maxCtx > 0
+          ? `Any value from 4K up to ${maxCtx.toLocaleString()} tokens`
+          : 'Enter a specific number of tokens (at least 4K)',
+        value: 'custom'
       }
-    })
-    if (input === undefined) return
+    ]
 
-    await this.applyContextChange(modelId, { kind: 'set', ctxSize: Number(input.trim()) })
+    const picked = await window.showQuickPick(items, {
+      title: `Context size for ${modelId}`,
+      placeHolder: 'Choose the context size to apply'
+    })
+    return picked?.value
   }
 
   /** Clear a model's saved context size, restoring its default. */

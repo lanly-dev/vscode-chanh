@@ -549,6 +549,9 @@ export class ServerViewProvider implements TreeDataProvider<TreeItem> {
 
     if (isLoaded) item.contextValue = 'CHANH_MODEL_LOADED'
     else item.contextValue = 'CHANH_MODEL_AVAILABLE'
+    // Rows with a saved ctx_size override get a suffix so the Reset Context
+    // Size menu item can be shown only for them.
+    if (model.recipe_options?.ctx_size !== undefined) item.contextValue += '_CTX_SET'
     return item
   }
 
