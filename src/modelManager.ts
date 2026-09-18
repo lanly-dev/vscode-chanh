@@ -606,19 +606,16 @@ export class ModelManager {
    * and tracking incomplete downloads in the tree view on cancel/failure.
    * Invoked from a Downloadable Models tree row (click or inline icon).
    */
-  async downloadModel(item: { modelId: string } | undefined): Promise<void> {
-    const modelId = item?.modelId
-    if (!modelId) {
-      showWarningMessage('No downloadable model selected.')
+  async downloadModel(item: { modelId: string } ): Promise<void> {
+    const modelId = item.modelId
+    if (!await this.serverManager.ensureRunning()) {
+      // UI won't allow this case
+      showWarningMessage('Server is not running. Cannot download model.')
       return
     }
-    await this.startPull(modelId)
-  }
-  async startPull(modelId: string): Promise<void> {
-    if (!await this.serverManager.ensureRunning()) return
 
     const client = this.serverManager.client
-
+    // TODO: is it continue or redownload?
     // Re-pulling a known-incomplete model: drop its stale "incomplete" marker
     // while it's actively downloading; it will be re-marked if it fails again.
     this.treeViewProvider.clearPartial(modelId)
@@ -654,12 +651,10 @@ export class ModelManager {
                 })
               } else {
                 // Unknown progress - just update message
-                progress.report({
-                  message: p.message || 'Downloading...'
-                })
+                progress.report({ message: p.message || 'Downloading...'})
               }
-              // Tree updates are throttled to every 5% inside updateDownload.
-              this.treeViewProvider.updateDownload(modelId, p.pct, p.message, p.written, p.total)
+              // Tree updates are throttled to every 1% inside updateDowProgress.
+              this.treeViewProvider.updateDowProgress(modelId, p.pct, p.message, p.written, p.total)
             },
             abortController.signal
           )
@@ -674,9 +669,7 @@ export class ModelManager {
             Logger.warn(`Model download cancelled: ${modelId}`)
             this.treeViewProvider.markPartial(modelId, lastReportedPct)
             this.treeViewProvider.refresh()
-            showInformationMessage(
-              `Cancelled pulling '${modelId}'. The partial download is now listed under "Incomplete Downloads".`
-            )
+            showInformationMessage(`Cancelled pulling '${modelId}'.`)
           } else {
             Logger.error('Failed to pull model', err)
             this.treeViewProvider.markPartial(modelId, lastReportedPct)
@@ -687,5 +680,4 @@ export class ModelManager {
       }
     )
   }
-
 }

@@ -117,15 +117,15 @@ export class ServerViewProvider implements TreeDataProvider<TreeItem> {
   }
 
   /**
-   * Update live download progress, refreshing the tree only when the progress
-   * crosses a 2% step (so we don't re-render the whole tree on every event).
-   */
-  updateDownload(modelId: string, pct: number, message: string, written?: number, total?: number): void {
+ * Update live download progress, refreshing the tree only when the progress
+ * crosses a 1% step (so we don't re-render the whole tree on every event).
+ */
+  updateDowProgress(modelId: string, pct: number, message: string, written?: number, total?: number): void {
     const current = this._downloads.get(modelId)
     if (!current) return
 
-    const bucket = pct >= 0 ? Math.floor(pct / 2) : -1
-    const currentBucket = current.pct >= 0 ? Math.floor(current.pct / 2) : -1
+    const bucket = pct >= 0 ? Math.floor(pct) : -1
+    const currentBucket = current.pct >= 0 ? Math.floor(current.pct) : -1
     const shouldRefresh = bucket !== currentBucket && current.pct !== 0
 
     this._downloads.set(modelId, { modelId, pct, written, total, message })
@@ -347,8 +347,7 @@ export class ServerViewProvider implements TreeDataProvider<TreeItem> {
           streaming: model.is_streaming,
           backend: model.backend_url
         })
-      } else
-        item.tooltip = `Model: ${model.model_name}\nBusy: ${model.is_busy}\nStreaming: ${model.is_streaming}`
+      } else item.tooltip = `Model: ${model.model_name}\nBusy: ${model.is_busy}\nStreaming: ${model.is_streaming}`
 
       item.contextValue = 'CHANH_LOADED_MODEL'
       item.description = model.is_busy ? 'busy' : 'idle'
@@ -467,7 +466,7 @@ export class ServerViewProvider implements TreeDataProvider<TreeItem> {
     if (sizeText) lines.push(`Size: ${sizeText}`)
 
     if (typeof model.context_length === 'number' && model.context_length > 0)
-      lines.push(`Context: ${model.context_length.toLocaleString()} tokens`)
+    {lines.push(`Context: ${model.context_length.toLocaleString()} tokens`)}
 
     if (model.recipe) lines.push(`Recipe: ${model.recipe}`)
     if (model.type) lines.push(`Type: ${model.type}`)
