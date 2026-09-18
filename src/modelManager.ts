@@ -653,6 +653,7 @@ export class ModelManager {
               // console.log(`Received progress update for model ${modelId}:`, p)
               progressEvents++
               if (typeof p.written === 'number' && typeof p.total === 'number') sawByteCounts = true
+              const hasBytes = typeof p.written === 'number' && typeof p.total === 'number'
               if (p.pct >= 0) {
                 // Calculate increment for the progress bar
                 const increment = p.pct - lastReportedPct
@@ -662,9 +663,13 @@ export class ModelManager {
                   message: `${Math.round(p.pct)}%${p.message ? ' - ' + p.message : ''}`,
                   increment: Math.max(0, increment)
                 })
+              } else if (hasBytes) {
+                // Byte counts without a percent: still real progress, no message.
+                progress.report({})
               } else {
-                // Unknown progress - just update message
-                progress.report({ message: p.message || 'Downloading...'})
+                // Bare status-only event (e.g. `{"status":"process"}`) with no
+                // numbers: skip the popup update, matching the tree view.
+                return
               }
               this.treeViewProvider.updateDowProgress(modelId, p.pct, p.message, p.written, p.total)
             },
