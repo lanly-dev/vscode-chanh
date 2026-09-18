@@ -127,11 +127,6 @@
         "icon": "$(trash)"
       },
       {
-        "command": "chanh.retryModel",
-        "title": "Chanh: Retry Model Download",
-        "icon": "$(refresh)"
-      },
-      {
         "command": "chanh.selectChatModel",
         "title": "Chanh: Select Chat Model"
       },
@@ -272,7 +267,7 @@
           "group": "inline"
         },
         {
-          "command": "chanh.retryModel",
+          "command": "chanh.downloadModel",
           "when": "view == CHANH_TREEVIEW && viewItem == CHANH_PARTIAL_MODEL",
           "group": "inline"
         },
