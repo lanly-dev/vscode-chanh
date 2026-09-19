@@ -1,4 +1,4 @@
-import * as vscode from 'vscode'
+import { commands, ExtensionContext, TreeItem, window } from 'vscode'
 
 import { BinaryManager } from './binaryManager'
 import { ChatParticipant } from './chatParticipant'
@@ -6,85 +6,65 @@ import { ChanhLmcProvider } from './lmcProvider'
 import { Logger } from './logger'
 import { ModelDecorationProvider } from './modelDecorations'
 import { ModelManager } from './modelManager'
-import { ServerManager } from './serverManager'
+import { listenConfigsChange, ServerManager } from './serverManager'
 import { ServerViewProvider } from './serverTreeview'
 
 import { openSetting, openUrl } from './utils'
 import { refreshEvents } from './events'
 
-export async function activate(context: vscode.ExtensionContext) {
-  const rc = vscode.commands.registerCommand
+/** Tree items carrying their Lemonade model id. */
+type ModelTreeItem = TreeItem & { modelId: string }
 
-  // Initialize managers
+export async function activate(context: ExtensionContext) {
+  const rc = commands.registerCommand
+
+  // Initialize managers and the tree view (mirrors the audio-lab style:
+  // a singleton-ish provider obtained via `createOrGet`).
   const binaryManager = new BinaryManager(context)
   const serverManager = new ServerManager(binaryManager)
-  const provider = await createTreeView(context, serverManager)
+  const p = await ServerViewProvider.createOrGet(context, serverManager)
 
   // Expose Lemonade models in the native VS Code model picker (like Ollama).
   const lmcProvider = new ChanhLmcProvider(serverManager)
 
-  const modelManager = new ModelManager(serverManager, provider, lmcProvider)
+  const modelManager = new ModelManager(serverManager, p, lmcProvider)
   lmcProvider.setModelManager(modelManager)
   const chatParticipant = new ChatParticipant(serverManager, modelManager)
 
-  const d1 = rc('chanh.startServer', () => serverManager.start())
-  const d2 = rc('chanh.stopServer', () => serverManager.stop())
-  const d3 = rc('chanh.downloadBinary', () => binaryManager.downloadBinary())
-  const d4 = rc('chanh.openSettings', openSetting)
-  const d5 = rc('chanh.downloadModel', (item: { modelId: string }) => modelManager.downloadModel(item))
-  const d5b = rc('chanh.cancelDownload', (item: { modelId: string }) => modelManager.cancelDownload(item.modelId))
-  const d6 = rc('chanh.loadModel', (item: { modelId: string }) => modelManager.loadModel(item.modelId))
-  const d7 = rc('chanh.unloadModel', (item: { modelId: string }) => modelManager.unloadModel(item.modelId))
-  const d8 = rc('chanh.selectChatModel', async () => modelManager.selectChatModel(chatParticipant))
-  const d9 = rc('chanh.refreshServer', () => refreshEvents.fire())
-  const d10 = rc('chanh.setMaxLoadedModels', () => modelManager.setMaxLoadedModels())
-  const d11 = rc('chanh.selectServer', () => serverManager.selectServer())
-  const d12 = rc('chanh.openServerUrl', openUrl)
-  const d13 = rc('chanh.editServerPort', () => serverManager.editServerPort())
+  // No command palette (tree-item actions)
+  const d1 = rc('chanh.ncp.downloadModel', (item: ModelTreeItem) => modelManager.downloadModel(item))
+  const d2 = rc('chanh.ncp.cancelDownload', (item: ModelTreeItem) => modelManager.cancelDownload(item.modelId))
+  const d3 = rc('chanh.ncp.loadModel', (item: ModelTreeItem) => modelManager.loadModel(item.modelId))
+  const d4 = rc('chanh.ncp.unloadModel', (item: ModelTreeItem) => modelManager.unloadModel(item.modelId))
+  const d5 = rc('chanh.ncp.removeModel', async (item: ModelTreeItem) => modelManager.deleteModel(item.modelId))
+  const d6 = rc('chanh.ncp.setModelContext', (item: ModelTreeItem) => modelManager.setModelContext(item))
+  const d7 = rc('chanh.ncp.resetModelContext', (item: ModelTreeItem) => modelManager.resetModelContext(item))
+  const d8 = rc('chanh.ncp.showModelInfo', (item: ModelTreeItem) => modelManager.showModelInfo(item))
 
-  const d14 = rc('chanh.removeModel', async (item: { modelId: string }) => modelManager.deleteModel(item.modelId))
-  const d16 = listenConfigsChange(serverManager)
-  const d17 = lmcProvider.register()
-  const d18 = rc('chanh.toggleModelGrouping', () => provider.toggleModelGrouping())
-  const d19 = vscode.window.registerFileDecorationProvider(new ModelDecorationProvider())
-  const d20 = rc('chanh.toggleDlModelGrouping', () => provider.toggleDlModelGrouping())
-  const d21 = rc('chanh.toggleHotModels', () => provider.toggleHotModels())
-  const d22 = rc('chanh.setModelContext', (item: { modelId?: string }) => modelManager.setModelContext(item))
-  const d23 = rc('chanh.resetModelContext', (item: { modelId?: string }) => modelManager.resetModelContext(item))
-  const d24 = rc('chanh.showModelInfo', (item: { modelId?: string }) => modelManager.showModelInfo(item))
+  const d9 = rc('chanh.startServer', () => serverManager.start())
+  const d10 = rc('chanh.stopServer', () => serverManager.stop())
+  const d11 = rc('chanh.downloadBinary', () => binaryManager.downloadBinary())
+  const d12 = rc('chanh.openSettings', openSetting)
+  const d13 = rc('chanh.selectChatModel', async () => modelManager.selectChatModel(chatParticipant))
+  const d14 = rc('chanh.refreshServer', () => refreshEvents.fire())
+  const d15 = rc('chanh.setMaxLoadedModels', () => modelManager.setMaxLoadedModels())
+  const d16 = rc('chanh.selectServer', () => serverManager.selectServer())
+  const d17 = rc('chanh.openServerUrl', openUrl)
+  const d18 = rc('chanh.editServerPort', () => serverManager.editServerPort())
+
+  const d19 = rc('chanh.toggleModelGrouping', () => p.toggleModelGrouping())
+  const d20 = rc('chanh.toggleDlModelGrouping', () => p.toggleDlModelGrouping())
+  const d21 = rc('chanh.toggleHotModels', () => p.toggleHotModels())
+
+  const d22 = listenConfigsChange(serverManager)
+  const d23 = lmcProvider.register()
+  const d24 = window.registerFileDecorationProvider(new ModelDecorationProvider())
 
   context.subscriptions.push(
-    d1, d2, d3, d4, d5, d5b, d6, d7, d8, d9, d10, d11, d12, d13, d14, d16, d17,
+    d1, d2, d3, d4, d5, d6, d7, d8, d9, d10, d11, d12, d13, d14, d15, d16, d17,
     d18, d19, d20, d21, d22, d23, d24, serverManager
   )
   binaryManager.checkForUpdates()
-}
-
-function listenConfigsChange(serverManager: ServerManager) {
-  return vscode.workspace.onDidChangeConfiguration(async (e) => {
-    const settings = ['chanh.targetServer', 'chanh.customServerUrl', 'chanh.standalonePort', 'chanh.embeddedPort']
-
-    if (settings.some((setting) => e.affectsConfiguration(setting))) {
-      serverManager.applyConfiguredServerMode()
-
-      // When the user switches away from embedded mode, stop the local embedded process
-      // it's no longer the active server.
-      const config = vscode.workspace.getConfiguration('chanh')
-      const newMode = config.get<string>('targetServer', 'standalone')
-      // TODO: Check if stop before switching away from embedded mode
-      if (newMode !== 'embedded') await serverManager.stop()
-
-      refreshEvents.fire()
-    }
-  })
-}
-
-// Register tree view for Lemonade status
-async function createTreeView(context: vscode.ExtensionContext, serverManager: ServerManager) {
-  const provider = new ServerViewProvider(context, serverManager)
-  vscode.window.createTreeView('CHANH_TREEVIEW', { treeDataProvider: provider, showCollapseAll: true })
-  await refreshEvents.fire()
-  return provider
 }
 
 // This method is called when your extension is deactivated

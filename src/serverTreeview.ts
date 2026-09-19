@@ -5,7 +5,8 @@ import {
   ThemeIcon,
   TreeDataProvider,
   TreeItem,
-  TreeItemCollapsibleState
+  TreeItemCollapsibleState,
+  window
 } from 'vscode'
 const { Collapsed, Expanded, None } = TreeItemCollapsibleState
 
@@ -54,6 +55,17 @@ const DOWNLOAD_ROW_REFRESH_MS = 250
  * Shows both the standalone Lemonade app and the lemond app in a single tree.
  */
 export class ServerViewProvider implements TreeDataProvider<TreeItem> {
+  /**
+   * Singleton-style factory, mirroring `LemonadeTreeDataProvider.createOrGet()`
+   * from the vscode-audio-lab extension.
+   */
+  static async createOrGet(context: ExtensionContext, serverManager: ServerManager) {
+    const provider = new ServerViewProvider(context, serverManager)
+    window.createTreeView('CHANH_TREEVIEW', { treeDataProvider: provider, showCollapseAll: true })
+    await refreshEvents.fire()
+    return provider
+  }
+
   private _onDidChangeTreeData = new EventEmitter<TreeItem | undefined | void>()
   readonly onDidChangeTreeData = this._onDidChangeTreeData.event
 

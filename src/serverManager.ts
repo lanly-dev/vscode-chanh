@@ -809,3 +809,23 @@ export class ServerManager {
     this._usingExistingServer = false
   }
 }
+
+/** React to configuration changes that affect which server is targeted. */
+export function listenConfigsChange(serverManager: ServerManager) {
+  return workspace.onDidChangeConfiguration(async (e) => {
+    const settings = ['chanh.targetServer', 'chanh.customServerUrl', 'chanh.standalonePort', 'chanh.embeddedPort']
+
+    if (settings.some((setting) => e.affectsConfiguration(setting))) {
+      serverManager.applyConfiguredServerMode()
+
+      // When the user switches away from embedded mode, stop the local embedded process
+      // it's no longer the active server.
+      const config = workspace.getConfiguration('chanh')
+      const newMode = config.get<string>('targetServer', 'standalone')
+      // TODO: Check if stop before switching away from embedded mode
+      if (newMode !== 'embedded') await serverManager.stop()
+
+      refreshEvents.fire()
+    }
+  })
+}

@@ -77,12 +77,12 @@
         "icon": "$(gear)"
       },
       {
-        "command": "chanh.downloadModel",
+        "command": "chanh.ncp.downloadModel",
         "title": "Chanh: Download Model",
         "icon": "$(cloud-download)"
       },
       {
-        "command": "chanh.cancelDownload",
+        "command": "chanh.ncp.cancelDownload",
         "title": "Chanh: Cancel Download",
         "icon": "$(close)"
       },
@@ -102,32 +102,32 @@
         "icon": "$(flame)"
       },
       {
-        "command": "chanh.setModelContext",
+        "command": "chanh.ncp.setModelContext",
         "title": "Chanh: Set Context Size",
         "icon": "$(symbol-numeric)"
       },
       {
-        "command": "chanh.resetModelContext",
+        "command": "chanh.ncp.resetModelContext",
         "title": "Chanh: Reset Context Size to Default",
         "icon": "$(clear-all)"
       },
       {
-        "command": "chanh.showModelInfo",
+        "command": "chanh.ncp.showModelInfo",
         "title": "Chanh: Show Model Info",
         "icon": "$(info)"
       },
       {
-        "command": "chanh.loadModel",
+        "command": "chanh.ncp.loadModel",
         "title": "Chanh: Load Model",
         "icon": "$(run-above)"
       },
       {
-        "command": "chanh.unloadModel",
+        "command": "chanh.ncp.unloadModel",
         "title": "Chanh: Unload Model",
         "icon": "$(run-below)"
       },
       {
-        "command": "chanh.removeModel",
+        "command": "chanh.ncp.removeModel",
         "title": "Chanh: Remove Model",
         "icon": "$(trash)"
       },
@@ -212,7 +212,7 @@
           "group": "inline"
         },
         {
-          "command": "chanh.downloadModel",
+          "command": "chanh.ncp.downloadModel",
           "when": "view == CHANH_TREEVIEW && viewItem == CHANH_DOWNLOADABLE_MODEL",
           "group": "inline"
         },
@@ -242,47 +242,47 @@
           "group": "inline"
         },
         {
-          "command": "chanh.loadModel",
+          "command": "chanh.ncp.loadModel",
           "when": "view == CHANH_TREEVIEW && viewItem =~ /CHANH_MODEL_AVAILABLE/",
           "group": "inline"
         },
         {
-          "command": "chanh.unloadModel",
+          "command": "chanh.ncp.unloadModel",
           "when": "view == CHANH_TREEVIEW && (viewItem =~ /CHANH_MODEL_LOADED/ || viewItem == CHANH_LOADED_MODEL)",
           "group": "inline"
         },
         {
-          "command": "chanh.removeModel",
+          "command": "chanh.ncp.removeModel",
           "when": "view == CHANH_TREEVIEW && (viewItem =~ /CHANH_MODEL_(AVAILABLE|LOADED)/ || viewItem == CHANH_LOADED_MODEL)",
           "group": "2_remove"
         },
         {
-          "command": "chanh.setModelContext",
+          "command": "chanh.ncp.setModelContext",
           "when": "view == CHANH_TREEVIEW && viewItem =~ /CHANH_MODEL_(AVAILABLE|LOADED)/",
           "group": "1_context@1"
         },
         {
-          "command": "chanh.resetModelContext",
+          "command": "chanh.ncp.resetModelContext",
           "when": "view == CHANH_TREEVIEW && viewItem =~ /CHANH_MODEL_(AVAILABLE|LOADED)_CTX_SET/",
           "group": "1_context@2"
         },
         {
-          "command": "chanh.showModelInfo",
+          "command": "chanh.ncp.showModelInfo",
           "when": "view == CHANH_TREEVIEW && viewItem =~ /CHANH_MODEL_(AVAILABLE|LOADED)/",
           "group": "inline"
         },
         {
-          "command": "chanh.downloadModel",
+          "command": "chanh.ncp.downloadModel",
           "when": "view == CHANH_TREEVIEW && viewItem == CHANH_PARTIAL_MODEL",
           "group": "inline"
         },
         {
-          "command": "chanh.cancelDownload",
+          "command": "chanh.ncp.cancelDownload",
           "when": "view == CHANH_TREEVIEW && viewItem == CHANH_DOWNLOADING_MODEL",
           "group": "inline"
         },
         {
-          "command": "chanh.removeModel",
+          "command": "chanh.ncp.removeModel",
           "when": "view == CHANH_TREEVIEW && viewItem == CHANH_PARTIAL_MODEL",
           "group": "2_remove"
         }
@@ -325,7 +325,41 @@
           "description": "Maximum number of loaded models (for each type?), Use -1 for unlimited."
         }
       }
-    }
+    },
+    "commandPalette": [
+      {
+        "command": "chanh.ncp.downloadModel",
+        "when": "false"
+      },
+      {
+        "command": "chanh.ncp.cancelDownload",
+        "when": "false"
+      },
+      {
+        "command": "chanh.ncp.loadModel",
+        "when": "false"
+      },
+      {
+        "command": "chanh.ncp.unloadModel",
+        "when": "false"
+      },
+      {
+        "command": "chanh.ncp.removeModel",
+        "when": "false"
+      },
+      {
+        "command": "chanh.ncp.setModelContext",
+        "when": "false"
+      },
+      {
+        "command": "chanh.ncp.resetModelContext",
+        "when": "false"
+      },
+      {
+        "command": "chanh.ncp.showModelInfo",
+        "when": "false"
+      }
+    ]
   },
   "scripts": {
     "vscode:prepublish": "npm run package",
