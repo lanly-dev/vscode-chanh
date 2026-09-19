@@ -7,7 +7,7 @@ import { listenConfigsChange, ServerManager } from './serverManager'
 import { Logger } from './logger'
 import { ModelDecorationProvider } from './modelDecorations'
 import { ModelManager } from './modelManager'
-import { openSetting, openUrl } from './utils'
+import { openSetting, openUrl, openBinaryDir } from './utils'
 import { refreshEvents } from './events'
 import { ServerViewProvider } from './serverTreeview'
 
@@ -42,24 +42,25 @@ export async function activate(context: ExtensionContext) {
   const d9 = rc('chanh.startServer', () => serverManager.start())
   const d10 = rc('chanh.stopServer', () => serverManager.stop())
   const d11 = rc('chanh.downloadBinary', () => binaryManager.downloadBinary())
-  const d12 = rc('chanh.openSettings', openSetting)
-  const d13 = rc('chanh.selectChatModel', async () => modelManager.selectChatModel(chatParticipant))
-  const d14 = rc('chanh.refreshServer', () => refreshEvents.fire())
-  const d15 = rc('chanh.setMaxLoadedModels', () => modelManager.setMaxLoadedModels())
+  const d12 = rc('chanh.openBinaryDir', () => openBinaryDir(binaryManager.binaryDir))
+  const d13 = rc('chanh.openSettings', openSetting)
+  const d14 = rc('chanh.openServerUrl', openUrl)
+  const d15 = rc('chanh.selectChatModel', async () => modelManager.selectChatModel(chatParticipant))
   const d16 = rc('chanh.selectServer', () => serverManager.selectServer())
-  const d17 = rc('chanh.openServerUrl', openUrl)
-  const d18 = rc('chanh.editServerPort', () => serverManager.editServerPort())
+  const d17 = rc('chanh.refreshServer', () => refreshEvents.fire())
+  const d18 = rc('chanh.setMaxLoadedModels', () => modelManager.setMaxLoadedModels())
+  const d19 = rc('chanh.editServerPort', () => serverManager.editServerPort())
 
-  const d19 = rc('chanh.toggleModelGrouping', () => svProvider.toggleModelGrouping())
-  const d20 = rc('chanh.toggleDlModelGrouping', () => svProvider.toggleDlModelGrouping())
-  const d21 = rc('chanh.toggleHotModels', () => svProvider.toggleHotModels())
+  const d20 = rc('chanh.toggleModelGrouping', () => svProvider.toggleModelGrouping())
+  const d21 = rc('chanh.toggleDlModelGrouping', () => svProvider.toggleDlModelGrouping())
+  const d22 = rc('chanh.toggleHotModels', () => svProvider.toggleHotModels())
 
-  const d22 = listenConfigsChange(serverManager)
-  const d23 = lmcProvider.register()
-  const d24 = window.registerFileDecorationProvider(new ModelDecorationProvider())
+  const d23 = listenConfigsChange(serverManager)
+  const d24 = lmcProvider.register()
+  const d25 = window.registerFileDecorationProvider(new ModelDecorationProvider())
 
-  context.subscriptions.push(d1, d2, d3, d4, d5, d6, d7, d8, d9, d10, d11, d12, d13, d14, d15, d16, d17, d18, d19, d20,
-    d21, d22, d23, d24, serverManager, chatParticipant)
+  context.subscriptions.push(d1, d2, d3, d4, d5, d6, d7, d8, d9, d10, d11, d12, d13, d14, d15, d16,
+    d17, d18, d19, d20, d21, d22, d23, d24, d25, serverManager, chatParticipant)
   binaryManager.checkForUpdates()
 }
 

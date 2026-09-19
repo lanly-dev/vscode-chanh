@@ -72,6 +72,11 @@
         "title": "Chanh: Download/Update Binary"
       },
       {
+        "command": "chanh.openBinaryDir",
+        "title": "Chanh: Open Binary Folder",
+        "icon": "$(folder)"
+      },
+      {
         "command": "chanh.openSettings",
         "title": "Chanh: Open Settings",
         "icon": "$(gear)"
