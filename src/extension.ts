@@ -32,6 +32,7 @@ export async function activate(context: vscode.ExtensionContext) {
   const d3 = rc('chanh.downloadBinary', () => binaryManager.downloadBinary())
   const d4 = rc('chanh.openSettings', openSetting)
   const d5 = rc('chanh.downloadModel', (item: { modelId: string }) => modelManager.downloadModel(item))
+  const d5b = rc('chanh.cancelDownload', (item: { modelId: string }) => modelManager.cancelDownload(item.modelId))
   const d6 = rc('chanh.loadModel', (item: { modelId: string }) => modelManager.loadModel(item.modelId))
   const d7 = rc('chanh.unloadModel', (item: { modelId: string }) => modelManager.unloadModel(item.modelId))
   const d8 = rc('chanh.selectChatModel', async () => modelManager.selectChatModel(chatParticipant))

@@ -629,6 +629,7 @@ export class ModelManager {
     this.treeViewProvider.beginDownload(modelId)
 
     const abortController = new AbortController()
+    this._activeAborts.set(modelId, abortController)
 
     // Stall watchdog: if the server stops sending pull events for 5 seconds,
     // abort the request so the download fails cleanly instead of hanging.
@@ -734,5 +735,23 @@ export class ModelManager {
         }
       }
     )
+    // The download has ended (success, cancel, stall, or error) either way.
+    this._activeAborts.delete(modelId)
+  }
+
+  private _activeAborts = new Map<string, AbortController>()
+
+  /**
+   * Cancel an in-progress download (inline tree button). Aborts the pull
+   * stream, which routes through the same failure path as a user cancel and
+   * leaves the model under Incomplete with a Retry action.
+   */
+  async cancelDownload(modelId: string): Promise<void> {
+    const abort = this._activeAborts.get(modelId)
+    if (!abort) {
+      showWarningMessage(`No active download for '${modelId}'.`)
+      return
+    }
+    abort.abort()
   }
 }

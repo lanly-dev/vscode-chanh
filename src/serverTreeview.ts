@@ -74,7 +74,7 @@ export class ServerViewProvider implements TreeDataProvider<TreeItem> {
    * from `getChildren`, so these cached instances (never fresh `new TreeItem`s)
    * are what make refreshing a single progress row possible.
    */
-  private _downloadRows = new Map<string, TreeItem>()
+  private _downloadRows = new Map<string, TreeItem & { modelId: string }>()
   /** Last repaint time per download row, used to throttle progress repaints. */
   private _downloadRowRefreshedAt = new Map<string, number>()
   /** Pending trailing repaint per download row, if any. */
@@ -458,12 +458,21 @@ export class ServerViewProvider implements TreeDataProvider<TreeItem> {
       // here would make `fire(row)` a no-op for this row.
       let item = this._downloadRows.get(download.modelId)
       if (!item) {
-        item = new TreeItem(download.modelId, None)
+        item = new TreeItem(download.modelId, None) as TreeItem & { modelId: string }
         // Stable identity keeps this row (and its spinner) as the same node across
         // frequent progress repaints instead of being torn down and rebuilt.
         item.id = `download:${download.modelId}`
         item.iconPath = new ThemeIcon('loading~spin', new ThemeColor('charts.blue'))
         item.contextValue = 'CHANH_DOWNLOADING_MODEL'
+        // Commands (e.g. the inline cancel button) receive this item as the
+        // argument, so it must carry the model id.
+        item.modelId = download.modelId
+        // Inline cancel button so the user can abort the pull from the row.
+        // (Cast needed: the trimmed @types/vscode here omits TreeItem.buttons,
+        // but the runtime API supports it.)
+        ;(item as TreeItem & { buttons?: Array<{ command: string, tooltip?: string }> }).buttons = [
+          { command: 'chanh.cancelDownload', tooltip: 'Cancel download' }
+        ]
         this._downloadRows.set(download.modelId, item)
       }
       this.applyDownloadProgress(item, download)

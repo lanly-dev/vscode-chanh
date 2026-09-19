@@ -82,6 +82,11 @@
         "icon": "$(cloud-download)"
       },
       {
+        "command": "chanh.cancelDownload",
+        "title": "Chanh: Cancel Download",
+        "icon": "$(close)"
+      },
+      {
         "command": "chanh.toggleModelGrouping",
         "title": "Chanh: Toggle Model Grouping by Capability",
         "icon": "$(group-by-ref-type)"
@@ -269,6 +274,11 @@
         {
           "command": "chanh.downloadModel",
           "when": "view == CHANH_TREEVIEW && viewItem == CHANH_PARTIAL_MODEL",
+          "group": "inline"
+        },
+        {
+          "command": "chanh.cancelDownload",
+          "when": "view == CHANH_TREEVIEW && viewItem == CHANH_DOWNLOADING_MODEL",
           "group": "inline"
         },
         {
