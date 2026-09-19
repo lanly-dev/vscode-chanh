@@ -630,6 +630,26 @@ export class ModelManager {
 
     const abortController = new AbortController()
 
+    // Stall watchdog: if the server stops sending pull events for 5 seconds,
+    // abort the request so the download fails cleanly instead of hanging.
+    const DOWNLOAD_STALL_TIMEOUT_MS = 5000
+    let stallTimer: ReturnType<typeof setTimeout> | undefined
+    let stalled = false
+    const resetStallTimer = (): void => {
+      if (stallTimer) clearTimeout(stallTimer)
+      stallTimer = setTimeout(() => {
+        stalled = true
+        Logger.warn(`Download stalled: no progress event for ${DOWNLOAD_STALL_TIMEOUT_MS / 1000}s, aborting ${modelId}`)
+        abortController.abort()
+      }, DOWNLOAD_STALL_TIMEOUT_MS)
+    }
+    const clearStallTimer = (): void => {
+      if (stallTimer) {
+        clearTimeout(stallTimer)
+        stallTimer = undefined
+      }
+    }
+
     await window.withProgress(
       {
         location: ProgressLocation.Notification,
@@ -646,10 +666,13 @@ export class ModelManager {
         let sawByteCounts = false
         const startedAt = Date.now()
 
+        resetStallTimer()
         try {
           await client.pullModelStream(
             modelId,
             (p) => {
+              // Any event (even bare status) proves the stream is alive.
+              resetStallTimer()
               // console.log(`Received progress update for model ${modelId}:`, p)
               progressEvents++
               if (typeof p.written === 'number' && typeof p.total === 'number') sawByteCounts = true
@@ -675,6 +698,7 @@ export class ModelManager {
             },
             abortController.signal
           )
+          clearStallTimer()
           this.treeViewProvider.clearPartial(modelId)
           this.treeViewProvider.endDownload(modelId)
           // The model is now downloaded, so re-query the server so it shows up
@@ -688,9 +712,15 @@ export class ModelManager {
           )
           showInformationMessage(`Model '${modelId}' pulled successfully`)
         } catch (err: unknown) {
+          clearStallTimer()
           // Remove from the live list, then keep it as an incomplete download.
           this.treeViewProvider.endDownload(modelId)
-          if (token.isCancellationRequested) {
+          if (stalled) {
+            Logger.warn(`Model download stalled (no events for 5s): ${modelId}`)
+            this.treeViewProvider.markPartial(modelId, lastReportedPct)
+            this.treeViewProvider.refresh()
+            showErrorMessage(`Download of '${modelId}' stalled: no progress for 5 seconds. Retry to resume.`)
+          } else if (token.isCancellationRequested) {
             Logger.warn(`Model download cancelled: ${modelId}`)
             this.treeViewProvider.markPartial(modelId, lastReportedPct)
             this.treeViewProvider.refresh()
