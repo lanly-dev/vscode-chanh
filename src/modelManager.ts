@@ -717,7 +717,7 @@ export class ModelManager {
           this.treeViewProvider.endDownload(modelId)
           if (stalled) {
             Logger.warn(`Model download stalled (no events for 5s): ${modelId}`)
-            this.treeViewProvider.markPartial(modelId, lastReportedPct)
+            this.treeViewProvider.markPartial(modelId, lastReportedPct, 'stalled: no progress for 10s')
             this.treeViewProvider.refresh()
             showErrorMessage(`Download of '${modelId}' stalled: no progress for 5 seconds. Retry to resume.`)
           } else if (token.isCancellationRequested) {
