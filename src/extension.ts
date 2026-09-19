@@ -32,6 +32,7 @@ export async function activate(context: vscode.ExtensionContext) {
   const d3 = rc('chanh.downloadBinary', () => binaryManager.downloadBinary())
   const d4 = rc('chanh.openSettings', openSetting)
   const d5 = rc('chanh.downloadModel', (item: { modelId: string }) => modelManager.downloadModel(item))
+  const d5b = rc('chanh.cancelDownload', (item: { modelId: string }) => modelManager.cancelDownload(item.modelId))
   const d6 = rc('chanh.loadModel', (item: { modelId: string }) => modelManager.loadModel(item.modelId))
   const d7 = rc('chanh.unloadModel', (item: { modelId: string }) => modelManager.unloadModel(item.modelId))
   const d8 = rc('chanh.selectChatModel', async () => modelManager.selectChatModel(chatParticipant))
@@ -42,7 +43,6 @@ export async function activate(context: vscode.ExtensionContext) {
   const d13 = rc('chanh.editServerPort', () => serverManager.editServerPort())
 
   const d14 = rc('chanh.removeModel', async (item: { modelId: string }) => modelManager.deleteModel(item.modelId))
-  const d15 = rc('chanh.retryModel', (item: { modelId: string }) => modelManager.startPull(item.modelId))
   const d16 = listenConfigsChange(serverManager)
   const d17 = lmcProvider.register()
   const d18 = rc('chanh.toggleModelGrouping', () => provider.toggleModelGrouping())
@@ -54,7 +54,7 @@ export async function activate(context: vscode.ExtensionContext) {
   const d24 = rc('chanh.showModelInfo', (item: { modelId?: string }) => modelManager.showModelInfo(item))
 
   context.subscriptions.push(
-    d1, d2, d3, d4, d5, d6, d7, d8, d9, d10, d11, d12, d13, d14, d15, d16, d17,
+    d1, d2, d3, d4, d5, d5b, d6, d7, d8, d9, d10, d11, d12, d13, d14, d16, d17,
     d18, d19, d20, d21, d22, d23, d24, serverManager
   )
   binaryManager.checkForUpdates()

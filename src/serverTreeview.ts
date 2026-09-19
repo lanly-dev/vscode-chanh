@@ -9,7 +9,7 @@ import {
 } from 'vscode'
 const { Collapsed, Expanded, None } = TreeItemCollapsibleState
 
-import { formatBytes, formatSize, getCapIcon, getServerStatusChar } from './utils'
+import { formatByteProgress, formatSize, getCapIcon, getServerStatusChar } from './utils'
 import { ModelDecorationProvider } from './modelDecorations'
 import { ModelManager } from './modelManager'
 import { refreshEvents } from './events'
@@ -46,20 +46,48 @@ const GROUP_DOWNLOADABLE_MODELS_KEY = 'groupDownloadableModelsByCapability'
 /** Storage key for the show-hot-models-only toggle (downloadable section). */
 const SHOW_HOT_ONLY_KEY = 'showHotOnly'
 
+/** Minimum gap (ms) between two repaints of the same download row. */
+const DOWNLOAD_ROW_REFRESH_MS = 250
+
 /**
  * Tree data provider for the Servers view.
  * Shows both the standalone Lemonade app and the lemond app in a single tree.
  */
 export class ServerViewProvider implements TreeDataProvider<TreeItem> {
-  private _onDidChangeTreeData = new EventEmitter<void>()
+  private _onDidChangeTreeData = new EventEmitter<TreeItem | undefined | void>()
   readonly onDidChangeTreeData = this._onDidChangeTreeData.event
 
   private _activeServer: ServerInstance | null = null
+  /**
+   * Whether the cached `_activeServer` snapshot is out of date. Set by
+   * `refreshServer` when server-side state may have changed and cleared once a
+   * fetch completes. Keeping the snapshot lets view-only refreshes (such as the
+   * per-percent download ticks) repaint without re-querying the server.
+   */
+  private _serverDataStale = true
 
   /** In-progress model downloads, keyed by model id. */
   private _downloads = new Map<string, DownloadProgress>()
+  /**
+   * One stable row `TreeItem` per active download. VS Code matches a
+   * `fire(element)` refresh to the exact object instance previously returned
+   * from `getChildren`, so these cached instances (never fresh `new TreeItem`s)
+   * are what make refreshing a single progress row possible.
+   */
+  private _downloadRows = new Map<string, TreeItem & { modelId: string }>()
+  /** Last repaint time per download row, used to throttle progress repaints. */
+  private _downloadRowRefreshedAt = new Map<string, number>()
+  /** Pending trailing repaint per download row, if any. */
+  private _downloadRowTimers = new Map<string, ReturnType<typeof setTimeout>>()
   /** Partial (incomplete) downloads, keyed by model id. */
   private _partials = new Map<string, DownloadProgress>()
+
+  /**
+   * Stable tree node for the "Downloading Models" section. Reusing one instance
+   * keeps the node's identity stable across repaints; the count lives in
+   * `description` so the label never changes.
+   */
+  private readonly _downloadsHeader = new TreeItem('Downloading Models', Expanded)
 
   /** Whether available models are grouped by capability. */
   private _groupAvaModels = false
@@ -69,9 +97,17 @@ export class ServerViewProvider implements TreeDataProvider<TreeItem> {
   private _showHotOnly = false
 
   constructor(private context: ExtensionContext, private serverManager: ServerManager) {
-    // Refresh whenever another part of the extension fires the shared event, or when the server status changes.
-    refreshEvents.onDidRequestRefresh(() => this.refresh())
-    serverManager.onStatusChange(() => this.refresh())
+    // Explicit, stable ids decouple node identity from labels/descriptions so
+    // text updates (counts, percentages) can never break the refresh mapping.
+    this._downloadsHeader.id = 'chanh:downloads'
+    this._downloadsHeader.iconPath = new ThemeIcon('cloud-download', new ThemeColor('charts.blue'))
+    this._downloadsHeader.contextValue = 'CHANH_DOWNLOADING_HEADER'
+
+    // Server-level events are rare and can change server-side state, so re-query
+    // before repainting. Per-percent download ticks instead use the cached
+    // snapshot, so they never hit the server.
+    refreshEvents.onDidRequestRefresh(() => this.refreshServer())
+    serverManager.onStatusChange(() => this.refreshServer())
 
     // Restore any incomplete downloads saved from a previous session.
     const saved = this.context.workspaceState.get<Array<[string, number]>>(PARTIALS_STORAGE_KEY, [])
@@ -106,46 +142,111 @@ export class ServerViewProvider implements TreeDataProvider<TreeItem> {
     this.refresh()
   }
 
+  /**
+   * Repaint the view from the cached server snapshot. Cheap enough to call
+   * freely, but use `refreshServer` after anything that changes server state.
+   */
   refresh(): void {
     this._onDidChangeTreeData.fire()
+  }
+
+  /**
+   * Invalidate the cached server snapshot and repaint. Call this after any
+   * action that changes server-side state (load/unload/delete/pull/config) so
+   * the next `getChildren` re-queries `/v1/health` and `/v1/models`.
+   */
+  refreshServer(): void {
+    this._serverDataStale = true
+    this.refresh()
   }
 
   /** Record a model that just started downloading. */
   beginDownload(modelId: string): void {
     this._downloads.set(modelId, { modelId, pct: 0, message: 'Starting download...' })
+    this._downloadRows.delete(modelId)
+    this._downloadRowRefreshedAt.delete(modelId)
+    this.clearDownloadRowTimer(modelId)
+    // The section appears and its count changes, so the parent must re-render.
     this.refresh()
   }
 
   /**
- * Update live download progress, refreshing the tree only when the progress
- * crosses a 1% step (so we don't re-render the whole tree on every event).
- */
+   * Update live download progress and repaint just that model's row, throttled
+   * to at most one repaint per `DOWNLOAD_ROW_REFRESH_MS`. A rapid burst of
+   * server events coalesces into one repaint showing the latest values, plus a
+   * trailing repaint so the final state is always painted. Bare status-only
+   * events (no percent, no byte counts — e.g. `{"status":"process"}`) carry no
+   * new information, so they are skipped entirely and the row keeps showing
+   * its last numeric text. When the row is not on screen yet (first tick,
+   * before the section has been expanded), fall back to the section header so
+   * the row appears; subsequent ticks then hit the row directly.
+   */
   updateDowProgress(modelId: string, pct: number, message: string, written?: number, total?: number): void {
     const current = this._downloads.get(modelId)
     if (!current) return
-
-    const bucket = pct >= 0 ? Math.floor(pct) : -1
-    const currentBucket = current.pct >= 0 ? Math.floor(current.pct) : -1
-    const shouldRefresh = bucket !== currentBucket && current.pct !== 0
-
+    const hasBytes = typeof written === 'number' && typeof total === 'number'
+    if (pct < 0 && !hasBytes) return
     this._downloads.set(modelId, { modelId, pct, written, total, message })
-    if (shouldRefresh) this.refresh()
+    const row = this._downloadRows.get(modelId)
+    if (!row) {
+      this._downloadsHeader.description = `(${this._downloads.size + this._partials.size})`
+      this._onDidChangeTreeData.fire(this._downloadsHeader)
+      return
+    }
+    const now = Date.now()
+    const last = this._downloadRowRefreshedAt.get(modelId) ?? 0
+    if (now - last >= DOWNLOAD_ROW_REFRESH_MS) {
+      this.clearDownloadRowTimer(modelId)
+      this._downloadRowRefreshedAt.set(modelId, now)
+      this.applyDownloadProgress(row, { modelId, pct, written, total, message })
+      this._onDidChangeTreeData.fire(row)
+      return
+    }
+    // Too soon: schedule a trailing repaint with the latest values instead.
+    if (this._downloadRowTimers.has(modelId)) return
+    const wait = DOWNLOAD_ROW_REFRESH_MS - (now - last)
+    this._downloadRowTimers.set(
+      modelId,
+      setTimeout(() => {
+        this._downloadRowTimers.delete(modelId)
+        if (!this._downloads.has(modelId)) return
+        const latest = this._downloads.get(modelId)!
+        const latestRow = this._downloadRows.get(modelId)
+        if (!latestRow) return
+        this._downloadRowRefreshedAt.set(modelId, Date.now())
+        this.applyDownloadProgress(latestRow, latest)
+        this._onDidChangeTreeData.fire(latestRow)
+      }, wait)
+    )
   }
 
   /** Remove a model from the active downloads (completed or failed). */
   endDownload(modelId: string): void {
+    this._downloadRows.delete(modelId)
+    this._downloadRowRefreshedAt.delete(modelId)
+    this.clearDownloadRowTimer(modelId)
     if (this._downloads.delete(modelId)) this.refresh()
   }
 
+  /** Drop any pending trailing repaint for a download row. */
+  private clearDownloadRowTimer(modelId: string): void {
+    const timer = this._downloadRowTimers.get(modelId)
+    if (timer === undefined) return
+    clearTimeout(timer)
+    this._downloadRowTimers.delete(modelId)
+  }
+
   /**
-   * Mark a cancelled/failed download as incomplete so it persists under
-   * "Incomplete Downloads" for the user to Retry or Remove.
+   * Mark a cancelled/failed download as incomplete so it persists under the
+   * downloads group for the user to Retry or Remove. `reason` (optional)
+   * explains why it ended up incomplete and is shown in the row's subtext.
    */
-  markPartial(modelId: string, pct: number): void {
+  markPartial(modelId: string, pct: number, reason?: string): void {
+    const progress = pct >= 0 ? `${Math.round(pct)}% downloaded` : ''
     this._partials.set(modelId, {
       modelId,
       pct,
-      message: pct >= 0 ? `${Math.round(pct)}% downloaded` : 'download incomplete'
+      message: [progress, reason ?? 'incomplete'].filter(Boolean).join(' - ')
     })
     this.persistPartials()
     this.refresh()
@@ -201,20 +302,15 @@ export class ServerViewProvider implements TreeDataProvider<TreeItem> {
       items.push(loadedHeader)
     }
 
-    // Downloading models section - only shown while a model is being pulled.
-    if (this._downloads.size > 0) {
-      const downloadingHeader = new TreeItem(`Downloading Models (${this._downloads.size})`, Expanded)
-      downloadingHeader.iconPath = new ThemeIcon('cloud-download', new ThemeColor('charts.blue'))
-      downloadingHeader.contextValue = 'CHANH_DOWNLOADING_HEADER'
-      items.push(downloadingHeader)
-    }
-
-    // Incomplete downloads section - leftover partial files from cancelled/failed pulls.
-    if (this._partials.size > 0) {
-      const partialHeader = new TreeItem(`Incomplete Downloads (${this._partials.size})`, Expanded)
-      partialHeader.iconPath = new ThemeIcon('warning', new ThemeColor('charts.yellow'))
-      partialHeader.contextValue = 'CHANH_PARTIAL_HEADER'
-      items.push(partialHeader)
+    // Downloading models section - shows in-progress pulls followed by
+    // incomplete (cancelled/failed) ones in the same group, so the user sees
+    // everything pending in one place. Returns the stable `_downloadsHeader`
+    // instance so refreshes reconcile without identity churn; the combined
+    // count lives in `description` so the label never changes.
+    const pendingCount = this._downloads.size + this._partials.size
+    if (pendingCount > 0) {
+      this._downloadsHeader.description = `(${pendingCount})`
+      items.push(this._downloadsHeader)
     }
 
 
@@ -257,7 +353,6 @@ export class ServerViewProvider implements TreeDataProvider<TreeItem> {
     if (element.contextValue === 'CHANH_SERVER_HEADER') return this.getServerChildren(this._activeServer)
     if (element.contextValue === 'CHANH_LOADED_HEADER') return this.getLoadedModelChildren(element)
     if (element.contextValue === 'CHANH_DOWNLOADING_HEADER') return this.getDownloadingChildren()
-    if (element.contextValue === 'CHANH_PARTIAL_HEADER') return this.getPartialDownloadChildren()
     if (element.contextValue === 'CHANH_PINNED_HEADER') return this.getPinnedModelChildren(element)
     if (element.contextValue === 'CHANH_AVAIL_HEADER') return this.getAvailableChildren(element)
     if (element.contextValue === 'CHANH_DOWNLOADABLE_HEADER') return this.getDownloadableChildren()
@@ -358,21 +453,49 @@ export class ServerViewProvider implements TreeDataProvider<TreeItem> {
   private getDownloadingChildren(): TreeItem[] {
     const items: TreeItem[] = []
     for (const download of this._downloads.values()) {
-      const item = new TreeItem(download.modelId, None)
-      item.iconPath = new ThemeIcon('loading~spin', new ThemeColor('charts.blue'))
-      item.contextValue = 'CHANH_DOWNLOADING_MODEL'
-      item.tooltip = download.message ? `${download.modelId}\n${download.message}` : download.modelId
-
-      const subtextParts: string[] = []
-      if (download.pct >= 0) subtextParts.push(`${Math.round(download.pct)}%`)
-      const sizeText = typeof download.written === 'number' && typeof download.total === 'number'
-        ? `${formatBytes(download.written!)} / ${formatBytes(download.total!)}`
-        : ''
-      if (sizeText) subtextParts.push(sizeText)
-      item.description = subtextParts.length > 0 ? subtextParts.join('  ') : download.message
+      // Reuse the cached row instance: VS Code can only refresh an element it
+      // already knows by object identity, so returning a fresh `new TreeItem`
+      // here would make `fire(row)` a no-op for this row.
+      let item = this._downloadRows.get(download.modelId)
+      if (!item) {
+        item = new TreeItem(download.modelId, None) as TreeItem & { modelId: string }
+        // Stable identity keeps this row (and its spinner) as the same node across
+        // frequent progress repaints instead of being torn down and rebuilt.
+        item.id = `download:${download.modelId}`
+        item.iconPath = new ThemeIcon('loading~spin', new ThemeColor('charts.blue'))
+        item.contextValue = 'CHANH_DOWNLOADING_MODEL'
+        // Commands (e.g. the inline cancel button) receive this item as the
+        // argument, so it must carry the model id.
+        item.modelId = download.modelId
+        // Inline cancel button so the user can abort the pull from the row.
+        // (Cast needed: the trimmed @types/vscode here omits TreeItem.buttons,
+        // but the runtime API supports it.)
+        ;(item as TreeItem & { buttons?: Array<{ command: string, tooltip?: string }> }).buttons = [
+          { command: 'chanh.cancelDownload', tooltip: 'Cancel download' }
+        ]
+        this._downloadRows.set(download.modelId, item)
+      }
+      this.applyDownloadProgress(item, download)
       items.push(item)
     }
+    // Incomplete (cancelled/failed) downloads render in the same group, after
+    // the active ones, so everything pending is visible in one place.
+    items.push(...this.getPartialDownloadChildren())
     return items
+  }
+
+  /** Render the latest progress state onto a cached download row in place. */
+  private applyDownloadProgress(item: TreeItem, download: DownloadProgress): void {
+    item.tooltip = download.message ? `${download.modelId}\n${download.message}` : download.modelId
+    console.log(`Applying download progress for model ${download.modelId}:`, download)
+    const subtextParts: string[] = []
+    const hasBytes = typeof download.written === 'number' && typeof download.total === 'number'
+    // One decimal so the percentage visibly advances on every repaint; a whole
+    // number only changes ~100 times across the entire download.
+    if (download.pct >= 0) subtextParts.push(`${download.pct.toFixed(1)}%`)
+    if (hasBytes)
+      subtextParts.push(formatByteProgress(download.written!, download.total!))
+    item.description = subtextParts.length > 0 ? subtextParts.join('  ') : download.message
   }
 
   private getPartialDownloadChildren(): TreeItem[] {
@@ -382,7 +505,7 @@ export class ServerViewProvider implements TreeDataProvider<TreeItem> {
       item.modelId = partial.modelId
       item.iconPath = new ThemeIcon('warning', new ThemeColor('charts.yellow'))
       item.contextValue = 'CHANH_PARTIAL_MODEL'
-      item.description = partial.pct >= 0 ? `${Math.round(partial.pct)}% downloaded - incomplete` : 'incomplete'
+      item.description = partial.message || 'incomplete'
       item.tooltip = `${partial.modelId}\nNot fully downloaded. Retry, or Remove to delete the partial file.`
       items.push(item)
     }
@@ -466,7 +589,7 @@ export class ServerViewProvider implements TreeDataProvider<TreeItem> {
     if (sizeText) lines.push(`Size: ${sizeText}`)
 
     if (typeof model.context_length === 'number' && model.context_length > 0)
-    {lines.push(`Context: ${model.context_length.toLocaleString()} tokens`)}
+      lines.push(`Context: ${model.context_length.toLocaleString()} tokens`)
 
     if (model.recipe) lines.push(`Recipe: ${model.recipe}`)
     if (model.type) lines.push(`Type: ${model.type}`)
@@ -631,8 +754,14 @@ export class ServerViewProvider implements TreeDataProvider<TreeItem> {
     return ordered.map((m) => this.toAvaModelItem(m, loadedIds.has(m.id), true))
   }
 
-  /** Fetch server data for all known server instances. */
+  /**
+   * Fetch server data, reusing the cached snapshot unless `refreshServer`
+   * invalidated it. Avoids a `/v1/health` + `/v1/models` round-trip (and a full
+   * catalog re-parse) on every repaint.
+   */
   private async fetchServerData(): Promise<void> {
+    if (!this._serverDataStale && this._activeServer) return
     this._activeServer = await this.serverManager.getActiveServer()
+    this._serverDataStale = false
   }
 }

@@ -39,6 +39,27 @@ export function formatSize(sizeGb: number | undefined): string {
   return sizeGb >= 1024 ? `${(sizeGb / 1024).toFixed(1)} TB` : `${sizeGb.toFixed(2)} GB`
 }
 
+/**
+ * Format an in-progress download as "written / total" in a single unit, with
+ * enough decimals that the text keeps advancing during the transfer. Showing a
+ * plain `formatBytes` pair steps in coarse ~100 MB jumps for a multi-GB model,
+ * which makes the row look frozen between updates.
+ */
+export function formatByteProgress(written: number, total: number): string {
+  const units = ['B', 'KB', 'MB', 'GB', 'TB']
+  let unit = 0
+  let divisor = 1
+  // Pick the unit from the total so both numbers are shown at the same scale.
+  while (total / divisor >= 1024 && unit < units.length - 1) {
+    divisor *= 1024
+    unit++
+  }
+  // Bytes/KB need no decimals; MB and above use two so the value advances in
+  // fine increments (for GB that is ~10 MB per step) instead of 100 MB ones.
+  const digits = unit <= 1 ? 0 : 2
+  return `${(written / divisor).toFixed(digits)} / ${(total / divisor).toFixed(digits)} ${units[unit]}`
+}
+
 export function openSetting(): void {
   vscode.commands.executeCommand('workbench.action.openSettings', '@ext:lanly-dev.chanh')
 }

@@ -110,7 +110,8 @@ export class ModelManager {
       Logger.error('Failed to load model', err)
       showErrorMessage(`Failed to load model: ${err}`)
     }
-    this.treeViewProvider.refresh()
+    // Loaded-models state changed, so re-query the server before repainting.
+    this.treeViewProvider.refreshServer()
   }
 
   async unloadModel(modelName: string): Promise<void> {
@@ -134,7 +135,8 @@ export class ModelManager {
       Logger.error('Failed to unload model', err)
       showErrorMessage(`Failed to unload model: ${err}`)
     }
-    this.treeViewProvider.refresh()
+    // Loaded-models state changed, so re-query the server before repainting.
+    this.treeViewProvider.refreshServer()
   }
 
   /** Parse an effective/default ctx_size out of a model options response. */
@@ -192,7 +194,8 @@ export class ModelManager {
       Logger.error('Failed to update context size', err)
       showErrorMessage(`Failed to update context size: ${err}`)
     }
-    this.treeViewProvider.refresh()
+    // Model metadata/load state changed, so re-query the server before repainting.
+    this.treeViewProvider.refreshServer()
   }
 
   // TODO: check this
@@ -505,7 +508,8 @@ export class ModelManager {
         }
       )
       this.treeViewProvider.clearPartial(modelName)
-      this.treeViewProvider.refresh()
+      // The model moved off disk, so re-query the server before repainting.
+      this.treeViewProvider.refreshServer()
       showInformationMessage(`Model '${modelName}' deleted successfully`)
     } catch (err: unknown) {
       Logger.error('Failed to delete model', err)
@@ -549,7 +553,8 @@ export class ModelManager {
       }
 
       showInformationMessage(`Max loaded models set to ${n === -1 ? 'unlimited' : n}`)
-      this.treeViewProvider.refresh()
+      // Server config changed, so re-query before repainting.
+      this.treeViewProvider.refreshServer()
     } catch (err: unknown) {
       Logger.error('Failed to set max loaded models', err)
       showErrorMessage(`Failed to set max loaded models: ${err}`)
@@ -624,6 +629,27 @@ export class ModelManager {
     this.treeViewProvider.beginDownload(modelId)
 
     const abortController = new AbortController()
+    this._activeAborts.set(modelId, abortController)
+
+    // Stall watchdog: if the server stops sending pull events for 10 seconds,
+    // abort the request so the download fails cleanly instead of hanging.
+    const DOWNLOAD_STALL_TIMEOUT_MS = 10000
+    let stallTimer: ReturnType<typeof setTimeout> | undefined
+    let stalled = false
+    const resetStallTimer = (): void => {
+      if (stallTimer) clearTimeout(stallTimer)
+      stallTimer = setTimeout(() => {
+        stalled = true
+        Logger.warn(`Download stalled: no progress event for ${DOWNLOAD_STALL_TIMEOUT_MS / 1000}s, aborting ${modelId}`)
+        abortController.abort()
+      }, DOWNLOAD_STALL_TIMEOUT_MS)
+    }
+    const clearStallTimer = (): void => {
+      if (stallTimer) {
+        clearTimeout(stallTimer)
+        stallTimer = undefined
+      }
+    }
 
     await window.withProgress(
       {
@@ -635,37 +661,67 @@ export class ModelManager {
         // Cancel the underlying HTTP request when the user dismisses the popup.
         token.onCancellationRequested(() => abortController.abort())
         let lastReportedPct = 0
+        // Diagnostics: how often the server actually reports progress, and
+        // whether it sends byte counts (which the tree row can display).
+        let progressEvents = 0
+        let sawByteCounts = false
+        const startedAt = Date.now()
 
+        resetStallTimer()
         try {
           await client.pullModelStream(
             modelId,
             (p) => {
+              // Any event (even bare status) proves the stream is alive.
+              resetStallTimer()
+              // console.log(`Received progress update for model ${modelId}:`, p)
+              progressEvents++
+              if (typeof p.written === 'number' && typeof p.total === 'number') sawByteCounts = true
+              const hasBytes = typeof p.written === 'number' && typeof p.total === 'number'
               if (p.pct >= 0) {
                 // Calculate increment for the progress bar
                 const increment = p.pct - lastReportedPct
                 lastReportedPct = p.pct
-                console.log(`Progress for model ${modelId}: ${p.pct}%`)
+                // console.log(`Progress for model ${modelId}: ${p.pct}%`)
                 progress.report({
                   message: `${Math.round(p.pct)}%${p.message ? ' - ' + p.message : ''}`,
                   increment: Math.max(0, increment)
                 })
+              } else if (hasBytes) {
+                // Byte counts without a percent: still real progress, no message.
+                progress.report({})
               } else {
-                // Unknown progress - just update message
-                progress.report({ message: p.message || 'Downloading...'})
+                // Bare status-only event (e.g. `{"status":"process"}`) with no
+                // numbers: skip the popup update, matching the tree view.
+                return
               }
-              // Tree updates are throttled to every 1% inside updateDowProgress.
               this.treeViewProvider.updateDowProgress(modelId, p.pct, p.message, p.written, p.total)
             },
             abortController.signal
           )
+          clearStallTimer()
           this.treeViewProvider.clearPartial(modelId)
           this.treeViewProvider.endDownload(modelId)
-          this.treeViewProvider.refresh()
+          // The model is now downloaded, so re-query the server so it shows up
+          // under Available Models and leaves the Downloadable list.
+          this.treeViewProvider.refreshServer()
+          const seconds = (Date.now() - startedAt) / 1000
+          const rate = seconds > 0 ? (progressEvents / seconds).toFixed(1) : '?'
+          Logger.info(
+            `Pulled '${modelId}': ${progressEvents} progress event(s) in ${seconds.toFixed(1)}s ` +
+            `(~${rate}/s), byte counts reported: ${sawByteCounts ? 'yes' : 'no'}`
+          )
           showInformationMessage(`Model '${modelId}' pulled successfully`)
         } catch (err: unknown) {
+          clearStallTimer()
           // Remove from the live list, then keep it as an incomplete download.
           this.treeViewProvider.endDownload(modelId)
-          if (token.isCancellationRequested) {
+          if (stalled) {
+            Logger.warn(`Model download stalled (no events for 10s): ${modelId}`)
+            this.treeViewProvider.markPartial(modelId, lastReportedPct, 'stalled: no progress for 10s')
+            this.treeViewProvider.refresh()
+            showErrorMessage(`Download of '${modelId}' stalled: no progress for 10 seconds. Retry to resume.`)
+          } else if (token.isCancellationRequested || abortController.signal.aborted) {
             Logger.warn(`Model download cancelled: ${modelId}`)
             this.treeViewProvider.markPartial(modelId, lastReportedPct)
             this.treeViewProvider.refresh()
@@ -679,5 +735,23 @@ export class ModelManager {
         }
       }
     )
+    // The download has ended (success, cancel, stall, or error) either way.
+    this._activeAborts.delete(modelId)
+  }
+
+  private _activeAborts = new Map<string, AbortController>()
+
+  /**
+   * Cancel an in-progress download (inline tree button). Aborts the pull
+   * stream, which routes through the same failure path as a user cancel and
+   * leaves the model under Incomplete with a Retry action.
+   */
+  async cancelDownload(modelId: string): Promise<void> {
+    const abort = this._activeAborts.get(modelId)
+    if (!abort) {
+      showWarningMessage(`No active download for '${modelId}'.`)
+      return
+    }
+    abort.abort()
   }
 }
