@@ -356,6 +356,17 @@ export class BinaryManager {
       return
     }
 
+    // Only hit api.github.com once per day via globalState.
+    const throttleKey = 'chanh.lastUpdateCheck'
+    const DAY_MS = 24 * 60 * 60 * 1000
+    const lastCheck = this.context.globalState.get<number>(throttleKey, 0)
+    const now = performance.now()
+    if (lastCheck > 0 && now - lastCheck < DAY_MS) {
+      Logger.info('Update check skipped (throttled, last check < 24h ago)')
+      return
+    }
+    this.context.globalState.update(throttleKey, now)
+
     try {
       const release = await this.getLatestRelease()
       const latestVersion = release.tag_name.replace(/^v/, '')

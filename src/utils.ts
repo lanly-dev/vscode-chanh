@@ -1,4 +1,5 @@
 import * as vscode from 'vscode'
+import { Logger } from './logger'
 import { ServerInstance, ServerStatus } from './interfaces'
 
 export function getServerStatusChar(status: ServerInstance['status']): { color: string, icon: string, text: string } {
@@ -69,5 +70,22 @@ export function openUrl(item: vscode.TreeItem): void {
   if (!label) return
   const url = typeof label === 'string' ? label : label.label
   if (!url) return
-  vscode.env.openExternal(vscode.Uri.parse(url))
+
+  let parsed: vscode.Uri
+  try {
+    parsed = vscode.Uri.parse(url)
+  } catch {
+    vscode.window.showErrorMessage(`Cannot open server URL: invalid address (${url})`)
+    Logger.error(`openUrl: cannot parse label as URI: ${url}`)
+    return
+  }
+
+  // Only allow http/https URIs — no file://, no javascript: etc.
+  if (parsed.scheme !== 'http' && parsed.scheme !== 'https') {
+    vscode.window.showErrorMessage(`Cannot open server URL: unsupported scheme (${parsed.scheme})`)
+    Logger.error(`openUrl: rejecting non-web URI scheme "${parsed.scheme}"`)
+    return
+  }
+
+  vscode.env.openExternal(parsed)
 }

@@ -55,8 +55,7 @@ export class ChatParticipant implements Disposable {
   /** Update the client to point at the currently selected server. */
   private updateClientForSelectedServer(): void {
     const url = this.serverManager.selectedServerUrl
-    // Why it creates a new client each time instead of reusing the existing one
-    this.client = new LemonadeClient(url)
+    this.client.setBaseUrl(url)
     Logger.info(`Chat client pointing to: ${url}`)
   }
 
