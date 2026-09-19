@@ -631,7 +631,7 @@ export class ModelManager {
     const abortController = new AbortController()
     this._activeAborts.set(modelId, abortController)
 
-    // Stall watchdog: if the server stops sending pull events for 5 seconds,
+    // Stall watchdog: if the server stops sending pull events for 10 seconds,
     // abort the request so the download fails cleanly instead of hanging.
     const DOWNLOAD_STALL_TIMEOUT_MS = 10000
     let stallTimer: ReturnType<typeof setTimeout> | undefined
@@ -717,11 +717,11 @@ export class ModelManager {
           // Remove from the live list, then keep it as an incomplete download.
           this.treeViewProvider.endDownload(modelId)
           if (stalled) {
-            Logger.warn(`Model download stalled (no events for 5s): ${modelId}`)
+            Logger.warn(`Model download stalled (no events for 10s): ${modelId}`)
             this.treeViewProvider.markPartial(modelId, lastReportedPct, 'stalled: no progress for 10s')
             this.treeViewProvider.refresh()
-            showErrorMessage(`Download of '${modelId}' stalled: no progress for 5 seconds. Retry to resume.`)
-          } else if (token.isCancellationRequested) {
+            showErrorMessage(`Download of '${modelId}' stalled: no progress for 10 seconds. Retry to resume.`)
+          } else if (token.isCancellationRequested || abortController.signal.aborted) {
             Logger.warn(`Model download cancelled: ${modelId}`)
             this.treeViewProvider.markPartial(modelId, lastReportedPct)
             this.treeViewProvider.refresh()
