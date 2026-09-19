@@ -1,16 +1,15 @@
 import { commands, ExtensionContext, TreeItem, window } from 'vscode'
 
 import { BinaryManager } from './binaryManager'
-import { ChatParticipant } from './chatParticipant'
 import { ChanhLmcProvider } from './lmcProvider'
+import { ChatParticipant } from './chatParticipant'
+import { listenConfigsChange, ServerManager } from './serverManager'
 import { Logger } from './logger'
 import { ModelDecorationProvider } from './modelDecorations'
 import { ModelManager } from './modelManager'
-import { listenConfigsChange, ServerManager } from './serverManager'
-import { ServerViewProvider } from './serverTreeview'
-
 import { openSetting, openUrl } from './utils'
 import { refreshEvents } from './events'
+import { ServerViewProvider } from './serverTreeview'
 
 /** Tree items carrying their Lemonade model id. */
 type ModelTreeItem = TreeItem & { modelId: string }
@@ -18,16 +17,15 @@ type ModelTreeItem = TreeItem & { modelId: string }
 export async function activate(context: ExtensionContext) {
   const rc = commands.registerCommand
 
-  // Initialize managers and the tree view (mirrors the audio-lab style:
-  // a singleton-ish provider obtained via `createOrGet`).
+  // Initialize managers and the tree view
   const binaryManager = new BinaryManager(context)
   const serverManager = new ServerManager(binaryManager)
-  const p = await ServerViewProvider.createOrGet(context, serverManager)
+  const svProvider = await ServerViewProvider.createOrGet(context, serverManager)
 
-  // Expose Lemonade models in the native VS Code model picker (like Ollama).
+  // Expose Lemonade models in the native VS Code model picker
   const lmcProvider = new ChanhLmcProvider(serverManager)
 
-  const modelManager = new ModelManager(serverManager, p, lmcProvider)
+  const modelManager = new ModelManager(serverManager, svProvider, lmcProvider)
   lmcProvider.setModelManager(modelManager)
   const chatParticipant = new ChatParticipant(serverManager, modelManager)
 
@@ -52,18 +50,16 @@ export async function activate(context: ExtensionContext) {
   const d17 = rc('chanh.openServerUrl', openUrl)
   const d18 = rc('chanh.editServerPort', () => serverManager.editServerPort())
 
-  const d19 = rc('chanh.toggleModelGrouping', () => p.toggleModelGrouping())
-  const d20 = rc('chanh.toggleDlModelGrouping', () => p.toggleDlModelGrouping())
-  const d21 = rc('chanh.toggleHotModels', () => p.toggleHotModels())
+  const d19 = rc('chanh.toggleModelGrouping', () => svProvider.toggleModelGrouping())
+  const d20 = rc('chanh.toggleDlModelGrouping', () => svProvider.toggleDlModelGrouping())
+  const d21 = rc('chanh.toggleHotModels', () => svProvider.toggleHotModels())
 
   const d22 = listenConfigsChange(serverManager)
   const d23 = lmcProvider.register()
   const d24 = window.registerFileDecorationProvider(new ModelDecorationProvider())
 
-  context.subscriptions.push(
-    d1, d2, d3, d4, d5, d6, d7, d8, d9, d10, d11, d12, d13, d14, d15, d16, d17,
-    d18, d19, d20, d21, d22, d23, d24, serverManager
-  )
+  context.subscriptions.push(d1, d2, d3, d4, d5, d6, d7, d8, d9, d10, d11, d12, d13, d14, d15, d16, d17, d18, d19, d20,
+    d21, d22, d23, d24, serverManager)
   binaryManager.checkForUpdates()
 }
 
