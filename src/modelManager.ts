@@ -577,7 +577,6 @@ export class ModelManager {
       showErrorMessage(`Failed to load chat model: ${err}`)
       return
     }
-    // TODO: what is vscode.ChatParticipant about
     chatParticipant.setSelectedModel(selected)
     showInformationMessage(`Selected model for chat: ${selected}`)
   }
@@ -620,7 +619,7 @@ export class ModelManager {
     }
 
     const client = this.serverManager.client
-    // TODO: is it continue or redownload?
+    // It is actually continuing a previous download if it was incomplete.
     // Re-pulling a known-incomplete model: drop its stale "incomplete" marker
     // while it's actively downloading; it will be re-marked if it fails again.
     this.treeViewProvider.clearPartial(modelId)

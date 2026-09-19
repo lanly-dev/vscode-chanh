@@ -14,9 +14,13 @@ const GITHUB_API = 'https://api.github.com/repos/lemonade-sdk/lemonade/releases/
 export class BinaryManager {
   constructor(private context: vscode.ExtensionContext) { }
 
-  /** Directory where the binary is stored (in the extension's own directory). */
+  /**
+   * Directory where the binary is stored (user storage — survives extension updates).
+   * Uses the non-deprecated {@link vscode.ExtensionContext.globalStorageUri} + `fsPath`.
+   */
   get binaryDir(): string {
-    return path.join(this.context.extensionPath, 'bin', 'lemonade-server')
+    // globalStorageUri is a vscode.Uri; .fsPath gives the absolute OS path.
+    return path.join(this.context.globalStorageUri.fsPath, 'bin', 'lemonade-server')
   }
 
   /** Path to the lemond executable. */

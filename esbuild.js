@@ -25,9 +25,7 @@ const esbuildProblemMatcherPlugin = {
 
 async function main() {
   const ctx = await esbuild.context({
-    entryPoints: [
-      'src/extension.ts'
-    ],
+    entryPoints: ['src/extension.ts'],
     bundle: true,
     format: 'cjs',
     minify: production,
@@ -42,9 +40,8 @@ async function main() {
       esbuildProblemMatcherPlugin
     ]
   })
-  if (watch)
-    await ctx.watch()
-	 else {
+  if (watch) await ctx.watch()
+  else {
     await ctx.rebuild()
     await ctx.dispose()
   }
