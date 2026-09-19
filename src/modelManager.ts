@@ -632,7 +632,7 @@ export class ModelManager {
 
     // Stall watchdog: if the server stops sending pull events for 5 seconds,
     // abort the request so the download fails cleanly instead of hanging.
-    const DOWNLOAD_STALL_TIMEOUT_MS = 5000
+    const DOWNLOAD_STALL_TIMEOUT_MS = 10000
     let stallTimer: ReturnType<typeof setTimeout> | undefined
     let stalled = false
     const resetStallTimer = (): void => {
