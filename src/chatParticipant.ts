@@ -11,6 +11,7 @@ import {
   ChatResponseStream,
   ChatResponseTurn,
   ChatResult,
+  Disposable,
   ExtensionContext,
   ThemeIcon
 } from 'vscode'
@@ -25,7 +26,7 @@ import { ServerStatus } from './interfaces'
 import type { ChatMessage } from './interfaces'
 
 // Handles VS Code chat requests by forwarding them to the Lemonade Server.
-export class ChatParticipant {
+export class ChatParticipant implements Disposable {
   private client: LemonadeClient
   private participant: VSCodeChatParticipant
   private selectedModel: string | undefined
@@ -224,5 +225,10 @@ export class ChatParticipant {
       controller.abort()
     })
     return controller.signal
+  }
+
+  /** Dispose of the chat participant registration. */
+  dispose(): void {
+    this.participant.dispose()
   }
 }

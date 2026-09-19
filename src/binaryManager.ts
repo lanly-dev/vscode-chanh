@@ -37,7 +37,7 @@ export class BinaryManager {
     // Check if the binary exists in a subdirectory (from a previous extraction)
     const isWindows = process.platform === 'win32'
     const lemondName = isWindows ? 'lemond.exe' : 'lemond'
-    return !this.findFile(this.binaryDir, lemondName)
+    return this.findFile(this.binaryDir, lemondName) !== null
   }
 
   /** Get the installed version, or null if not installed. */

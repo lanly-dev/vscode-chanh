@@ -1,4 +1,4 @@
-import { commands, ExtensionContext, TreeItem, window } from 'vscode'
+import { commands, ConfigurationTarget, ExtensionContext, TreeItem, window, workspace } from 'vscode'
 
 import { BinaryManager } from './binaryManager'
 import { ChanhLmcProvider } from './lmcProvider'
@@ -59,7 +59,7 @@ export async function activate(context: ExtensionContext) {
   const d24 = window.registerFileDecorationProvider(new ModelDecorationProvider())
 
   context.subscriptions.push(d1, d2, d3, d4, d5, d6, d7, d8, d9, d10, d11, d12, d13, d14, d15, d16, d17, d18, d19, d20,
-    d21, d22, d23, d24, serverManager)
+    d21, d22, d23, d24, serverManager, chatParticipant)
   binaryManager.checkForUpdates()
 }
 

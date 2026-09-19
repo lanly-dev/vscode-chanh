@@ -141,10 +141,6 @@
         "icon": "$(refresh)"
       },
       {
-        "command": "chanh.switchToStandalone",
-        "title": "Chanh: Switch to Standalone Server"
-      },
-      {
         "command": "chanh.selectServer",
         "title": "Chanh: Select Server",
         "icon": "$(arrow-swap)"

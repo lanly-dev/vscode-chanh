@@ -1,4 +1,5 @@
 import * as http from 'http'
+import * as https from 'https'
 import { Logger } from './logger'
 import type {
   ChatCompletionRequest,
@@ -14,12 +15,20 @@ import type {
  * Communicates with the local Lemonade Server using OpenAI-compatible endpoints.
  */
 export class LemonadeClient {
+  /** Inactivity timeout for plain (non-streaming) requests. */
+  private static readonly REQUEST_TIMEOUT_MS = 15000
+
   private baseUrl: string
 
   constructor(url: string) {
     // Trim and check for empty string
     if (url.trim().length === 0) throw new Error('URL cannot be empty or whitespace only.')
     this.baseUrl = url.replace(/\/+$/, '')
+  }
+
+  /** Pick the node HTTP module matching the base URL's protocol. */
+  private get httpClient(): typeof http | typeof https {
+    return this.baseUrl.startsWith('https://') ? https : http
   }
 
   /** Update the base URL (e.g., when port changes). */
@@ -54,6 +63,10 @@ export class LemonadeClient {
         }
       )
       req.on('error', reject)
+      // Inactivity guard: a hung server must not block status polling forever.
+      req.setTimeout(LemonadeClient.REQUEST_TIMEOUT_MS, () =>
+        req.destroy(new Error(`Request timed out after ${LemonadeClient.REQUEST_TIMEOUT_MS / 1000}s`))
+      )
       if (data) req.write(data)
       req.end()
     })
@@ -186,7 +199,7 @@ export class LemonadeClient {
     }
 
     return new Promise((resolve, reject) => {
-      const req = http.request(
+      const req = this.httpClient.request(
         `${this.baseUrl}/v1/pull`,
         { method: 'POST', headers },
         (res) => {
@@ -364,7 +377,7 @@ export class LemonadeClient {
         'Content-Length': Buffer.byteLength(body).toString()
       }
 
-      const req = http.request(
+      const req = this.httpClient.request(
         `${this.baseUrl}/v1/chat/completions`,
         { method: 'POST', headers },
         (res) => {
