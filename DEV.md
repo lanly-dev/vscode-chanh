@@ -109,3 +109,13 @@ Target behavior:
 - Whether dead jobs are retained or removed automatically.
 - Whether non-terminal job records include enough identity to map back to model ids.
 - Whether old servers without `/v1/downloads` need indefinite local fallback.
+
+---
+
+## TODO: Extension cleanup and disposables
+
+- [ ] Add `lmcProvider` to `context.subscriptions` in `extension.ts` — it implements `vscode.Disposable` with a proper `dispose()` method but is not currently tracked.
+- [ ] Evaluate `ServerViewProvider` for disposable cleanup:
+  - It registers event listeners (`refreshEvents.onDidRequestRefresh`, `serverManager.onStatusChange`) that are not explicitly disposed.
+  - Consider implementing `vscode.Disposable` on `ServerViewProvider` and cleaning up internal subscriptions on deactivation.
+- [ ] Verify no resource leaks on extension deactivation (event emitters, HTTP clients, timers, etc.).

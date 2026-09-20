@@ -83,57 +83,57 @@
       },
       {
         "command": "chanh.ncp.downloadModel",
-        "title": "Chanh: Download Model",
+        "title": "Download Model",
         "icon": "$(cloud-download)"
       },
       {
         "command": "chanh.ncp.cancelDownload",
-        "title": "Chanh: Cancel Download",
+        "title": "Cancel Download",
         "icon": "$(close)"
       },
       {
         "command": "chanh.toggleModelGrouping",
-        "title": "Chanh: Toggle Model Grouping by Capability",
+        "title": "Toggle Model Grouping by Capability",
         "icon": "$(group-by-ref-type)"
       },
       {
         "command": "chanh.toggleDlModelGrouping",
-        "title": "Chanh: Toggle Downloadable Models Grouping by Capability",
+        "title": "Toggle Downloadable Models Grouping by Capability",
         "icon": "$(group-by-ref-type)"
       },
       {
         "command": "chanh.toggleHotModels",
-        "title": "Chanh: Toggle Downloadable Hot Models Only",
+        "title": "Toggle Downloadable Hot Models Only",
         "icon": "$(flame)"
       },
       {
         "command": "chanh.ncp.setModelContext",
-        "title": "Chanh: Set Context Size",
+        "title": "Set Context Size",
         "icon": "$(symbol-numeric)"
       },
       {
         "command": "chanh.ncp.resetModelContext",
-        "title": "Chanh: Reset Context Size to Default",
+        "title": "Reset Context Size to Default",
         "icon": "$(clear-all)"
       },
       {
         "command": "chanh.ncp.showModelInfo",
-        "title": "Chanh: Show Model Info",
+        "title": "Show Model Info",
         "icon": "$(info)"
       },
       {
         "command": "chanh.ncp.loadModel",
-        "title": "Chanh: Load Model",
+        "title": "Load Model",
         "icon": "$(run-above)"
       },
       {
         "command": "chanh.ncp.unloadModel",
-        "title": "Chanh: Unload Model",
+        "title": "Unload Model",
         "icon": "$(run-below)"
       },
       {
         "command": "chanh.ncp.removeModel",
-        "title": "Chanh: Remove Model",
+        "title": "Remove Model",
         "icon": "$(trash)"
       },
       {
