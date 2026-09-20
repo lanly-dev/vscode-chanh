@@ -203,45 +203,49 @@ export class ServerManager {
 
   /** Fetch the embedded lemon server status. */
   private async fetchEmbeddedServer(config: WorkspaceConfiguration): Promise<ServerInstance | null> {
-    if (this._status !== ServerStatus.RUNNING) {
+    const embeddedClient = new LemonadeClient(this.embeddedUrl)
+
+    // First, do a non-throwing health check to determine if the server is reachable.
+    // This avoids masking real errors with assumptions about why the connection failed.
+    const isHealthy = await embeddedClient.checkHealth()
+    if (!isHealthy) {
+      // Server is not responding — return stopped status since we probed and
+      // confirmed it's not reachable. This is based on the health check result,
+      // not an assumption about failure mode.
       return {
         id: 'lemond',
         name: 'lemond (Embedded)',
         url: this.embeddedUrl,
-        status: this._status,
+        status: ServerStatus.STOPPED,
         version: this.binaryManager.getInstalledVersion() ?? undefined,
         maxLoadedModels: config.get<number>('maxLoadedModels', 1)
       }
     }
 
-    const embeddedClient = new LemonadeClient(this.embeddedUrl)
-    try {
-      const health = await embeddedClient.getHealth()
-      const { models, downloadableModels } = await this.fetchAllCatalogModels(embeddedClient)
-      let maxLoadedModels = config.get<number>('maxLoadedModels', 1)
+    // Server is healthy — fetch full details
+    const health = await embeddedClient.getHealth()
+    const { models, downloadableModels } = await this.fetchAllCatalogModels(embeddedClient)
+    let maxLoadedModels = config.get<number>('maxLoadedModels', 1)
 
-      // If the server reports its max_loaded_models, keep the extension config in sync
-      if (typeof health.max_loaded_models === 'number' && Number.isInteger(health.max_loaded_models)) {
-        maxLoadedModels = health.max_loaded_models
-        if (config.get<number>('maxLoadedModels', 1) !== maxLoadedModels) {
-          await config.update('maxLoadedModels', maxLoadedModels, ConfigurationTarget.Global)
-          Logger.info(`Synced lemon.maxLoadedModels from server to ${maxLoadedModels}`)
-        }
+    // If the server reports its max_loaded_models, keep the extension config in sync
+    if (typeof health.max_loaded_models === 'number' && Number.isInteger(health.max_loaded_models)) {
+      maxLoadedModels = health.max_loaded_models
+      if (config.get<number>('maxLoadedModels', 1) !== maxLoadedModels) {
+        await config.update('maxLoadedModels', maxLoadedModels, ConfigurationTarget.Global)
+        Logger.info(`Synced lemon.maxLoadedModels from server to ${maxLoadedModels}`)
       }
+    }
 
-      return {
-        id: 'lemond',
-        name: 'lemond (Embedded)',
-        url: this.embeddedUrl,
-        status: ServerStatus.RUNNING,
-        version: this.binaryManager.getInstalledVersion() ?? undefined,
-        health,
-        models,
-        downloadableModels,
-        maxLoadedModels
-      }
-    } catch (err) {
-      return null
+    return {
+      id: 'lemond',
+      name: 'lemond (Embedded)',
+      url: this.embeddedUrl,
+      status: ServerStatus.RUNNING,
+      version: this.binaryManager.getInstalledVersion() ?? undefined,
+      health,
+      models,
+      downloadableModels,
+      maxLoadedModels
     }
   }
 
@@ -271,23 +275,54 @@ export class ServerManager {
   }
 
   /** Apply the configured `chanh.targetServer` to the in-memory server selection. */
-  applyConfiguredServerMode(): void {
+  async applyConfiguredServerMode(): Promise<void> {
     const config = workspace.getConfiguration('chanh')
     const mode = config.get<TargetServer>('targetServer', TargetServer.STANDALONE)
     switch (mode) {
-      case TargetServer.STANDALONE:
+      case TargetServer.STANDALONE: {
         const standalonePort = config.get<number>('standalonePort', 13305)
-        this.setSelectedServer(`http://localhost:${standalonePort}`, 'Standalone Lemonade')
+        const url = `http://localhost:${standalonePort}`
+        this.setSelectedServer(url, 'Standalone Lemonade')
+        // Probe the standalone server to determine actual status
+        await this.refreshStatus()
         break
-      case TargetServer.EMBEDDED:
+      }
+      case TargetServer.EMBEDDED: {
         const embeddedPort = config.get<number>('embeddedPort', 8000)
-        this.setSelectedServer(`http://localhost:${embeddedPort}`, 'lemon (Embedded)')
+        const url = `http://localhost:${embeddedPort}`
+        this.setSelectedServer(url, 'lemon (Embedded)')
+        // Check if an embedded server is already running at this port
+        await this.refreshStatus()
         break
+      }
       case TargetServer.CUSTOM: {
         const url = config.get<string>('customServerUrl', '')
         if (url) this.setSelectedServer(url, 'Custom Server')
+        else {
+          this.setSelectedServer('', 'Custom Server')
+          this.setStatus(ServerStatus.STOPPED)
+        }
+        // Probe the custom server if URL is configured
+        if (url) await this.refreshStatus()
         break
       }
+    }
+  }
+
+  /** Probe the currently selected server and update status accordingly. */
+  private async refreshStatus(): Promise<void> {
+    try {
+      const instance = await this.getActiveServer()
+      if (instance) {
+        this.setStatus(instance.status)
+        Logger.info(`Server status after mode switch: ${instance.status} (${instance.name})`)
+      } else {
+        // getActiveServer returned null (e.g., custom server unreachable)
+        this.setStatus(ServerStatus.STOPPED)
+      }
+    } catch (err) {
+      Logger.warn(`Could not determine server status after mode switch: ${err}`)
+      this.setStatus(ServerStatus.STOPPED)
     }
   }
 
@@ -816,7 +851,7 @@ export function listenConfigsChange(serverManager: ServerManager) {
     const settings = ['chanh.targetServer', 'chanh.customServerUrl', 'chanh.standalonePort', 'chanh.embeddedPort']
 
     if (settings.some((setting) => e.affectsConfiguration(setting))) {
-      serverManager.applyConfiguredServerMode()
+      await serverManager.applyConfiguredServerMode()
 
       // When the user switches away from embedded mode, stop the local embedded process
       // it's no longer the active server.
