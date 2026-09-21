@@ -218,6 +218,11 @@
           "group": "inline"
         },
         {
+          "command": "chanh.editServerPort",
+          "when": "view == CHANH_TREEVIEW && viewItem == CHANH_SERVER_ERROR_MSG",
+          "group": "inline"
+        },
+        {
           "command": "chanh.ncp.downloadModel",
           "when": "view == CHANH_TREEVIEW && viewItem == CHANH_DOWNLOADABLE_MODEL",
           "group": "inline"

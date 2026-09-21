@@ -168,7 +168,15 @@ export class ServerManager {
   /** Fetch the custom Lemonade server status. */
   private async fetchCustomServer(config: WorkspaceConfiguration): Promise<ServerInstance | null> {
     const customUrl = config.get<string>('customServerUrl', '')
-    if (!customUrl) return null
+    if (!customUrl) {
+      return {
+        id: ServerMode.CUSTOM,
+        name: 'Custom Server',
+        url: '',
+        status: ServerStatus.ERROR,
+        error: 'No URL configured. Click to enter a server URL.'
+      }
+    }
     const client = new LemonadeClient(customUrl)
     try {
       const health = await client.getHealth()
@@ -183,8 +191,14 @@ export class ServerManager {
         downloadableModels,
         maxLoadedModels: health.max_loaded_models
       }
-    } catch {
-      return null
+    } catch (err) {
+      return {
+        id: ServerMode.CUSTOM,
+        name: 'Custom Server',
+        url: customUrl,
+        status: ServerStatus.ERROR,
+        error: `Unreachable: ${err instanceof Error ? err.message : String(err)}. Click to enter a new URL.`
+      }
     }
   }
 
@@ -387,11 +401,18 @@ export class ServerManager {
       if (!defaultUrl) {
         const url = await showInputBox({
           title: 'Custom Server URL',
-          prompt: 'Enter the Lemonade Server URL',
-          value: defaultUrl
+          prompt: 'Enter the Lemonade Server URL (e.g., http://localhost:13305)',
+          placeHolder: 'http://localhost:13305',
+          value: defaultUrl,
+          validateInput: (input) => {
+            const trimmed = input.trim()
+            if (!trimmed) return 'Please enter a URL'
+            if (!/^https?:\/\//i.test(trimmed)) return 'URL must start with http:// or https://'
+            return undefined
+          }
         })
         if (!url) return
-        defaultUrl = url
+        defaultUrl = url.trim()
       }
       if (!defaultUrl) return
       // Save to config and select

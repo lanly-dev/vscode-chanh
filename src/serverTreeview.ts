@@ -376,11 +376,14 @@ export class ServerViewProvider implements TreeDataProvider<TreeItem> {
     if (!server) return []
 
     const items: TreeItem[] = []
-    // Status indicator
+    // Status indicator — on error, the message becomes the row's subtext
+    // (description) so the user sees what's wrong next to the status.
     const { color, icon, text } = getServerStatusChar(server.status)
     const statusItem = new TreeItem(`Status: ${text}`, None)
     statusItem.iconPath = new ThemeIcon(icon, new ThemeColor(color))
     statusItem.contextValue = `CHANH_SERVER_${server.status}`
+    if (server.status === ServerStatus.ERROR && server.error)
+      statusItem.description = server.error
     items.push(statusItem)
 
     // Server URL
@@ -421,12 +424,6 @@ export class ServerViewProvider implements TreeDataProvider<TreeItem> {
       items.push(pinnedHeader)
     }
 
-    // Error message if any
-    if (server.error) {
-      const errorItem = new TreeItem(`Error: ${server.error}`, None)
-      errorItem.iconPath = new ThemeIcon('error', new ThemeColor('charts.red'))
-      items.push(errorItem)
-    }
     return items
   }
 
