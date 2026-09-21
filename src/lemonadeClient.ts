@@ -7,7 +7,8 @@ import type {
   ChatMessage,
   HealthResponse,
   LemonadeModel,
-  DownloadProgressEvent
+  DownloadProgressEvent,
+  OpenAIMessageToolCall
 } from './interfaces'
 
 /**
@@ -17,6 +18,9 @@ import type {
 export class LemonadeClient {
   /** Inactivity timeout for plain (non-streaming) requests. */
   private static readonly REQUEST_TIMEOUT_MS = 15000
+
+  /** Loading a multi-GB model from disk can take minutes of server silence. */
+  private static readonly LOAD_TIMEOUT_MS = 10 * 60 * 1000
 
   private baseUrl: string
 
@@ -43,7 +47,12 @@ export class LemonadeClient {
   }
 
   /** Make a generic HTTP request to the server. */
-  private request(method: string,path: string,body?: unknown): Promise<{ status: number, data: string }> {
+  private request(
+    method: string,
+    path: string,
+    body?: unknown,
+    timeoutMs: number = LemonadeClient.REQUEST_TIMEOUT_MS
+  ): Promise<{ status: number, data: string }> {
     return new Promise((resolve, reject) => {
       const data = body ? JSON.stringify(body) : undefined
       const headers: Record<string, string> = {
@@ -64,8 +73,8 @@ export class LemonadeClient {
       )
       req.on('error', reject)
       // Inactivity guard: a hung server must not block status polling forever.
-      req.setTimeout(LemonadeClient.REQUEST_TIMEOUT_MS, () =>
-        req.destroy(new Error(`Request timed out after ${LemonadeClient.REQUEST_TIMEOUT_MS / 1000}s`))
+      req.setTimeout(timeoutMs, () =>
+        req.destroy(new Error(`Request timed out after ${Math.round(timeoutMs / 1000)}s`))
       )
       if (data) req.write(data)
       req.end()
@@ -114,9 +123,12 @@ export class LemonadeClient {
 
   async loadModel(modelName: string): Promise<void> {
     Logger.info(`Loading model: ${modelName}`)
-    const { status, data } = await this.request('POST', '/v1/load', {
-      model_name: modelName
-    })
+    const { status, data } = await this.request(
+      'POST',
+      '/v1/load',
+      { model_name: modelName },
+      LemonadeClient.LOAD_TIMEOUT_MS
+    )
     if (status !== 200) {
       throw new Error(
         status === 409 && /slots_pinned_error/.test(data)
@@ -343,25 +355,35 @@ export class LemonadeClient {
 
   /**
    * Send a streaming chat completion request.
-   * Calls onToken for each content chunk received.
+   * Calls onToken for each content chunk received. Streamed tool-call deltas
+   * are accumulated and emitted via onToolCall once the stream completes.
    */
   async chatCompletionStream(
     request: ChatCompletionRequest,
     onToken: (token: string) => void,
-    signal?: AbortSignal
+    signal?: AbortSignal,
+    onToolCall?: (toolCall: OpenAIMessageToolCall) => void
   ): Promise<string> {
     return new Promise((resolve, reject) => {
       let settled = false
       let lastEvent = ''
+      // Streamed tool calls arrive as chunks keyed by `index`.
+      const toolCalls = new Map<number, { id: string, name: string, args: string }>()
       const finish = (content: string): void => {
         if (settled) return
         settled = true
-        if (!content) {
+        // Tool-call-only responses carry no text — still a valid response.
+        if (!content && toolCalls.size === 0) {
           reject(new Error(
             `Chat completion returned no content from ${this.baseUrl} for model ${request.model}. ` +
             `Last server event: ${lastEvent || 'none'}`
           ))
           return
+        }
+        if (onToolCall) {
+          const ordered = [...toolCalls.entries()].sort((a, b) => a[0] - b[0])
+          for (const [, tc] of ordered)
+            onToolCall({ id: tc.id, type: 'function', function: { name: tc.name, arguments: tc.args } })
         }
         resolve(content)
       }
@@ -422,6 +444,17 @@ export class LemonadeClient {
               if (content) {
                 fullContent += content
                 onToken(content)
+              }
+              const deltaCalls = choice?.delta?.tool_calls as
+                | Array<{ index?: number, id?: string, function?: { name?: string, arguments?: string } }>
+                | undefined
+              for (const dc of deltaCalls ?? []) {
+                const idx = dc.index ?? 0
+                const acc = toolCalls.get(idx) ?? { id: '', name: '', args: '' }
+                if (dc.id) acc.id = dc.id
+                if (dc.function?.name) acc.name += dc.function.name
+                if (dc.function?.arguments) acc.args += dc.function.arguments
+                toolCalls.set(idx, acc)
               }
             } catch (err) {
               Logger.warn(`Failed to parse SSE chunk: ${err}`)

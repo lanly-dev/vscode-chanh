@@ -135,26 +135,35 @@ class ChanhLmcProvider implements vscode.LanguageModelChatProvider {
       ? { type: 'function' as const, function: { name: tools[0].function.name } }
       : ('auto' as const)
 
+    const abort = new AbortController()
+    const cancel = token.onCancellationRequested(() => abort.abort())
+    // Streamed: the non-streaming request path has a 15s inactivity timeout
+    // that local models blow past on large agent-mode prompts.
+    const toolCalls: ToolCall[] = []
     try {
       if (token.isCancellationRequested) return
-      const response = await client.chatCompletion({
-        model: model.id,
-        messages: base,
-        stream: false,
-        ...(tools.length > 0 ? { tools, tool_choice: toolChoice } : {})
-      })
-      const msg = response.choices[0]?.message
-      if (msg?.content) progress.report(new vscode.LanguageModelTextPart(msg.content))
-      for (const raw of msg?.tool_calls ?? []) {
-        if (token.isCancellationRequested) break
-        const tc = parseToolCall(raw)
-        if (!tc) continue
+      await client.chatCompletionStream(
+        {
+          model: model.id,
+          messages: base,
+          ...(tools.length > 0 ? { tools, tool_choice: toolChoice } : {})
+        },
+        (text) => progress.report(new vscode.LanguageModelTextPart(text)),
+        abort.signal,
+        (raw) => {
+          const tc = parseToolCall(raw)
+          if (tc) toolCalls.push(tc)
+        }
+      )
+      for (const tc of toolCalls)
         progress.report(new vscode.LanguageModelToolCallPart(tc.id, tc.name, tc.args))
-      }
       Logger.info(`Language model response complete for ${model.id}`)
     } catch (err) {
+      if (token.isCancellationRequested || abort.signal.aborted) return
       await this.modelManager?.offerContextIncrease(model.id, err)
       throw err
+    } finally {
+      cancel.dispose()
     }
   }
 
