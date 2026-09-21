@@ -112,6 +112,44 @@ Target behavior:
 
 ---
 
+## Agent harness and timeout policy
+
+The language model provider (`lmcProvider.ts`) is a **thin translator** for the
+VS Code agent harness — the host (Copilot Chat agent mode) owns the tools, the
+tool-call loop, edit application, and confirmations. Do not re-add provider-side
+tool execution or retry loops:
+
+- Forward `options.tools` as-is (omit `tools`/`tool_choice` when empty — some
+  servers reject empty arrays).
+- Run exactly one completion per `provideLanguageModelChatResponse()` call.
+- Report text via `LanguageModelTextPart` and tool calls via
+  `LanguageModelToolCallPart`; never execute tool calls in the provider.
+- Translate `LanguageModelToolResultPart` to `role: 'tool'` messages keyed by
+  `tool_call_id` — flattening them into user text breaks tool-call correlation.
+
+Timeout policy in `LemonadeClient` — wall-clock timeouts are the wrong tool for
+local inference (duration is unbounded), so each path has its own guard:
+
+| Path | Guard | Rationale |
+| --- | --- | --- |
+| Health / models / config / delete (`request()` default) | `REQUEST_TIMEOUT_MS` = 15s inactivity | Local server should answer instantly; fail fast for status polling |
+| `POST /v1/load` | `LOAD_TIMEOUT_MS` = 10min inactivity | Multi-GB GGUF loads sit silent for minutes |
+| Chat (`chatCompletionStream()`) | `STREAM_INACTIVITY_MS` = 120s **silence watchdog** + user cancellation | Every streamed token resets the socket timer, so slow-but-streaming is unaffected; only a hung server trips it |
+
+Watchdog notes:
+
+- `req.setTimeout()` measures socket inactivity, not elapsed time — any byte
+  resets it.
+- The 120s also bounds **prefill** (silence before the first token). Huge
+  agent-mode prompts on CPU-only large models can exceed it → false "hung"
+  error. Bump the constant if that shows up in practice.
+- Non-streaming `chatCompletion()` inherits the 15s guard and must not be used
+  for generation; keep it for short request/response calls only.
+- `chatCompletionStream()` treats tool-call-only responses (no text) as valid —
+  agent-mode models often answer with only a tool call.
+
+---
+
 ## TODO: Extension cleanup and disposables
 
 - Add `lmcProvider` to `context.subscriptions` in `extension.ts` — it implements `vscode.Disposable` with a proper `dispose()` method but is not currently tracked.

@@ -22,6 +22,9 @@ export class LemonadeClient {
   /** Loading a multi-GB model from disk can take minutes of server silence. */
   private static readonly LOAD_TIMEOUT_MS = 10 * 60 * 1000
 
+  /** Abort a chat stream after this much silence — arriving tokens reset it. */
+  private static readonly STREAM_INACTIVITY_MS = 120000
+
   private baseUrl: string
 
   constructor(url: string) {
@@ -481,6 +484,16 @@ export class LemonadeClient {
 
       req.on('error', (err) => {
         fail(new Error(`Request error: ${err.message}`))
+      })
+
+      // Watchdog: socket inactivity (no tokens, no headers) means the server
+      // is hung mid-generation — fail instead of spinning forever. Any byte
+      // on the socket resets the timer, so slow-but-streaming is unaffected.
+      req.setTimeout(LemonadeClient.STREAM_INACTIVITY_MS, () => {
+        fail(new Error(
+          `Stream went silent for ${LemonadeClient.STREAM_INACTIVITY_MS / 1000}s — the server may be hung`
+        ))
+        req.destroy()
       })
 
       if (signal) {
