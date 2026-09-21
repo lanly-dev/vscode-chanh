@@ -29,12 +29,12 @@ export class ServerManager {
   private _fatalErrorShown = false
   private _processExited = false
   private process: ChildProcess | null = null
-  private selectionChangeCallbacks: Array<() => void> = []
+  private activeServerChangeCallbacks: Array<() => void> = []
   private statusChangeCallbacks: Array<(status: ServerStatus) => void> = []
 
   constructor(private binaryManager: BinaryManager) {
     const config = workspace.getConfiguration('chanh')
-    const mode = config.get<ServerMode>('targetServer', ServerMode.LEMONADE)
+    const mode = config.get<ServerMode>('serverMode', ServerMode.LEMONADE)
     this._lemonadePort = config.get<number>('lemonadePort', 13305)
     this._lemondPort = config.get<number>('lemondPort', 8000)
     if (mode === ServerMode.LEMONADE) this._client = new LemonadeClient(`http://localhost:${this._lemonadePort}`)
@@ -43,7 +43,12 @@ export class ServerManager {
       const customUrl = config.get<string>('customServerUrl')
       if (!customUrl) throw new Error('Custom server URL is not configured.')
       this._client = new LemonadeClient(customUrl)
-    } else throw new Error(`Unexpected target server mode: ${mode}`) // For invalid/old configuration values
+    } else {
+      showErrorMessage(
+        `Chanh: unknown chanh.serverMode "${mode}". Remove it or set it to LEMONADE, LEMOND, or CUSTOM in settings.`
+      )
+      throw new Error(`Unexpected server mode: ${mode}`) // For invalid/old configuration values
+    }
     this.applyConfiguredServerMode()
   }
 
@@ -65,7 +70,7 @@ export class ServerManager {
   /** Get the URL of the configured target server (mode-aware). */
   get url(): string {
     const config = workspace.getConfiguration('chanh')
-    const mode = config.get<ServerMode>('targetServer', ServerMode.LEMONADE)
+    const mode = config.get<ServerMode>('serverMode', ServerMode.LEMONADE)
     if (mode === ServerMode.LEMOND) return this.lemondUrl
     if (mode === ServerMode.CUSTOM) {
       // Custom mode without a configured URL has no valid target; fall back to
@@ -81,27 +86,27 @@ export class ServerManager {
     return `http://localhost:${this._lemondPort}`
   }
 
-  /** Get the currently selected server URL for chat. */
-  get selectedServerUrl(): string {
+  /** Get the currently active server URL for chat. */
+  get activeServerUrl(): string {
     if (this._serverUrl) return this._serverUrl
     return this.url
   }
 
-  /** Get the name of the currently selected server. */
-  get selectedServerName(): string {
+  /** Get the name of the currently active server. */
+  get activeServerName(): string {
     if (this._serverName) return this._serverName
-    return 'Missing Selected Server'
+    return 'Missing Active Server'
   }
 
   /** Get whether the lemond server is selected. */
-  get isLemondSelected(): boolean {
-    return this.selectedServerUrl === this.lemondUrl
+  get isLemondActive(): boolean {
+    return this.activeServerUrl === this.lemondUrl
   }
 
-  /** A client bound to the currently selected server for model operations. */
+  /** A client bound to the currently active server for model operations. */
   get client(): LemonadeClient {
     if (!this._client) throw new Error('Model client is not initialized.')
-    this._client.setBaseUrl(this.selectedServerUrl)
+    this._client.setBaseUrl(this.activeServerUrl)
     return this._client
   }
 
@@ -112,7 +117,7 @@ export class ServerManager {
    */
   async getActiveServer(): Promise<ServerInstance | null> {
     const config = workspace.getConfiguration('chanh')
-    const mode = config.get<ServerMode>('targetServer')
+    const mode = config.get<ServerMode>('serverMode')
 
     let instance: ServerInstance | null
     switch (mode) {
@@ -258,28 +263,28 @@ export class ServerManager {
     return this.start()
   }
 
-  /** Set the selected server for chat and notify listeners (e.g. the chat participant). */
-  setSelectedServer(url: string, name: string): void {
+  /** Set the active server for chat and notify listeners (e.g. the chat participant). */
+  setActiveServer(url: string, name: string): void {
     this._serverUrl = url
     this._serverName = name
-    Logger.info(`Selected server: ${name} (${url})`)
-    for (const callback of this.selectionChangeCallbacks) callback()
+    Logger.info(`Active server: ${name} (${url})`)
+    for (const callback of this.activeServerChangeCallbacks) callback()
   }
 
-  /** Register a callback invoked whenever the selected chat server changes. */
-  onServerSelectionChange(callback: () => void): void {
-    this.selectionChangeCallbacks.push(callback)
+  /** Register a callback invoked whenever the active chat server changes. */
+  onActiveServerChange(callback: () => void): void {
+    this.activeServerChangeCallbacks.push(callback)
   }
 
-  /** Apply the configured `chanh.targetServer` to the in-memory server selection. */
+  /** Apply the configured `chanh.serverMode` to the in-memory server selection. */
   async applyConfiguredServerMode(): Promise<void> {
     const config = workspace.getConfiguration('chanh')
-    const mode = config.get<ServerMode>('targetServer', ServerMode.LEMONADE)
+    const mode = config.get<ServerMode>('serverMode', ServerMode.LEMONADE)
     switch (mode) {
       case ServerMode.LEMONADE: {
         const lemonadePort = config.get<number>('lemonadePort', 13305)
         const url = `http://localhost:${lemonadePort}`
-        this.setSelectedServer(url, 'Lemonade Server (System)')
+        this.setActiveServer(url, 'Lemonade Server (System)')
         // Probe the Lemonade Server (System) to determine actual status
         await this.refreshStatus()
         break
@@ -287,16 +292,16 @@ export class ServerManager {
       case ServerMode.LEMOND: {
         const lemondPort = config.get<number>('lemondPort', 8000)
         const url = `http://localhost:${lemondPort}`
-        this.setSelectedServer(url, 'lemond (Binary)')
+        this.setActiveServer(url, 'lemond (Binary)')
         // Check if a lemond server is already running at this port
         await this.refreshStatus()
         break
       }
       case ServerMode.CUSTOM: {
         const url = config.get<string>('customServerUrl', '')
-        if (url) this.setSelectedServer(url, 'Custom Server')
+        if (url) this.setActiveServer(url, 'Custom Server')
         else {
-          this.setSelectedServer('', 'Custom Server')
+          this.setActiveServer('', 'Custom Server')
           this.setStatus(ServerStatus.STOPPED)
         }
         // Probe the custom server if URL is configured
@@ -306,7 +311,7 @@ export class ServerManager {
     }
   }
 
-  /** Probe the currently selected server and update status accordingly. */
+  /** Probe the currently active server and update status accordingly. */
   private async refreshStatus(): Promise<void> {
     try {
       const instance = await this.getActiveServer()
@@ -323,13 +328,13 @@ export class ServerManager {
     }
   }
 
-  async selectServer(): Promise<void> {
-    await this.selectServerHelper()
+  async switchServer(): Promise<void> {
+    await this.switchServerHelper()
     refreshEvents.fire()
   }
 
-  /** Switch the selected server */
-  private async selectServerHelper(): Promise<void> {
+  /** Switch the active server */
+  private async switchServerHelper(): Promise<void> {
     const config = workspace.getConfiguration('chanh')
     const lemonadePort = config.get<number>('lemonadePort', 13305)
     const lemondPort = config.get<number>('lemondPort', 8000)
@@ -337,7 +342,7 @@ export class ServerManager {
     const lemondUrl = `http://localhost:${lemondPort}`
     let defaultUrl = config.get<string>('customServerUrl', '')
 
-    const mode = config.get<ServerMode>('targetServer', ServerMode.LEMONADE)
+    const mode = config.get<ServerMode>('serverMode', ServerMode.LEMONADE)
     const items: QuickPickItem[] = []
 
     if (mode !== ServerMode.LEMONADE) {
@@ -373,11 +378,11 @@ export class ServerManager {
 
     // Select the chosen server
     if (selected.label.includes('Lemonade')) {
-      await config.update('targetServer', ServerMode.LEMONADE, ConfigurationTarget.Global)
-      this.setSelectedServer(lemonadeUrl, 'Lemonade Server (System)')
+      await config.update('serverMode', ServerMode.LEMONADE, ConfigurationTarget.Global)
+      this.setActiveServer(lemonadeUrl, 'Lemonade Server (System)')
     } else if (selected.label.includes('lemond')) {
-      await config.update('targetServer', ServerMode.LEMOND, ConfigurationTarget.Global)
-      this.setSelectedServer(lemondUrl, 'lemond (Binary)')
+      await config.update('serverMode', ServerMode.LEMOND, ConfigurationTarget.Global)
+      this.setActiveServer(lemondUrl, 'lemond (Binary)')
     } else {
       if (!defaultUrl) {
         const url = await showInputBox({
@@ -390,9 +395,9 @@ export class ServerManager {
       }
       if (!defaultUrl) return
       // Save to config and select
-      await config.update('targetServer', ServerMode.CUSTOM, ConfigurationTarget.Global)
+      await config.update('serverMode', ServerMode.CUSTOM, ConfigurationTarget.Global)
       await config.update('customServerUrl', defaultUrl, ConfigurationTarget.Global)
-      this.setSelectedServer(defaultUrl, 'Custom Server')
+      this.setActiveServer(defaultUrl, 'Custom Server')
     }
   }
 
@@ -403,7 +408,7 @@ export class ServerManager {
    */
   async editServerPort(): Promise<void> {
     const config = workspace.getConfiguration('chanh')
-    const mode = config.get<ServerMode>('targetServer', ServerMode.LEMONADE)
+    const mode = config.get<ServerMode>('serverMode', ServerMode.LEMONADE)
 
     // Custom mode edits the URL; lemonade/lemond edit the port.
     if (mode === ServerMode.CUSTOM) {
@@ -470,7 +475,7 @@ export class ServerManager {
   /** Start the Lemonade Server. */
   async start(): Promise<boolean> {
     const config = workspace.getConfiguration('chanh')
-    const serverMode = config.get<ServerMode>('targetServer', ServerMode.LEMONADE)
+    const serverMode = config.get<ServerMode>('serverMode', ServerMode.LEMONADE)
 
     // Custom mode: connect to a user-configured URL instead of launching a process.
     if (serverMode === ServerMode.CUSTOM) {
@@ -487,7 +492,7 @@ export class ServerManager {
         if (!healthy) throw new Error('health check failed')
         this._client = customClient
         this._usingExistingServer = true
-        this.setSelectedServer(customUrl, 'Custom Server')
+        this.setActiveServer(customUrl, 'Custom Server')
         this.setStatus(ServerStatus.RUNNING)
         showInformationMessage(`Connected to custom Lemonade Server at ${customUrl}`)
         refreshEvents.fire()
@@ -517,7 +522,7 @@ export class ServerManager {
       if (lemonadeHealthy) {
         this._usingExistingServer = true
         this._client = lemonadeClient
-        this.setSelectedServer(`http://localhost:${this._lemonadePort}`, 'Lemonade Server (System)')
+        this.setActiveServer(`http://localhost:${this._lemonadePort}`, 'Lemonade Server (System)')
         this.setStatus(ServerStatus.RUNNING)
         showInformationMessage(`Connected to Lemonade Server at http://localhost:${this._lemonadePort}`)
         refreshEvents.fire()
@@ -525,13 +530,13 @@ export class ServerManager {
       }
       this.setStatus(ServerStatus.ERROR)
       showErrorMessage(
-        'Lemonade Server is not running. Start it, or set chanh.targetServer to "LEMOND" or "CUSTOM".'
+        'Lemonade Server is not running. Start it, or set chanh.serverMode to "LEMOND" or "CUSTOM".'
       )
       return false
     }
 
     // Lemond mode: always start the lemond binary (do not auto-connect to lemonade).
-    if (serverMode === ServerMode.LEMOND) this.setSelectedServer(this.lemondUrl, 'lemond (Managed by Chanh)')
+    if (serverMode === ServerMode.LEMOND) this.setActiveServer(this.lemondUrl, 'lemond (Managed by Chanh)')
 
     // No lemonade server found (or lemond mode forced), start lemond
     this._client = new LemonadeClient(`http://localhost:${this._lemondPort}`)
@@ -552,7 +557,7 @@ export class ServerManager {
         )
         this._usingExistingServer = true
         this._client = new LemonadeClient(`http://localhost:${this._lemondPort}`)
-        this.setSelectedServer(`http://localhost:${this._lemondPort}`, 'lemond (Binary)')
+        this.setActiveServer(`http://localhost:${this._lemondPort}`, 'lemond (Binary)')
         this.setStatus(ServerStatus.RUNNING)
         showInformationMessage(
           `Connected to existing lemond binary at http://localhost:${this._lemondPort}`
@@ -567,7 +572,7 @@ export class ServerManager {
         : `unknown process (PID available via netstat port ${this._lemondPort})`
       showInformationMessage(
         `Port ${this._lemondPort} is already in use by: ${owner}. ` +
-        'If this is your own Lemonade server, connect to it via chanh.targetServer ' +
+        'If this is your own Lemonade server, connect to it via chanh.serverMode ' +
         'instead of starting a new lemond binary, or change chanh.lemondPort.'
       )
       this.setStatus(ServerStatus.ERROR)
@@ -654,7 +659,7 @@ export class ServerManager {
     // Wait for the server to be ready
     const ready = await this.waitForReady()
     if (ready) {
-      this.setSelectedServer(`http://localhost:${this._lemondPort}`, 'lemond (Binary)')
+      this.setActiveServer(`http://localhost:${this._lemondPort}`, 'lemond (Binary)')
       this.setStatus(ServerStatus.RUNNING)
       Logger.info('lemond binary is ready')
       showInformationMessage('lemond binary started successfully')
@@ -845,7 +850,7 @@ export class ServerManager {
 /** React to configuration changes that affect which server is targeted. */
 export function listenConfigsChange(serverManager: ServerManager) {
   return workspace.onDidChangeConfiguration(async (e) => {
-    const settings = ['chanh.targetServer', 'chanh.customServerUrl', 'chanh.lemonadePort', 'chanh.lemondPort']
+    const settings = ['chanh.serverMode', 'chanh.customServerUrl', 'chanh.lemonadePort', 'chanh.lemondPort']
 
     if (settings.some((setting) => e.affectsConfiguration(setting))) {
       await serverManager.applyConfiguredServerMode()
@@ -853,7 +858,7 @@ export function listenConfigsChange(serverManager: ServerManager) {
       // When the user switches away from lemond mode, stop the local lemond process
       // it's no longer the active server.
       const config = workspace.getConfiguration('chanh')
-      const newMode = config.get<ServerMode>('targetServer', ServerMode.LEMONADE)
+      const newMode = config.get<ServerMode>('serverMode', ServerMode.LEMONADE)
       // TODO: Check if stop before switching away from lemond mode
       if (newMode !== ServerMode.LEMOND) await serverManager.stop()
 

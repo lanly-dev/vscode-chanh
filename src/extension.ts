@@ -46,7 +46,7 @@ export async function activate(context: ExtensionContext) {
   const d13 = rc('chanh.openSettings', openSetting)
   const d14 = rc('chanh.openServerUrl', openUrl)
   const d15 = rc('chanh.selectChatModel', async () => modelManager.selectChatModel(chatParticipant))
-  const d16 = rc('chanh.selectServer', () => serverManager.selectServer())
+  const d16 = rc('chanh.switchServer', () => serverManager.switchServer())
   const d17 = rc('chanh.refreshServer', () => refreshEvents.fire())
   const d18 = rc('chanh.setMaxLoadedModels', () => modelManager.setMaxLoadedModels())
   const d19 = rc('chanh.editServerPort', () => serverManager.editServerPort())

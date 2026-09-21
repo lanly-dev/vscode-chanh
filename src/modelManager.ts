@@ -85,7 +85,7 @@ export class ModelManager {
   /** Lower bound (4K) for a custom context size entry. */
   private static readonly MIN_CUSTOM_CTX = 4096
 
-  /** The client bound to the currently selected server. */
+  /** The client bound to the currently active server. */
   private get client() {
     return this.serverManager.client
   }
@@ -483,7 +483,7 @@ export class ModelManager {
   }
 
   /**
-   * Delete a downloaded model from disk on the selected server.
+   * Delete a downloaded model from disk on the active server.
    */
   async deleteModel(modelName: string): Promise<void> {
     if (!await this.serverManager.ensureRunning()) return

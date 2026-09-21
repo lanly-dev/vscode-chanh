@@ -31,7 +31,7 @@ export class ChatParticipant implements Disposable {
   private selectedModel: string | undefined
 
   constructor(private serverManager: ServerManager, private modelManager: ModelManager) {
-    this.client = new LemonadeClient(serverManager.selectedServerUrl)
+    this.client = new LemonadeClient(serverManager.activeServerUrl)
 
     // Create the chat participant
     this.participant = chat.createChatParticipant('CHANH_CHAT', this.handleRequest.bind(this))
@@ -40,20 +40,20 @@ export class ChatParticipant implements Disposable {
     // Update client when server status changes to running
     this.serverManager.onStatusChange((status) => {
       if (status !== ServerStatus.RUNNING) return
-      this.updateClientForSelectedServer()
+      this.updateClientForActiveServer()
       this.selectedModel = undefined
     })
 
-    // Update the client whenever the selected chat server changes
-    this.serverManager.onServerSelectionChange(() => {
-      this.updateClientForSelectedServer()
+    // Update the client whenever the active chat server changes
+    this.serverManager.onActiveServerChange(() => {
+      this.updateClientForActiveServer()
       this.selectedModel = undefined
     })
   }
 
-  /** Update the client to point at the currently selected server. */
-  private updateClientForSelectedServer(): void {
-    const url = this.serverManager.selectedServerUrl
+  /** Update the client to point at the currently active server. */
+  private updateClientForActiveServer(): void {
+    const url = this.serverManager.activeServerUrl
     this.client.setBaseUrl(url)
     Logger.info(`Chat client pointing to: ${url}`)
   }

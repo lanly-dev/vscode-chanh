@@ -34,7 +34,7 @@ export class ChanhLmcProvider implements vscode.LanguageModelChatProvider, vscod
     this.serverManager.onStatusChange((status) => {
       if (status === ServerStatus.RUNNING) this._onDidChange.fire()
     })
-    this.serverManager.onServerSelectionChange(() => this._onDidChange.fire())
+    this.serverManager.onActiveServerChange(() => this._onDidChange.fire())
   }
 
   /**
@@ -68,7 +68,7 @@ export class ChanhLmcProvider implements vscode.LanguageModelChatProvider, vscod
 
     let models
     try {
-      // Use the server-bound client so the selected server (lemonade,
+      // Use the server-bound client so the active server (lemonade,
       // lemond, or custom) is respected.
       const client = this.serverManager.client
       const all = await client.listModels()
@@ -88,7 +88,7 @@ export class ChanhLmcProvider implements vscode.LanguageModelChatProvider, vscod
         id: m.id,
         name: m.id,
         family: m.recipe ?? 'llamacpp',
-        tooltip: `Local model served by Lemonade Server (${this.serverManager.selectedServerName})`,
+        tooltip: `Local model served by Lemonade Server (${this.serverManager.activeServerName})`,
         detail: ModelManager.getModelLabel(m),
         version: String(m.created ?? 1),
         maxInputTokens: contextWindow - maxOutputTokens,

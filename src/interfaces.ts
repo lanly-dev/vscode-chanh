@@ -12,7 +12,7 @@ export enum ServerStatus {
 
 /**
  * The user-selected Lemonade server to target for chat and model operations.
- * Persisted to `chanh.targetServer` in settings.json; values are UPPERCASE
+ * Persisted to `chanh.serverMode` in settings.json; values are UPPERCASE
  * to match the package.json enum and the enum keys.
  */
 export enum ServerMode {

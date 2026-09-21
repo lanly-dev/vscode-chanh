@@ -146,8 +146,8 @@
         "icon": "$(refresh)"
       },
       {
-        "command": "chanh.selectServer",
-        "title": "Chanh: Select Server",
+        "command": "chanh.switchServer",
+        "title": "Chanh: Switch Server",
         "icon": "$(arrow-swap)"
       },
       {
@@ -199,11 +199,11 @@
       "view/item/context": [
         {
           "command": "chanh.ncp.revealBinaryDir",
-          "when": "view == CHANH_TREEVIEW && viewItem == CHANH_SERVER_HEADER && config.chanh.targetServer == LEMOND",
+          "when": "view == CHANH_TREEVIEW && viewItem == CHANH_SERVER_HEADER && config.chanh.serverMode == LEMOND",
           "group": "inline"
         },
         {
-          "command": "chanh.selectServer",
+          "command": "chanh.switchServer",
           "when": "view == CHANH_TREEVIEW && viewItem == CHANH_SERVER_HEADER",
           "group": "inline"
         },
@@ -239,12 +239,12 @@
         },
         {
           "command": "chanh.startServer",
-          "when": "view == CHANH_TREEVIEW && (viewItem == CHANH_SERVER_STOPPED || viewItem == CHANH_SERVER_ERROR) && config.chanh.targetServer == LEMOND",
+          "when": "view == CHANH_TREEVIEW && (viewItem == CHANH_SERVER_STOPPED || viewItem == CHANH_SERVER_ERROR) && config.chanh.serverMode == LEMOND",
           "group": "inline"
         },
         {
           "command": "chanh.stopServer",
-          "when": "view == CHANH_TREEVIEW && viewItem == CHANH_SERVER_RUNNING && config.chanh.targetServer == LEMOND",
+          "when": "view == CHANH_TREEVIEW && viewItem == CHANH_SERVER_RUNNING && config.chanh.serverMode == LEMOND",
           "group": "inline"
         },
         {
@@ -314,9 +314,9 @@
         "chanh.customServerUrl": {
           "type": "string",
           "default": "",
-          "description": "Custom Lemonade Server URL to use when chanh.targetServer is \"CUSTOM\" (e.g., http://localhost:13305)"
+          "description": "Custom Lemonade Server URL to use when chanh.serverMode is \"CUSTOM\" (e.g., http://localhost:13305)"
         },
-        "chanh.targetServer": {
+        "chanh.serverMode": {
           "type": "string",
           "enum": [
             "LEMONADE",

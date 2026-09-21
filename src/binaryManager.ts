@@ -349,7 +349,7 @@ export class BinaryManager {
 
   /** Check for updates and optionally install them. */
   async checkForUpdates(): Promise<void> {
-    const mode = vscode.workspace.getConfiguration('chanh').get<ServerMode>('targetServer')
+    const mode = vscode.workspace.getConfiguration('chanh').get<ServerMode>('serverMode')
     if (mode !== ServerMode.LEMOND) return
     if (!this.isBinaryInstalled()) {
       Logger.info('Binary not installed, skipping update check')
