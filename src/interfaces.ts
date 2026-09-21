@@ -38,6 +38,8 @@ export interface ChatCompletionRequest {
   temperature?: number
   max_tokens?: number
   top_p?: number
+  tools?: ToolDefinition[]
+  tool_choice?: 'auto' | 'none' | { type: 'function', function: { name: string } }
 }
 
 /** Non-streaming chat completion response. */
@@ -54,10 +56,40 @@ export interface ChatCompletionResponse {
   }
 }
 
-/** A chat message in OpenAI format. */
+/** OpenAI chat message. */
 export interface ChatMessage {
-  role: 'system' | 'user' | 'assistant'
+  role: 'system' | 'user' | 'assistant' | 'tool'
   content: string
+  name?: string
+  tool_call_id?: string
+  tool_calls?: OpenAIMessageToolCall[]
+}
+
+/** A tool call as returned by the model (OpenAI tool_calls entry). */
+export interface OpenAIMessageToolCall {
+  id: string
+  type: 'function'
+  function: {
+    name: string
+    arguments: string
+  }
+}
+
+/** A parsed tool call with JSON-deserialized arguments. */
+export interface ToolCall {
+  id: string
+  name: string
+  args: Record<string, unknown>
+}
+
+/** A tool definition sent to the model (OpenAI tools entry). */
+export interface ToolDefinition {
+  type: 'function'
+  function: {
+    name: string
+    description: string
+    parameters: object
+  }
 }
 
 /** Live progress of an in-progress model download (surface in the tree view). */
