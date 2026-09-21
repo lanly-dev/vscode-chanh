@@ -43,14 +43,7 @@ export class ServerManager {
       const customUrl = config.get<string>('customServerUrl')
       if (!customUrl) throw new Error('Custom server URL is not configured.')
       this._client = new LemonadeClient(customUrl)
-    }
-    else {
-      showErrorMessage(
-        `Chanh: unknown chanh.targetServer "${mode}". Remove it or set it to LEMONADE, LEMOND, or CUSTOM in settings.`
-      )
-      throw new Error(`Unexpected target server mode: ${mode}`) // This should never happen
-    }
-
+    } else throw new Error(`Unexpected target server mode: ${mode}`) // For invalid/old configuration values
     this.applyConfiguredServerMode()
   }
 
@@ -868,4 +861,3 @@ export function listenConfigsChange(serverManager: ServerManager) {
     }
   })
 }
-

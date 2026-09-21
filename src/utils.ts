@@ -90,7 +90,7 @@ export function openUrl(item: vscode.TreeItem): void {
   vscode.env.openExternal(parsed)
 }
 
-export function openBinaryDir(binaryDir: string): void {
+export function revealBinaryDir(binaryDir: string): void {
   const uri = vscode.Uri.file(binaryDir)
-  vscode.commands.executeCommand('vscode.openFolder', uri, { noFolderOpen: true })
+  vscode.commands.executeCommand('revealFileInOS', uri)
 }

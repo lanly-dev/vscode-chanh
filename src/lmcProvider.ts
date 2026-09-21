@@ -2,10 +2,10 @@ import * as vscode from 'vscode'
 
 import { Logger } from './logger'
 import { ModelManager } from './modelManager'
-import type { ServerManager } from './serverManager'
 import { ServerStatus } from './interfaces'
 
 import type { ChatMessage, LemonadeModel } from './interfaces'
+import type { ServerManager } from './serverManager'
 
 /**
  * Registers Lemonade Server models with the VS Code Language Model API

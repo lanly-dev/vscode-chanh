@@ -12,7 +12,6 @@ import {
   ChatResponseTurn,
   ChatResult,
   Disposable,
-  ExtensionContext,
   ThemeIcon
 } from 'vscode'
 

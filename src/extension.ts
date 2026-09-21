@@ -7,7 +7,7 @@ import { listenConfigsChange, ServerManager } from './serverManager'
 import { Logger } from './logger'
 import { ModelDecorationProvider } from './modelDecorations'
 import { ModelManager } from './modelManager'
-import { openSetting, openUrl, openBinaryDir } from './utils'
+import { openSetting, openUrl, revealBinaryDir } from './utils'
 import { refreshEvents } from './events'
 import { ServerViewProvider } from './serverTreeview'
 
@@ -42,7 +42,7 @@ export async function activate(context: ExtensionContext) {
   const d9 = rc('chanh.startServer', () => serverManager.start())
   const d10 = rc('chanh.stopServer', () => serverManager.stop())
   const d11 = rc('chanh.downloadBinary', () => binaryManager.downloadBinary())
-  const d12 = rc('chanh.openBinaryDir', () => openBinaryDir(binaryManager.binaryDir))
+  const d12 = rc('chanh.ncp.revealBinaryDir', () => revealBinaryDir(binaryManager.binaryDir))
   const d13 = rc('chanh.openSettings', openSetting)
   const d14 = rc('chanh.openServerUrl', openUrl)
   const d15 = rc('chanh.selectChatModel', async () => modelManager.selectChatModel(chatParticipant))
