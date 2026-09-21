@@ -5,12 +5,23 @@ Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how 
 ## [TODO]
 - Backend runtime management
 - Chat follow up
-- Explore and add functionality for different types of models, ex: image
-- Focus on coding-related function
+- Explore and add functionality for different types of models, e.g. image
+- Focus on coding-related features
 - GPU stats
 - Token stats
 
 ## [0.1.0] - 2026-09-21
+### Renamed
+- Extension renamed from Lemon to Chanh, also the icon change
+- Server modes renamed: `LEMONADE` (system install), `LEMOND` (binary), `CUSTOM`
+- Settings renamed: `chanh.serverMode` (was `chanh.targetServer`), `chanh.lemonadePort`, `chanh.lemondPort`
+
+### Added
+- Language Model API integration: models exposed to the native VS Code model picker (`chanh` provider) for agent-mode usage
+- Model capability labels (llm, embedding, reranking, transcription, tts, image, 3d) in the tree view
+- Custom server mode: URL validation on switch; unreachable error shown as subtext/description on the status row
+- Treeview inline buttons
+- Binary update check (to once per day)
 
 ## [0.0.1, 0.0.2] - 2026-09-02
 - Initial release
@@ -39,4 +50,4 @@ lemon-0.0.2.vsix
 - https://code.visualstudio.com/api/references/extension-manifest
 
 ### Notes
-- `name` and `displayName` need to be unique in vsce marketplace
+- `name` and `displayName` need to be unique in the VS Code marketplace

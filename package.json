@@ -314,12 +314,13 @@
         },
         "chanh.chatModel": {
           "type": "string",
+          "default": null,
           "description": "Last model to use for chat (leave empty to be prompted)"
         },
         "chanh.customServerUrl": {
           "type": "string",
-          "default": "",
-          "description": "Custom Lemonade Server URL to use when chanh.serverMode is \"CUSTOM\" (e.g., http://localhost:13305)"
+          "default": null,
+          "description": "Custom Lemonade Server URL to use when chanh.serverMode is \"CUSTOM\""
         },
         "chanh.serverMode": {
           "type": "string",
@@ -329,7 +330,7 @@
             "CUSTOM"
           ],
           "default": "LEMONADE",
-          "description": "Which Lemonade Server to use for chat. \"LEMONADE\" connects to an existing system install; \"LEMOND\" runs the bundled binary managed by the extension; \"CUSTOM\" connects to chanh.customServerUrl."
+          "description": "Which Lemonade Server Mode to use"
         },
         "chanh.maxLoadedModels": {
           "type": "number",
