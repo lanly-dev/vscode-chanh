@@ -519,8 +519,8 @@ export class ModelManager {
 
   /**
    * Prompt the user for a new maximum number of concurrently loaded models,
-   * persist the value to the chanh.maxLoadedModels config, and if the embedded
-   * server is running, push it to the running server immediately.
+   * persist the value to the chanh.maxLoadedModels config, and if the bundled
+   * lemond server is running, push it to the running server immediately.
    */
   async setMaxLoadedModels(): Promise<void> {
     const config = workspace.getConfiguration('chanh')

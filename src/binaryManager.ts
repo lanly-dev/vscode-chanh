@@ -6,7 +6,7 @@ import * as path from 'path'
 import * as vscode from 'vscode'
 
 import { Logger } from './logger'
-import type { GitHubRelease } from './interfaces'
+import { ServerMode, type GitHubRelease } from './interfaces'
 
 const execAsync = promisify(exec)
 const GITHUB_API = 'https://api.github.com/repos/lemonade-sdk/lemonade/releases/latest'
@@ -349,8 +349,8 @@ export class BinaryManager {
 
   /** Check for updates and optionally install them. */
   async checkForUpdates(): Promise<void> {
-    const mode = vscode.workspace.getConfiguration('chanh').get<string>('targetServer')
-    if (mode !== 'embedded') return
+    const mode = vscode.workspace.getConfiguration('chanh').get<ServerMode>('targetServer')
+    if (mode !== ServerMode.LEMOND) return
     if (!this.isBinaryInstalled()) {
       Logger.info('Binary not installed, skipping update check')
       return

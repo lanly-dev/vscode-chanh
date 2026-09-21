@@ -68,8 +68,8 @@ export class ChanhLmcProvider implements vscode.LanguageModelChatProvider, vscod
 
     let models
     try {
-      // Use the server-bound client so the selected server (standalone,
-      // embedded, or custom) is respected.
+      // Use the server-bound client so the selected server (lemonade,
+      // lemond, or custom) is respected.
       const client = this.serverManager.client
       const all = await client.listModels()
       // Only expose downloaded chat models — the picker should behave like

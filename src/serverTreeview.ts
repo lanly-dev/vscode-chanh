@@ -15,7 +15,7 @@ import { ModelDecorationProvider } from './modelDecorations'
 import { ModelManager } from './modelManager'
 import { refreshEvents } from './events'
 import { ServerManager } from './serverManager'
-import { ServerStatus } from './interfaces'
+import { ServerMode, ServerStatus } from './interfaces'
 
 import type { DownloadProgress, LemonadeModel, ServerInstance } from './interfaces'
 
@@ -52,7 +52,7 @@ const DOWNLOAD_ROW_REFRESH_MS = 250
 
 /**
  * Tree data provider for the Servers view.
- * Shows both the standalone Lemonade app and the lemond app in a single tree.
+ * Shows both the Lemonade Server (System) and the lemond (Managed by Chanh) in a single tree.
  */
 export class ServerViewProvider implements TreeDataProvider<TreeItem> {
   /**
@@ -403,7 +403,7 @@ export class ServerViewProvider implements TreeDataProvider<TreeItem> {
       const maxModelsText = server.maxLoadedModels === -1 ? 'Unlimited' : String(server.maxLoadedModels)
       const maxModelsItem = new TreeItem(`Max Loaded Models: ${maxModelsText}`, None)
       maxModelsItem.iconPath = new ThemeIcon('symbol-number')
-      const configLabel = server.id === 'lemond' ? ' (configured in settings)' : ''
+      const configLabel = server.id === ServerMode.LEMOND ? ' (configured in settings)' : ''
       maxModelsItem.tooltip = `Maximum models that can be loaded simultaneously${configLabel}`
       items.push(maxModelsItem)
     }

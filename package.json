@@ -234,12 +234,12 @@
         },
         {
           "command": "chanh.startServer",
-          "when": "view == CHANH_TREEVIEW && (viewItem == CHANH_SERVER_STOPPED || viewItem == CHANH_SERVER_ERROR) && config.chanh.targetServer == embedded",
+          "when": "view == CHANH_TREEVIEW && (viewItem == CHANH_SERVER_STOPPED || viewItem == CHANH_SERVER_ERROR) && config.chanh.targetServer == LEMOND",
           "group": "inline"
         },
         {
           "command": "chanh.stopServer",
-          "when": "view == CHANH_TREEVIEW && viewItem == CHANH_SERVER_RUNNING && config.chanh.targetServer == embedded",
+          "when": "view == CHANH_TREEVIEW && viewItem == CHANH_SERVER_RUNNING && config.chanh.targetServer == LEMOND",
           "group": "inline"
         },
         {
@@ -292,15 +292,15 @@
     "configuration": {
       "title": "Chanh",
       "properties": {
-        "chanh.standalonePort": {
+        "chanh.lemonadePort": {
           "type": "number",
           "default": 13305,
-          "description": "Port for the standalone Lemonade Server"
+          "description": "Port for the Lemonade Server (System)"
         },
-        "chanh.embeddedPort": {
+        "chanh.lemondPort": {
           "type": "number",
           "default": 8000,
-          "description": "Port for the embedded lemond server"
+          "description": "Port for the lemond binary server"
         },
         "chanh.chatModel": {
           "type": "string",
@@ -309,17 +309,17 @@
         "chanh.customServerUrl": {
           "type": "string",
           "default": "",
-          "description": "Custom Lemonade Server URL to use when chanh.targetServer is \"custom\" (e.g., http://localhost:13305)"
+          "description": "Custom Lemonade Server URL to use when chanh.targetServer is \"CUSTOM\" (e.g., http://localhost:13305)"
         },
         "chanh.targetServer": {
           "type": "string",
           "enum": [
-            "standalone",
-            "embedded",
-            "custom"
+            "LEMONADE",
+            "LEMOND",
+            "CUSTOM"
           ],
-          "default": "standalone",
-          "description": "Which Lemonade Server to use for chat. \"standalone\" requires an existing system-installed server; \"embedded\" always runs the bundled binary; \"custom\" connects to chanh.customServerUrl."
+          "default": "LEMONADE",
+          "description": "Which Lemonade Server to use for chat. \"LEMONADE\" connects to an existing system install; \"LEMOND\" runs the bundled binary managed by the extension; \"CUSTOM\" connects to chanh.customServerUrl."
         },
         "chanh.maxLoadedModels": {
           "type": "number",

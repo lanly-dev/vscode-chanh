@@ -1,3 +1,8 @@
+/**
+ * In-memory + tree-UI only (never persisted to settings). Values are UPPERCASE
+ * because they feed TreeItem contextValues: `CHANH_SERVER_${status}`
+ * must match the `viewItem == CHANH_SERVER_*` when-clauses in package.json.
+ */
 export enum ServerStatus {
   RUNNING = 'RUNNING',
   STARTING = 'STARTING',
@@ -5,11 +10,15 @@ export enum ServerStatus {
   ERROR = 'ERROR',
 }
 
-/** The user-selected Lemonade server to target for chat and model operations. */
-export enum TargetServer {
-  STANDALONE = 'standalone',
-  EMBEDDED = 'embedded',
-  CUSTOM = 'custom',
+/**
+ * The user-selected Lemonade server to target for chat and model operations.
+ * Persisted to `chanh.targetServer` in settings.json; values are UPPERCASE
+ * to match the package.json enum and the enum keys.
+ */
+export enum ServerMode {
+  LEMONADE = 'LEMONADE',
+  LEMOND = 'LEMOND',
+  CUSTOM = 'CUSTOM',
 }
 
 /** A single choice in a chat completion response. */

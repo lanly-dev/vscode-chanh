@@ -28,20 +28,20 @@ The `@chanh` chat participant supports the following slash commands:
 | Setting | Default | Description |
 |---------|---------|-------------|
 | `chanh.chatModel` | `""` | Model to use for chat (leave empty to be prompted) |
-| `chanh.customServerUrl` | (unset) | Custom Lemonade Server URL used when `chanh.targetServer` is `"custom"` (e.g., http://localhost:13305) |
-| `chanh.embeddedPort` | `8000` | Port for the embedded lemond server |
+| `chanh.customServerUrl` | (unset) | Custom Lemonade Server URL used when `chanh.targetServer` is `"CUSTOM"` (e.g., http://localhost:13305) |
+| `chanh.lemondPort` | `8000` | Port for the bundled lemond server (Managed by Chanh) |
 | `chanh.maxLoadedModels` | (unset) | Maximum number of loaded models. Use `-1` for unlimited. |
-| `chanh.standalonePort` | `13305` | Port for the standalone Lemonade Server |
-| `chanh.targetServer` | `"standalone"` | Which Lemonade Server to use: `standalone`, `embedded`, or `custom` |
+| `chanh.lemonadePort` | `13305` | Port for the Lemonade Server (System) |
+| `chanh.targetServer` | `"LEMONADE"` | Which Lemonade Server to use: `LEMONADE`, `LEMOND`, or `CUSTOM` |
 
 ## Server Mode Selection
 You can choose which Lemonade server the extension uses by setting **`chanh.targetServer`** (`Chanh: Select Server` lets you pick from the command palette, which updates this setting automatically):
 
 | Value | Behavior |
 |-------|----------|
-| `standalone` (default) | Connects to an existing system-installed standalone Lemonade Server. |
-| `embedded` | Always starts the bundled `lemond` binary. |
-| `custom` | Connects to the URL in `chanh.customServerUrl`. |
+| `LEMONADE` (default) | Connects to an existing system install (`lemonade` CLI / Lemonade Server, port `chanh.lemonadePort`); extension only connects. |
+| `LEMOND` | Runs the bundled `lemond` binary in globalStorage (port `chanh.lemondPort`); extension manages lifecycle. |
+| `CUSTOM` | Connects to the URL in `chanh.customServerUrl`. |
 
 ## Release Notes
 
