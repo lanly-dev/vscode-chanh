@@ -6,71 +6,6 @@ import type { ToolCall, ToolDefinition } from './interfaces'
 import type { ModelManager } from './modelManager'
 import type { ServerManager } from './serverManager'
 
-interface BuiltinTool {
-  name: string
-  description: string
-  parameters: object
-  execute: (args: Record<string, unknown>, signal: AbortSignal) => Promise<string>
-}
-
-const BUILTIN_TOOLS: BuiltinTool[] = [
-  {
-    name: 'read_file',
-    description: 'Read the contents of a file. Returns the file content or an error.',
-    parameters: {
-      type: 'object',
-      properties: { path: { type: 'string', description: 'Path to the file to read' } },
-      required: ['path']
-    },
-    execute: async (args, signal) => {
-      if (signal.aborted) return ''
-      const raw = String(args.path ?? '')
-      try {
-        const doc = await vscode.workspace.openTextDocument(vscode.Uri.file(raw))
-        return doc.getText()
-      } catch (err) {
-        return JSON.stringify({ error: String(err) })
-      }
-    }
-  },
-  {
-    name: 'list_files',
-    description: 'List entries in a directory. Returns one path per line.',
-    parameters: {
-      type: 'object',
-      properties: { path: { type: 'string', description: 'Directory path' } },
-      required: ['path']
-    },
-    execute: async (args, signal) => {
-      if (signal.aborted) return ''
-      const raw = String(args.path ?? '')
-      try {
-        const entries = await vscode.workspace.fs.readDirectory(vscode.Uri.file(raw))
-        return entries.map((e) => e[0]).join('\n')
-      } catch (err) {
-        return JSON.stringify({ error: String(err) })
-      }
-    }
-  }
-]
-
-function toolDefs(): ToolDefinition[] {
-  return BUILTIN_TOOLS.map((t) => ({
-    type: 'function',
-    function: { name: t.name, description: t.description, parameters: t.parameters }
-  }))
-}
-
-function runToolCall(tc: ToolCall, signal: AbortSignal): Promise<string> {
-  const tool = BUILTIN_TOOLS.find((t) => t.name === tc.name)
-  if (!tool) return Promise.resolve(JSON.stringify({ error: 'Unknown tool: ' + tc.name }))
-  try {
-    return tool.execute(tc.args, signal)
-  } catch (err) {
-    return Promise.resolve(JSON.stringify({ error: String(err) }))
-  }
-}
-
 function parseToolCall(raw: OpenAIMessageToolCall): ToolCall | undefined {
   let args: Record<string, unknown> = {}
   try {
@@ -88,11 +23,6 @@ function extractText(message: vscode.LanguageModelChatRequestMessage): string {
     if (part instanceof vscode.LanguageModelTextPart) out.push(part.value)
 
   return out.join('')
-}
-
-function toRole(role: vscode.LanguageModelChatMessageRole): ChatMessage['role'] {
-  if (role === vscode.LanguageModelChatMessageRole.Assistant) return 'assistant'
-  return 'user'
 }
 
 class ChanhLmcProvider implements vscode.LanguageModelChatProvider {
@@ -177,64 +107,54 @@ class ChanhLmcProvider implements vscode.LanguageModelChatProvider {
         if (calls.length > 0) base.push({ role: 'assistant', content: text, tool_calls: calls })
         else if (text.length > 0) base.push({ role: 'assistant', content: text })
       } else {
-        const chunks: string[] = []
-        if (text.length > 0) chunks.push(text)
+        if (text.length > 0) base.push({ role: 'user', content: text })
+        // Tool results must be sent as `tool` role messages keyed by call id,
+        // otherwise tool-calling models lose track of which call they answer.
         for (const part of m.content) {
           if (part instanceof vscode.LanguageModelToolResultPart) {
+            const chunks: string[] = []
             for (const c of part.content) {
               if (c instanceof vscode.LanguageModelTextPart) chunks.push(c.value)
               else chunks.push(String(c))
             }
+            base.push({ role: 'tool', content: chunks.join('\n'), tool_call_id: part.callId })
           }
         }
-        const content = chunks.join('\n')
-        if (content.length > 0) base.push({ role: 'user', content })
       }
     }
 
-    const hostTools: ToolDefinition[] = (options.tools ?? []).map((t) => ({
+    // The host (VS Code agent mode) owns the tools and the tool-call loop.
+    // This provider is a thin translator: forward the host's tools, run a
+    // single completion, and report text + tool calls back to the host.
+    const tools: ToolDefinition[] = (options.tools ?? []).map((t) => ({
       type: 'function',
       function: { name: t.name, description: t.description, parameters: t.inputSchema ?? {} }
     }))
-    const tools: ToolDefinition[] = [...hostTools, ...toolDefs()]
-    const singleHostTool = options.toolMode === vscode.LanguageModelChatToolMode.Required && hostTools.length === 1
-    const toolChoice = singleHostTool
-      ? { type: 'function' as const, function: { name: hostTools[0].function.name } }
+    const requireSingleTool = options.toolMode === vscode.LanguageModelChatToolMode.Required && tools.length === 1
+    const toolChoice = requireSingleTool
+      ? { type: 'function' as const, function: { name: tools[0].function.name } }
       : ('auto' as const)
 
-    const current: ChatMessage[] = [...base]
-    const abort = new AbortController()
-    const cancel = token.onCancellationRequested(() => abort.abort())
     try {
-      for (let i = 0; i < 10; i++) {
-        if (token.isCancellationRequested || abort.signal.aborted) break
-        const response = await client.chatCompletion({
-          model: model.id,
-          messages: current,
-          stream: false,
-          tools,
-          tool_choice: toolChoice
-        })
-        const msg = response.choices[0]?.message
-        if (!msg) continue
-        if (msg.content) progress.report(new vscode.LanguageModelTextPart(msg.content))
-        const rawCalls = msg.tool_calls ?? []
-        if (rawCalls.length === 0) break
-        for (const raw of rawCalls) {
-          if (token.isCancellationRequested || abort.signal.aborted) break
-          const tc = parseToolCall(raw)
-          if (!tc) continue
-          progress.report(new vscode.LanguageModelToolCallPart(tc.id, tc.name, tc.args))
-          const result = await runToolCall(tc, abort.signal)
-          current.push({ role: 'tool', content: result, tool_call_id: tc.id })
-        }
+      if (token.isCancellationRequested) return
+      const response = await client.chatCompletion({
+        model: model.id,
+        messages: base,
+        stream: false,
+        ...(tools.length > 0 ? { tools, tool_choice: toolChoice } : {})
+      })
+      const msg = response.choices[0]?.message
+      if (msg?.content) progress.report(new vscode.LanguageModelTextPart(msg.content))
+      for (const raw of msg?.tool_calls ?? []) {
+        if (token.isCancellationRequested) break
+        const tc = parseToolCall(raw)
+        if (!tc) continue
+        progress.report(new vscode.LanguageModelToolCallPart(tc.id, tc.name, tc.args))
       }
       Logger.info(`Language model response complete for ${model.id}`)
     } catch (err) {
       await this.modelManager?.offerContextIncrease(model.id, err)
       throw err
-    } finally {
-      cancel.dispose()
     }
   }
 
