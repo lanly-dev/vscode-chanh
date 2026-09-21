@@ -8,7 +8,7 @@
     "url": "https://github.com/sponsors/lanly-dev"
   },
   "engines": {
-    "vscode": "^1.134.0"
+    "vscode": "^1.138.0"
   },
   "categories": [
     "AI",
@@ -35,7 +35,7 @@
     "languageModelChatProviders": [
       {
         "vendor": "chanh",
-        "displayName": "Chanh - Lemonade"
+        "displayName": "Chanh 🍋"
       }
     ],
     "chatParticipants": [
@@ -58,6 +58,10 @@
     ],
     "commands": [
       {
+        "command": "chanh.downloadBinary",
+        "title": "Chanh: Download/Update Binary"
+      },
+      {
         "command": "chanh.startServer",
         "title": "Chanh: Start Server",
         "icon": "$(play)"
@@ -68,18 +72,38 @@
         "icon": "$(debug-stop)"
       },
       {
-        "command": "chanh.downloadBinary",
-        "title": "Chanh: Download/Update Binary"
+        "command": "chanh.openSettings",
+        "title": "Chanh: Open Settings",
+        "icon": "$(gear)"
+      },
+        {
+        "command": "chanh.refreshServer",
+        "title": "Chanh: Refresh Server Status",
+        "icon": "$(refresh)"
+      },
+      {
+        "command": "chanh.switchServer",
+        "title": "Chanh: Switch Server",
+        "icon": "$(arrow-swap)"
+      },
+      {
+        "command": "chanh.setMaxLoadedModels",
+        "title": "Chanh: Set Max Loaded Models"
+      },
+      {
+        "command": "chanh.openServerUrl",
+        "title": "Chanh: Open Server URL",
+        "icon": "$(link-external)"
+      },
+      {
+        "command": "chanh.editServerPort",
+        "title": "Chanh: Edit Server Port / URL",
+        "icon": "$(edit)"
       },
       {
         "command": "chanh.ncp.revealBinaryDir",
         "title": "Reveal Binary Folder in File Explorer",
         "icon": "$(folder)"
-      },
-      {
-        "command": "chanh.openSettings",
-        "title": "Chanh: Open Settings",
-        "icon": "$(gear)"
       },
       {
         "command": "chanh.ncp.downloadModel",
@@ -139,30 +163,6 @@
       {
         "command": "chanh.selectChatModel",
         "title": "Chanh: Select Chat Model"
-      },
-      {
-        "command": "chanh.refreshServer",
-        "title": "Chanh: Refresh Server Status",
-        "icon": "$(refresh)"
-      },
-      {
-        "command": "chanh.switchServer",
-        "title": "Chanh: Switch Server",
-        "icon": "$(arrow-swap)"
-      },
-      {
-        "command": "chanh.setMaxLoadedModels",
-        "title": "Chanh: Set Max Loaded Models"
-      },
-      {
-        "command": "chanh.openServerUrl",
-        "title": "Chanh: Open Server URL",
-        "icon": "$(link-external)"
-      },
-      {
-        "command": "chanh.editServerPort",
-        "title": "Chanh: Edit Server Port / URL",
-        "icon": "$(edit)"
       }
     ],
     "viewsContainers": {
