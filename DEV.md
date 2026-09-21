@@ -114,8 +114,9 @@ Target behavior:
 
 ## TODO: Extension cleanup and disposables
 
-- [ ] Add `lmcProvider` to `context.subscriptions` in `extension.ts` — it implements `vscode.Disposable` with a proper `dispose()` method but is not currently tracked.
-- [ ] Evaluate `ServerViewProvider` for disposable cleanup:
+- Add `lmcProvider` to `context.subscriptions` in `extension.ts` — it implements `vscode.Disposable` with a proper `dispose()` method but is not currently tracked.
+- Evaluate `ServerViewProvider` for disposable cleanup:
   - It registers event listeners (`refreshEvents.onDidRequestRefresh`, `serverManager.onStatusChange`) that are not explicitly disposed.
   - Consider implementing `vscode.Disposable` on `ServerViewProvider` and cleaning up internal subscriptions on deactivation.
-- [ ] Verify no resource leaks on extension deactivation (event emitters, HTTP clients, timers, etc.).
+- Verify no resource leaks on extension deactivation (event emitters, HTTP clients, timers, etc.).
+- Look at start/stop server if it makes sense for all modes or lemond mode only.

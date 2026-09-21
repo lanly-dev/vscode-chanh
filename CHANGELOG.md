@@ -2,10 +2,15 @@
 All notable changes to the "Chanh" extension will be documented in this file.\
 Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how to structure this file.
 
-## [Unreleased]
-- Explore and add functionality for different types of models
+## [TODO]
+- Backend runtime management
+- Chat follow up
+- Explore and add functionality for different types of models, ex: image
 - Focus on coding-related function
-## [0.1.0]
+- GPU stats
+- Token stats
+
+## [0.1.0] - 2026-09-21
 
 ## [0.0.1, 0.0.2] - 2026-09-02
 - Initial release
