@@ -222,3 +222,4 @@ Severity-ordered, from a full pass over `src/`. Fix in this order.
 - [ ] `logger.ts` — output channel is never disposed; add to subscriptions.
 - [ ] `lmcProvider.ts` `extractText` silently drops `LanguageModelDataPart` on
   assistant messages; add a warn log if that ever happens.
+- Remove backend text when selecting model for agent

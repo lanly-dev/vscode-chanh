@@ -1,14 +1,15 @@
 .gitignore
 **/*.map
 **/*.ts
+DEV.md
 esbuild.js
 eslint.config.mjs
-media/lemon-old.svg
-media/treeview.png
+media/sc.png
 tsconfig.json
 vsc-extension-quickstart.md
 
 .vscode/
 bin/
+media/old/
 node_modules/
 src/

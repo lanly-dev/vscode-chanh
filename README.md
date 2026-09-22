@@ -14,9 +14,9 @@ A VS Code extension that downloads, hosts, and runs the [Lemonade Server](https:
 - Chat integration: `@chanh` chat participant for quick Q&A, plus chat models with tool-calling support in the native VS Code model picker (agent mode, streaming, and vision)
 - Everything runs locally, and work offline
 - Multiple server modes: system-installed Lemonade Server, Embeddable Lemonade, or custom URL
-- Just another way to integrate into VS Code [🔗](https://lemonade-server.ai/docs/integrations/ai-toolkit)
+- Just another way to [integrate with VS Code](https://lemonade-server.ai/docs/integrations/ai-toolkit)
 
-<img src='https://github.com/lanly-dev/vscode-chanh/blob/main/media/sc.png?raw=true' width='450'/>
+<img src='https://github.com/lanly-dev/vscode-chanh/blob/main/media/sc.png?raw=true' width='600'/>
 
 ## Chat Commands
 The `@chanh` chat participant supports the following slash commands:

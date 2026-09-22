@@ -21,8 +21,34 @@ Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how 
 - Model capability labels (llm, embedding, reranking, transcription, tts, image, 3d) in the tree view
 - Custom server mode: URL validation on switch; unreachable error shown as subtext/description on the status row
 - Treeview inline buttons
-- Binary update check (to once per day)
-
+- Binary update check to once per day
+- 19 files, 66.21 KB, 1.138.0
+```
+chanh-0.1.0.vsix
+├─ [Content_Types].xml
+├─ extension.vsixmanifest
+└─ extension/
+   ├─ LICENSE.txt [1.06 KB]
+   ├─ changelog.md [2.96 KB]
+   ├─ package.json [11.94 KB]
+   ├─ readme.md [3.03 KB]
+   ├─ dist/
+   │  └─ extension.js [69.09 KB]
+   └─ media/
+      ├─ chanh.png [31.65 KB]
+      ├─ chanh.svg [3.83 KB]
+      └─ capabilities/
+         ├─ 3d.svg [0.36 KB]
+         ├─ classification.svg [0.4 KB]
+         ├─ embedding.svg [0.45 KB]
+         ├─ hot.svg [0.44 KB]
+         ├─ image.svg [0.33 KB]
+         ├─ llm.svg [0.46 KB]
+         ├─ reranking.svg [0.3 KB]
+         ├─ tool-calling.svg [0.29 KB]
+         ├─ transcription.svg [0.3 KB]
+         └─ tts.svg [0.29 KB]
+```
 ### Notes
 - Timeout policy per path: 15s one-shot calls, 10 min model loads, 120s silence watchdog + cancellation for chat streams
 
