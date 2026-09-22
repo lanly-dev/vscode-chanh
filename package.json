@@ -32,6 +32,24 @@
   ],
   "main": "./dist/extension.js",
   "contributes": {
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "CHANH_SIDEBAR",
+          "title": "Chanh",
+          "icon": "media/chanh.svg"
+        }
+      ]
+    },
+    "views": {
+      "CHANH_SIDEBAR": [
+        {
+          "id": "CHANH_TREEVIEW",
+          "name": "Server",
+          "icon": "$(server)"
+        }
+      ]
+    },
     "languageModelChatProviders": [
       {
         "vendor": "chanh",
@@ -76,7 +94,7 @@
         "title": "Chanh: Open Settings",
         "icon": "$(gear)"
       },
-        {
+      {
         "command": "chanh.refreshServer",
         "title": "Chanh: Refresh Server Status",
         "icon": "$(refresh)"
@@ -165,24 +183,6 @@
         "title": "Chanh: Select Chat Model"
       }
     ],
-    "viewsContainers": {
-      "activitybar": [
-        {
-          "id": "CHANH_SIDEBAR",
-          "title": "Chanh",
-          "icon": "media/chanh.svg"
-        }
-      ]
-    },
-    "views": {
-      "CHANH_SIDEBAR": [
-        {
-          "id": "CHANH_TREEVIEW",
-          "name": "Server",
-          "icon": "$(server)"
-        }
-      ]
-    },
     "menus": {
       "view/title": [
         {

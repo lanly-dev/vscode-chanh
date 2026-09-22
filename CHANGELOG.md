@@ -12,7 +12,7 @@ Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how 
 
 ## [0.1.0] - 2026-09-21
 ### Renamed
-- Extension renamed from Lemon to Chanh, also the icon change
+- Extension renamed from *Lemon* to *Chanh*, also the icon change
 - Server modes renamed: `LEMONADE` (system install), `LEMOND` (binary), `CUSTOM`
 - Settings renamed: `chanh.serverMode` (was `chanh.targetServer`), `chanh.lemonadePort`, `chanh.lemondPort`
 
@@ -25,6 +25,10 @@ Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how 
 
 ### Notes
 - Timeout policy per path: 15s one-shot calls, 10 min model loads, 120s silence watchdog + cancellation for chat streams
+
+### Reference
+- https://marketplace.visualstudio.com/items?itemName=lemonade-sdk.lemonade-sdk
+- https://marketplace.visualstudio.com/items?itemName=JamesMartinez.lemonade-dashboard
 
 ## [0.0.1, 0.0.2] - 2026-09-02
 - Initial release
@@ -48,9 +52,9 @@ lemon-0.0.2.vsix
       └─ lemon.svg [0.94 KB]
 ```
 
+### Notes
+- `name` and `displayName` need to be unique in the VS Code marketplace
+
 ### Reference
 - https://lemonade-server.ai
 - https://code.visualstudio.com/api/references/extension-manifest
-
-### Notes
-- `name` and `displayName` need to be unique in the VS Code marketplace
