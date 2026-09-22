@@ -1,7 +1,7 @@
 import * as vscode from 'vscode'
 import { Logger } from './logger'
 import { ServerStatus } from './interfaces'
-import type { ChatMessage, OpenAIMessageToolCall } from './interfaces'
+import type { ChatContentPart, ChatMessage, OpenAIMessageToolCall } from './interfaces'
 import type { ToolCall, ToolDefinition } from './interfaces'
 import type { ModelManager } from './modelManager'
 import type { ServerManager } from './serverManager'
@@ -23,6 +23,25 @@ function extractText(message: vscode.LanguageModelChatRequestMessage): string {
     if (part instanceof vscode.LanguageModelTextPart) out.push(part.value)
 
   return out.join('')
+}
+
+/**
+ * Extract the wire content of a user message: plain text when possible, or
+ * OpenAI content parts when the message carries images (vision models).
+ */
+function extractContent(message: vscode.LanguageModelChatRequestMessage): string | ChatContentPart[] {
+  let text = ''
+  const images: ChatContentPart[] = []
+  for (const part of message.content) {
+    if (part instanceof vscode.LanguageModelTextPart) text += part.value
+    else if (part instanceof vscode.LanguageModelDataPart && part.mimeType.startsWith('image/')) {
+      const b64 = Buffer.from(part.data).toString('base64')
+      images.push({ type: 'image_url', image_url: { url: `data:${part.mimeType};base64,${b64}` } })
+    }
+  }
+
+  if (images.length === 0) return text
+  return text ? [{ type: 'text', text }, ...images] : images
 }
 
 class ChanhLmcProvider implements vscode.LanguageModelChatProvider {
@@ -59,18 +78,23 @@ class ChanhLmcProvider implements vscode.LanguageModelChatProvider {
   ): Promise<vscode.LanguageModelChatInformation[]> {
     const client = this.serverManager.client
     const models = await client.listModels()
-    const chatModels = models.filter((m) => m.labels?.includes('chat'))
-    Logger.info('Loaded ' + chatModels.length + ' downloaded chat models')
+    // Only agent-ready models are listed: the picker serves agent mode, while
+    // plain chat models stay available through the @chanh participant.
+    const chatModels = models.filter((m) => m.labels?.includes('chat') && m.labels?.includes('tool-calling'))
+    Logger.info('Loaded ' + chatModels.length + ' downloaded agent-ready chat models')
     return chatModels.map((m): vscode.LanguageModelChatInformation => {
       const maxInput = m.context_length ?? m.max_context_window ?? 8192
+      const vision = m.labels?.some((l) => l.includes('vision')) ?? false
       return {
         id: m.id,
         name: m.id + ' (' + (m.recipe ?? 'unknown') + ')',
         family: m.id,
         version: '1.0.0',
+        detail: vision ? 'vision' : undefined,
+        tooltip: `${m.id}\nCapabilities: ${(m.labels ?? []).join(', ')}\nContext: ${maxInput.toLocaleString()} tokens`,
         maxInputTokens: maxInput,
         maxOutputTokens: maxInput,
-        capabilities: { toolCalling: m.labels?.includes('tool-calling') ?? false }
+        capabilities: { toolCalling: true, imageInput: vision }
       }
     })
   }
@@ -107,7 +131,8 @@ class ChanhLmcProvider implements vscode.LanguageModelChatProvider {
         if (calls.length > 0) base.push({ role: 'assistant', content: text, tool_calls: calls })
         else if (text.length > 0) base.push({ role: 'assistant', content: text })
       } else {
-        if (text.length > 0) base.push({ role: 'user', content: text })
+        const content = extractContent(m)
+        if (content.length > 0) base.push({ role: 'user', content })
         // Tool results must be sent as `tool` role messages keyed by call id,
         // otherwise tool-calling models lose track of which call they answer.
         for (const part of m.content) {
@@ -172,8 +197,17 @@ class ChanhLmcProvider implements vscode.LanguageModelChatProvider {
     text: string | vscode.LanguageModelChatRequestMessage,
     _token: vscode.CancellationToken
   ): Promise<number> {
-    const str = typeof text === 'string' ? text : extractText(text)
-    return Math.ceil(str.length / 4)
+    if (typeof text === 'string') return Math.ceil(text.length / 4)
+    let chars = 0
+    let images = 0
+    for (const part of text.content) {
+      if (part instanceof vscode.LanguageModelTextPart) chars += part.value.length
+      else if (part instanceof vscode.LanguageModelDataPart && part.mimeType.startsWith('image/')) images++
+    }
+
+    // Servers tokenize images by resolution; ~1500/image is a safe estimate so
+    // the host's context budget doesn't overflow on screenshots.
+    return Math.ceil(chars / 4) + images * 1500
   }
 
   dispose(): void {

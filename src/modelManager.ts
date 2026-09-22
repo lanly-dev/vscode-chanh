@@ -568,7 +568,11 @@ export class ModelManager {
    */
   async selectChatModel(chatParticipant: ChatParticipant): Promise<void> {
     if (!await this.serverManager.ensureRunning()) return undefined
-    const selected = await this.promptForModel('Select active model for chat')
+    const selected = await this.promptForModel(
+      'Select active model for chat',
+      (m) => m.labels?.includes('chat') ?? false,
+      'No chat models available. Download a chat model first.'
+    )
     if (!selected) return
     try {
       await this.client.loadModel(selected)
@@ -582,11 +586,16 @@ export class ModelManager {
   }
 
   /** Show a quick pick of the available models and return the selected model name. */
-  private async promptForModel(title: string): Promise<string | undefined> {
+  private async promptForModel(
+    title: string,
+    filter?: (model: LemonadeModel) => boolean,
+    emptyMessage?: string
+  ): Promise<string | undefined> {
     try {
-      const models = await this.client.listModels()
+      let models = await this.client.listModels()
+      if (filter) models = models.filter(filter)
       if (models.length === 0) {
-        showWarningMessage('No models available. Pull a model first.')
+        showWarningMessage(emptyMessage ?? 'No models available. Pull a model first.')
         return undefined
       }
       const items: QuickPickItem[] = models.map((m) => ({

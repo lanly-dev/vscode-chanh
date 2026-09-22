@@ -444,7 +444,7 @@ export class LemonadeClient {
               const content = choice?.delta?.content
                 ?? choice?.delta?.reasoning_content
                 ?? choice?.message?.content
-              if (content) {
+              if (typeof content === 'string' && content) {
                 fullContent += content
                 onToken(content)
               }

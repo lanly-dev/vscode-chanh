@@ -127,6 +127,19 @@ tool execution or retry loops:
 - Translate `LanguageModelToolResultPart` to `role: 'tool'` messages keyed by
   `tool_call_id` — flattening them into user text breaks tool-call correlation.
 
+Model listing policy:
+
+- The picker lists only **agent-ready** models (`chat` + `tool-calling` labels);
+  plain chat models remain reachable through the `@chanh` participant, whose
+  quick pick intentionally has no tool-calling filter.
+- Vision models (`vision` label, not `image` — that's image *generation*) set
+  `capabilities.imageInput` and get `detail: 'vision'` in the picker (other
+  entries omit `detail` — every listed model is tool-capable by construction,
+  so labeling the baseline is noise). User-message images are translated from
+  `LanguageModelDataPart` to
+  OpenAI `image_url` data-URI content parts; `provideTokenCount` estimates
+  ~1500 tokens per image.
+
 Timeout policy in `LemonadeClient` — wall-clock timeouts are the wrong tool for
 local inference (duration is unbounded), so each path has its own guard:
 

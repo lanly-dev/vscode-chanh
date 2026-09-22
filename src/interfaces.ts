@@ -56,10 +56,17 @@ export interface ChatCompletionResponse {
   }
 }
 
+/** A content part of a multimodal chat message (OpenAI format). */
+export interface ChatContentPart {
+  type: 'text' | 'image_url'
+  text?: string
+  image_url?: { url: string }
+}
+
 /** OpenAI chat message. */
 export interface ChatMessage {
   role: 'system' | 'user' | 'assistant' | 'tool'
-  content: string
+  content: string | ChatContentPart[]
   name?: string
   tool_call_id?: string
   tool_calls?: OpenAIMessageToolCall[]
