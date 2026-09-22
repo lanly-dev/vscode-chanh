@@ -171,3 +171,54 @@ Watchdog notes:
   - Consider implementing `vscode.Disposable` on `ServerViewProvider` and cleaning up internal subscriptions on deactivation.
 - Verify no resource leaks on extension deactivation (event emitters, HTTP clients, timers, etc.).
 - Look at start/stop server if it makes sense for all modes or lemond mode only.
+
+## TODO: Code review findings
+
+Severity-ordered, from a full pass over `src/`. Fix in this order.
+
+### Should fix
+
+- [ ] `lmcProvider.ts` — `provideLanguageModelChatInformation` throws when the
+  server is down (`client.listModels()` rejects), leaving the picker in an
+  error/retry state. Wrap in try/catch and return `[]` with a log line.
+- [ ] `serverManager.ts` `stop()` — SIGKILL escalation is dead code:
+  `process.killed` becomes true once SIGTERM is *delivered*, not when the
+  process exits, so a SIGTERM-ignoring server is never force-killed. Track the
+  process `'exit'` event (reuse `_processExited`) instead of `killed`.
+- [ ] `serverManager.ts` constructor — throws on CUSTOM mode without a URL and
+  on unknown `serverMode` values, which rejects `activate()` and bricks the
+  whole extension. Fall back to LEMONADE + error notification instead.
+- [ ] `serverManager.ts` `listenConfigsChange` — any change to the watched
+  settings with new mode !== LEMOND calls `stop()`, so editing e.g.
+  `lemonadePort` while a LEMONADE server runs kills it. Only stop when
+  switching *away* from LEMOND (the comment says that; the code doesn't).
+
+### Worth fixing
+
+- [ ] `lmcProvider.ts` — `loadModel()` runs on every provider request; in agent
+  mode that's a `/v1/load` round-trip per loop iteration. Check `/v1/health`
+  first and skip when already loaded.
+- [ ] `lemonadeClient.ts` — `chatCompletion()` (non-streaming) is unused since
+  the provider went streaming. Delete or keep documented as short-calls-only.
+- [ ] `lmcProvider` instance still not in `context.subscriptions` (registration
+  disposable `d24` is tracked; the provider's own `dispose()` is not).
+- [ ] `lemonadeClient.ts` stream abort handler — `req.destroy()` fires an
+  ECONNRESET error event that can win the `fail()` race, so cancel shows
+  "Request error: socket hang up" instead of "Request aborted". Call `fail()`
+  before `destroy()`.
+- [ ] `binaryManager.ts` `checkForUpdates()` — daily throttle timestamp is
+  written *before* the fetch, so a network failure consumes the day's check.
+  Move `globalState.update` after a successful fetch.
+
+### Nits / polish
+
+- [ ] `chatParticipant.ts` `getModel()` filter uses `l.toLowerCase() === 'chat'`;
+  everywhere else uses `labels?.includes('chat')` — unify.
+- [ ] `modelManager.ts` `capabilityFor` maps `image` and `vision` labels to the
+  same tree group, while the provider treats only `vision` as `imageInput` —
+  cosmetic inconsistency, fine if intentional.
+- [ ] `serverTreeview.ts` `createOrGet` — `await refreshEvents.fire()` awaits
+  `void`; drop the `await`.
+- [ ] `logger.ts` — output channel is never disposed; add to subscriptions.
+- [ ] `lmcProvider.ts` `extractText` silently drops `LanguageModelDataPart` on
+  assistant messages; add a warn log if that ever happens.
