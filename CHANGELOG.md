@@ -23,6 +23,9 @@ Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how 
 - Treeview inline buttons
 - Binary update check (to once per day)
 
+### Notes
+- Timeout policy per path: 15s one-shot calls, 10 min model loads, 120s silence watchdog + cancellation for chat streams
+
 ## [0.0.1, 0.0.2] - 2026-09-02
 - Initial release
 - Focused on managing models through treeview

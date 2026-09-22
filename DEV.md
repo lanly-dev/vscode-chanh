@@ -129,7 +129,7 @@ tool execution or retry loops:
 
 Model listing policy:
 
-- The picker lists only **agent-ready** models (`chat` + `tool-calling` labels);
+- The picker lists only models with both `chat` + `tool-calling` labels;
   plain chat models remain reachable through the `@chanh` participant, whose
   quick pick intentionally has no tool-calling filter.
 - Vision models (`vision` label, not `image` — that's image *generation*) set

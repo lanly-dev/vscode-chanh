@@ -78,10 +78,10 @@ class ChanhLmcProvider implements vscode.LanguageModelChatProvider {
   ): Promise<vscode.LanguageModelChatInformation[]> {
     const client = this.serverManager.client
     const models = await client.listModels()
-    // Only agent-ready models are listed: the picker serves agent mode, while
-    // plain chat models stay available through the @chanh participant.
+    // Only chat models with tool-calling support are listed: the picker serves
+    // agent mode, while plain chat models stay available through @chanh.
     const chatModels = models.filter((m) => m.labels?.includes('chat') && m.labels?.includes('tool-calling'))
-    Logger.info('Loaded ' + chatModels.length + ' downloaded agent-ready chat models')
+    Logger.info('Loaded ' + chatModels.length + ' downloaded tool-calling chat models')
     return chatModels.map((m): vscode.LanguageModelChatInformation => {
       const maxInput = m.context_length ?? m.max_context_window ?? 8192
       const vision = m.labels?.some((l) => l.includes('vision')) ?? false

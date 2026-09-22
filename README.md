@@ -11,7 +11,8 @@ A VS Code extension that downloads, hosts, and runs the [Lemonade Server](https:
 
 ## Features
 - Managing/downloading Lemonade models
-- Chat integration (`@chanh` chat participant + models exposed to the native VS Code model picker)
+- Chat integration: `@chanh` chat participant for quick Q&A, plus chat models with tool-calling support in the native VS Code model picker (agent mode, streaming, and vision)
+- Everything runs locally — no GitHub sign-in and no Copilot quota needed to use your models in chat or agent mode
 - Multiple server modes: system-installed Lemonade Server, Embeddable Lemonade, or custom URL
 - Just another way to integrate into VS Code [🔗](https://lemonade-server.ai/docs/integrations/ai-toolkit)
 
@@ -26,8 +27,10 @@ The `@chanh` chat participant supports the following slash commands:
 ## Server Management
 The tree view in the sidebar shows the active server, its status and its models. You can pick different server modes, such as using the system-installed Lemonade Server or downloading the binary version.
 
-## Agent model setting
-Models served by the active Lemonade Server are exposed to VS Code's native model picker (under the `Chanh 🍋` provider), so agent-mode features like Copilot Chat can use them. `chanh.chatModel` remembers the last model used for the `@chanh` chat participant (leave empty to be prompted).
+## Agent mode and the model picker
+Models served by the active Lemonade Server are exposed to VS Code's native model picker under the `Chanh 🍋` provider. Only models carrying both the `chat` and `tool-calling` labels are listed, since agent mode relies on tool calling. Vision models (`vision` label) are tagged in the picker and accept image attachments.
+
+Plain chat models (no `tool-calling` label) remain available through the `@chanh` participant. `chanh.chatModel` remembers the last model used for `@chanh` (leave empty to be prompted).
 
 ## Configuration
 | Setting | Default | Description |
