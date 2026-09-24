@@ -203,14 +203,16 @@ export class ModelManager {
     this.treeViewProvider.refreshServer()
   }
 
-  // TODO: check this
   /** Prompt for a context size and persist it for the given model. */
   async setModelContext(item?: { modelId?: string }): Promise<void> {
     const modelId = item?.modelId
+
     if (!modelId) {
-      showErrorMessage('Right-click a model in the Chanh view to set its context size')
+      showErrorMessage('Missing model ID, please report this bug to the developers')
       return
     }
+
+    // Can you set this when lemond is stopped?
     if (!await this.serverManager.ensureRunning()) return
 
     let effective: number | undefined
@@ -225,7 +227,7 @@ export class ModelManager {
     }
     // No fallbacks: if the server doesn't report a context number, leave the
     // input empty so the user isn't shown an invented value.
-    if (defaultCtx && defaultCtx > 0) Logger.info(`Default context for ${modelId}: ${defaultCtx}`)
+    if (defaultCtx) Logger.info(`Default context for ${modelId}: ${defaultCtx}`)
 
     // The model's supported ceiling (4K floor for custom entries). Without a
     // reported max_context_window the custom field stays unconstrained upward.
@@ -242,9 +244,13 @@ export class ModelManager {
     if (pick === undefined) return
 
     if (pick === 'custom') {
+      const minCtx = ModelManager.MIN_CUSTOM_CTX
+      const minCtxString = minCtx.toLocaleString()
+
       const rangeHint = maxCtx && maxCtx > 0
-        ? ` (${ModelManager.MIN_CUSTOM_CTX.toLocaleString()} - ${maxCtx.toLocaleString()} tokens)`
-        : ` (at least ${ModelManager.MIN_CUSTOM_CTX.toLocaleString()} tokens)`
+        ? ` (${minCtxString} - ${maxCtx.toLocaleString()} tokens)`
+        : ` (at least ${minCtxString} tokens)`
+
       const input = await window.showInputBox({
         title: `Custom context size for ${modelId}`,
         prompt: `Tokens in${rangeHint}. -1 for automatic sizing`,
@@ -255,9 +261,7 @@ export class ModelManager {
           if (!/^-?\d+$/.test(trimmed)) return 'Enter a whole number of tokens (or -1 for automatic).'
           const n = Number(trimmed)
           if (n === 0 || n < -1) return 'Enter -1 (automatic) or a positive number.'
-          if (n !== -1 && n < ModelManager.MIN_CUSTOM_CTX)
-            return `Minimum is ${ModelManager.MIN_CUSTOM_CTX.toLocaleString()} tokens (4K).`
-
+          if (n !== -1 && n < minCtx) return `Minimum is ${minCtxString} tokens (4K).`
           if (maxCtx && n > maxCtx) return `Maximum for this model is ${maxCtx.toLocaleString()} tokens.`
 
           return undefined
