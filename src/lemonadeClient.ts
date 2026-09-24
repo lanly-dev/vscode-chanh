@@ -275,8 +275,10 @@ export class LemonadeClient {
 
       if (signal) {
         signal.addEventListener('abort', () => {
-          req.destroy()
+          // Reject BEFORE destroy: destroy() fires an ECONNRESET 'error'
+          // event that would otherwise report "socket hang up" instead.
           reject(new Error('Model download cancelled'))
+          req.destroy()
         }, { once: true })
       }
 
@@ -485,9 +487,12 @@ export class LemonadeClient {
 
       if (signal) {
         signal.addEventListener('abort', () => {
-          req.destroy()
+          // Reject/fail BEFORE destroy: destroy() fires an ECONNRESET 'error'
+          // event that would otherwise win the race and report
+          // "Request error: socket hang up" instead of the abort message.
           fail(new Error('Request aborted'))
-        })
+          req.destroy()
+        }, { once: true })
       }
 
       req.write(body)

@@ -202,7 +202,7 @@ Severity-ordered, from a full pass over `src/`. Fix in this order.
   the provider went streaming. Delete or keep documented as short-calls-only.
 - [x] `lmcProvider` instance still not in `context.subscriptions` (registration
   disposable `d24` is tracked; the provider's own `dispose()` is not).
-- [ ] `lemonadeClient.ts` stream abort handler — `req.destroy()` fires an
+- [x] `lemonadeClient.ts` stream abort handler — `req.destroy()` fires an
   ECONNRESET error event that can win the `fail()` race, so cancel shows
   "Request error: socket hang up" instead of "Request aborted". Call `fail()`
   before `destroy()`.
