@@ -829,15 +829,16 @@ export class ServerManager {
       // Ignore errors, we're shutting down anyway
     }
 
-    // Kill the process
-    if (this.process && !this.process.killed) {
-      this.process.kill('SIGTERM')
-      // Wait a bit for graceful shutdown
-      await new Promise((resolve) => setTimeout(resolve, 2000))
-      if (this.process && !this.process.killed) {
-        Logger.warn('Server did not respond to SIGTERM, sending SIGKILL')
-        this.process.kill('SIGKILL')
-      }
+    // Ask the child to terminate, then force-kill it if it has not exited.
+    // ChildProcess.killed only means a signal was successfully sent; it does
+    // not tell us whether the process has actually exited.
+    const serverProcess = this.process
+    serverProcess.kill('SIGTERM')
+
+    await new Promise((resolve) => setTimeout(resolve, 2000))
+    if (!this._processExited && this.process === serverProcess) {
+      Logger.warn('Server did not exit after SIGTERM, sending SIGKILL')
+      serverProcess.kill('SIGKILL')
     }
 
     this.process = null

@@ -152,8 +152,6 @@ Watchdog notes:
 ## TODO: Code review findings
 
 Severity-ordered, from a full pass over `src/`. Fix in this order.
-**Next up: item 1** (`provideLanguageModelChatInformation` try/catch) — smallest,
-highest user impact (picker error state when server is down).
 
 ### Should fix
 

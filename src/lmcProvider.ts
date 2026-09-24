@@ -80,7 +80,15 @@ class ChanhLmcProvider implements vscode.LanguageModelChatProvider, vscode.Dispo
     _token: vscode.CancellationToken
   ): Promise<vscode.LanguageModelChatInformation[]> {
     const client = this.serverManager.client
-    const models = await client.listModels()
+    let models: Awaited<ReturnType<typeof client.listModels>>
+    try {
+      models = await client.listModels()
+    } catch (err) {
+      // Server down/unreachable: return empty so the picker shows "no models"
+      // instead of an error/retry state. It refreshes on next status change.
+      Logger.warn(`Could not list models for picker: ${err}`)
+      return []
+    }
     // Only chat models with tool-calling support are listed: the picker serves
     // agent mode, while plain chat models stay available through @chanh.
     const chatModels = models.filter((m) => m.labels?.includes('chat') && m.labels?.includes('tool-calling'))
