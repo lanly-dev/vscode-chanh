@@ -25,7 +25,7 @@ export class ServerManager {
   private _status: ServerStatus = ServerStatus.STOPPED
   private _usingExistingServer = false
 
-  private _client: LemonadeClient
+  private _client?: LemonadeClient
   private _fatalErrorShown = false
   private _processExited = false
 
@@ -34,21 +34,7 @@ export class ServerManager {
   private statusChangeCallbacks: Array<(status: ServerStatus) => void> = []
 
   constructor(private binaryManager: BinaryManager) {
-    const config = workspace.getConfiguration('chanh')
-    const mode = config.get<ServerMode>('serverMode', ServerMode.LEMONADE)
-    this._lemonadePort = config.get<number>('lemonadePort', 13305)
-    this._lemondPort = config.get<number>('lemondPort', 8000)
-    if (mode === ServerMode.LEMONADE) this._client = new LemonadeClient(`http://localhost:${this._lemonadePort}`)
-    else if (mode === ServerMode.LEMOND) this._client = new LemonadeClient(`http://localhost:${this._lemondPort}`)
-    else if (mode === ServerMode.CUSTOM) {
-      const customUrl = config.get<string>('customServerUrl')
-      if (!customUrl) throw new Error('Custom server URL is not configured.')
-      this._client = new LemonadeClient(customUrl)
-    } else {
-      showErrorMessage(`Chanh: unknown chanh.serverMode "${mode}".`)
-      throw new Error(`Unexpected server mode: ${mode}`) // For invalid/old configuration values
-    }
-    this.applyConfiguredServerMode()
+    void this.applyConfiguredServerMode()
   }
 
   /** Get the current server status. */
@@ -72,12 +58,12 @@ export class ServerManager {
     const mode = config.get<ServerMode>('serverMode', ServerMode.LEMONADE)
     if (mode === ServerMode.LEMOND) return this.lemondUrl
     if (mode === ServerMode.CUSTOM) {
-      // Custom mode without a configured URL has no valid target; fall back to
-      // the lemonade default rather than silently pointing at the lemond port.
-      const customUrl = config.get<string>('customServerUrl', '')
+      const customUrl = config.get<string>('customServerUrl', '').trim()
       if (customUrl) return customUrl
+      return ''
     }
-    return `http://localhost:${this._lemonadePort}`
+    if (mode === ServerMode.LEMONADE) return `http://localhost:${this._lemonadePort}`
+    return ''
   }
 
   /** Get the URL of the lemond binary server, regardless of the selected mode. */
@@ -124,11 +110,14 @@ export class ServerManager {
         instance = await this.fetchLemondServer(config)
         break
       case ServerMode.CUSTOM:
-        instance = await this.fetchCustomServer(config)
+        if (config.get<string>('customServerUrl', '').trim()) instance = await this.fetchCustomServer(config)
+        else instance = null
         break
       case ServerMode.LEMONADE:
-      default:
         instance = await this.fetchLemonadeServer(config)
+        break
+      default:
+        instance = null
         break
     }
 
@@ -293,32 +282,37 @@ export class ServerManager {
   async applyConfiguredServerMode(): Promise<void> {
     const config = workspace.getConfiguration('chanh')
     const mode = config.get<ServerMode>('serverMode', ServerMode.LEMONADE)
+    this._lemonadePort = config.get<number>('lemonadePort', 13305)
+    this._lemondPort = config.get<number>('lemondPort', 8000)
+
     switch (mode) {
       case ServerMode.LEMONADE: {
-        const lemonadePort = config.get<number>('lemonadePort', 13305)
-        const url = `http://localhost:${lemonadePort}`
+        const url = `http://localhost:${this._lemonadePort}`
+        this._client = new LemonadeClient(url)
         this.setActiveServer(url, 'Lemonade Server (System)')
         // Probe the Lemonade Server (System) to determine actual status
         await this.refreshStatus()
         break
       }
       case ServerMode.LEMOND: {
-        const lemondPort = config.get<number>('lemondPort', 8000)
-        const url = `http://localhost:${lemondPort}`
+        const url = `http://localhost:${this._lemondPort}`
+        this._client = new LemonadeClient(url)
         this.setActiveServer(url, 'lemond (Binary)')
         // Check if a lemond server is already running at this port
         await this.refreshStatus()
         break
       }
       case ServerMode.CUSTOM: {
-        const url = config.get<string>('customServerUrl', '')
-        if (url) this.setActiveServer(url, 'Custom Server')
-        else {
-          this.setActiveServer('', 'Custom Server')
-          this.setStatus(ServerStatus.STOPPED)
-        }
-        // Probe the custom server if URL is configured
-        if (url) await this.refreshStatus()
+        const url = config.get<string>('customServerUrl', '').trim()
+        if (url) {
+          this._client = new LemonadeClient(url)
+          this.setActiveServer(url, 'Custom Server')
+          await this.refreshStatus()
+        } else showErrorMessage('Chanh: CUSTOM server mode requires chanh.customServerUrl.')
+        break
+      }
+      default: {
+        showErrorMessage(`Chanh: unknown chanh.serverMode "${mode}".`)
         break
       }
     }

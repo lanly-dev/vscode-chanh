@@ -155,19 +155,6 @@ Severity-ordered, from a full pass over `src/`. Fix in this order.
 
 ### Should fix
 
-- [ ] `lmcProvider.ts` — `provideLanguageModelChatInformation` throws when the
-  server is down (`client.listModels()` rejects), leaving the picker in an
-  error/retry state. Wrap in try/catch and return `[]` with a log line.
-  (Still open — verified 2026-09-24: no try/catch around `listModels()`.)
-- [ ] `serverManager.ts` `stop()` — SIGKILL escalation is dead code:
-  `process.killed` becomes true once SIGTERM is *delivered*, not when the
-  process exits, so a SIGTERM-ignoring server is never force-killed. Track the
-  process `'exit'` event (reuse `_processExited`) instead of `killed`.
-  (Still open — verified 2026-09-24: `stop()` still branches on `!this.process.killed`.)
-- [ ] `serverManager.ts` constructor — throws on CUSTOM mode without a URL and
-  on unknown `serverMode` values, which rejects `activate()` and bricks the
-  whole extension. Fall back to LEMONADE + error notification instead.
-  (Still open — verified 2026-09-24: constructor still `throw`s.)
 - [ ] `serverManager.ts` `listenConfigsChange` — any change to the watched
   settings with new mode !== LEMOND calls `stop()`, so editing e.g.
   `lemonadePort` while a LEMONADE server runs kills it. Only stop when
