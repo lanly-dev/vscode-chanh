@@ -140,38 +140,50 @@ Watchdog notes:
 
 ## TODO: Extension cleanup and disposables
 
-- Evaluate `ServerViewProvider` for disposable cleanup:
+- [ ] Evaluate `ServerViewProvider` for disposable cleanup:
   - It registers event listeners (`refreshEvents.onDidRequestRefresh`, `serverManager.onStatusChange`) that are not explicitly disposed.
   - Consider implementing `vscode.Disposable` on `ServerViewProvider` and cleaning up internal subscriptions on deactivation.
-- Verify no resource leaks on extension deactivation (event emitters, HTTP clients, timers, etc.).
-- Look at start/stop server if it makes sense for all modes or lemond mode only.
+  - Note: `serverManager.onStatusChange` / `onActiveServerChange` use plain
+    callback arrays (no disposable returned), so making them disposable-aware
+    is a prerequisite.
+- [ ] Verify no resource leaks on extension deactivation (event emitters, HTTP clients, timers, etc.).
+- [ ] Look at start/stop server if it makes sense for all modes or lemond mode only.
 
 ## TODO: Code review findings
 
 Severity-ordered, from a full pass over `src/`. Fix in this order.
+**Next up: item 1** (`provideLanguageModelChatInformation` try/catch) — smallest,
+highest user impact (picker error state when server is down).
 
 ### Should fix
 
 - [ ] `lmcProvider.ts` — `provideLanguageModelChatInformation` throws when the
   server is down (`client.listModels()` rejects), leaving the picker in an
   error/retry state. Wrap in try/catch and return `[]` with a log line.
+  (Still open — verified 2026-09-24: no try/catch around `listModels()`.)
 - [ ] `serverManager.ts` `stop()` — SIGKILL escalation is dead code:
   `process.killed` becomes true once SIGTERM is *delivered*, not when the
   process exits, so a SIGTERM-ignoring server is never force-killed. Track the
   process `'exit'` event (reuse `_processExited`) instead of `killed`.
+  (Still open — verified 2026-09-24: `stop()` still branches on `!this.process.killed`.)
 - [ ] `serverManager.ts` constructor — throws on CUSTOM mode without a URL and
   on unknown `serverMode` values, which rejects `activate()` and bricks the
   whole extension. Fall back to LEMONADE + error notification instead.
+  (Still open — verified 2026-09-24: constructor still `throw`s.)
 - [ ] `serverManager.ts` `listenConfigsChange` — any change to the watched
   settings with new mode !== LEMOND calls `stop()`, so editing e.g.
   `lemonadePort` while a LEMONADE server runs kills it. Only stop when
   switching *away* from LEMOND (the comment says that; the code doesn't).
+  (Still open — verified 2026-09-24: unconditional `stop()` on mode !== LEMOND.)
 
-### Worth fixing
+### Remaining inline TODOs (src/)
 
-- Open question (see inline TODO in `lmcProvider.ts`): the `/v1/health` +
-  `/v1/load` pair is still 2 round-trips on a cold model — consider just
-  calling `loadModel()` and catching errors instead of the pre-check.
+- `lmcProvider.ts` — reconsider the `/v1/health` pre-check before `/v1/load`
+  (2 round-trips on a cold model; maybe just load + catch).
+- `modelManager.ts` `setModelContext()` — `// TODO: check this`.
+- `serverManager.ts` `stop()` — `// TODO: Need to check`.
+- `serverManager.ts` `listenConfigsChange` — `// TODO: Check if stop before switching away from lemond mode` (same as Should-fix item 4).
+- `serverTreeview.ts` capability groups — `// TODO: Consider adding additional context or actions for capability groups.`
 
 ### Load-error UX (from `Bert-Phishing-ONNX` 500 `model_load_error`, 2026-09-24)
 
@@ -187,4 +199,4 @@ Severity-ordered, from a full pass over `src/`. Fix in this order.
 
 ### Nits / polish
 
-Done — all items fixed and removed.
+Done.
