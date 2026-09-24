@@ -195,7 +195,7 @@ Severity-ordered, from a full pass over `src/`. Fix in this order.
 
 ### Worth fixing
 
-- [ ] `lmcProvider.ts` — `loadModel()` runs on every provider request; in agent
+- [x] `lmcProvider.ts` — `loadModel()` runs on every provider request; in agent
   mode that's a `/v1/load` round-trip per loop iteration. Check `/v1/health`
   first and skip when already loaded.
 - [ ] `lemonadeClient.ts` — `chatCompletion()` (non-streaming) is unused since

@@ -109,7 +109,18 @@ class ChanhLmcProvider implements vscode.LanguageModelChatProvider {
     await this.serverManager.ensureRunning()
     const client = this.serverManager.client
     try {
-      await client.loadModel(model.id)
+      // Avoid a `/v1/load` round-trip per agent loop iteration: skip when the
+      // model is already loaded per `/v1/health`. Fall back to loading when
+      // the health check fails so old/unreachable servers keep working.
+      let alreadyLoaded = false
+      try {
+        const health = await client.getHealth()
+        alreadyLoaded = health.all_models_loaded.some((m) => m.model_name === model.id)
+      } catch {
+        alreadyLoaded = false
+      }
+      if (!alreadyLoaded) await client.loadModel(model.id)
+      else Logger.info(`Model already loaded, skipping load: ${model.id}`)
     } catch (err) {
       Logger.warn(`Could not preload '${model.id}': ${err}`)
     }
