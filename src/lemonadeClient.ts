@@ -344,26 +344,6 @@ export class LemonadeClient {
   }
 
   /**
-   * Send a chat completion request (non-streaming, short calls only).
-   *
-   * Uses the default 15s inactivity guard, so this must NOT be used for
-   * text generation — local models blow past 15s on large prompts. Kept for
-   * short request/response calls only; generation must go through
-   * {@link chatCompletionStream}.
-   */
-  async chatCompletion(
-    request: ChatCompletionRequest
-  ): Promise<ChatCompletionResponse> {
-    const { status, data } = await this.request(
-      'POST',
-      '/v1/chat/completions',
-      { ...request, stream: false }
-    )
-    if (status !== 200) throw new Error(`Chat completion failed: ${status} ${data}`)
-    return JSON.parse(data) as ChatCompletionResponse
-  }
-
-  /**
    * Send a streaming chat completion request.
    * Calls onToken for each content chunk received. Streamed tool-call deltas
    * are accumulated and emitted via onToolCall once the stream completes.

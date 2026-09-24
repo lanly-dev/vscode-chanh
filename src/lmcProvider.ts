@@ -44,7 +44,7 @@ function extractContent(message: vscode.LanguageModelChatRequestMessage): string
   return text ? [{ type: 'text', text }, ...images] : images
 }
 
-class ChanhLmcProvider implements vscode.LanguageModelChatProvider {
+class ChanhLmcProvider implements vscode.LanguageModelChatProvider, vscode.Disposable {
   readonly onDidChangeLanguageModelChatInformation?: vscode.Event<void>
   private readonly _onDidChange = new vscode.EventEmitter<void>()
   private disposed = false

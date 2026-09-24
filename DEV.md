@@ -200,7 +200,7 @@ Severity-ordered, from a full pass over `src/`. Fix in this order.
   first and skip when already loaded.
 - [x] `lemonadeClient.ts` — `chatCompletion()` (non-streaming) is unused since
   the provider went streaming. Delete or keep documented as short-calls-only.
-- [ ] `lmcProvider` instance still not in `context.subscriptions` (registration
+- [x] `lmcProvider` instance still not in `context.subscriptions` (registration
   disposable `d24` is tracked; the provider's own `dispose()` is not).
 - [ ] `lemonadeClient.ts` stream abort handler — `req.destroy()` fires an
   ECONNRESET error event that can win the `fail()` race, so cancel shows
