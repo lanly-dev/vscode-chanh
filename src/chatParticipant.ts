@@ -26,6 +26,8 @@ import type { ChatMessage } from './interfaces'
 
 // Handles VS Code chat requests by forwarding them to the Lemonade Server.
 export class ChatParticipant implements Disposable {
+  private readonly _subscriptions: Disposable[] = []
+
   private client: LemonadeClient
   private participant: VSCodeChatParticipant
   private selectedModel: string | undefined
@@ -38,17 +40,17 @@ export class ChatParticipant implements Disposable {
     this.participant.iconPath = new ThemeIcon('sparkle')
 
     // Update client when server status changes to running
-    this.serverManager.onStatusChange((status) => {
-      if (status !== ServerStatus.RUNNING) return
-      this.updateClientForActiveServer()
-      this.selectedModel = undefined
-    })
-
-    // Update the client whenever the active chat server changes
-    this.serverManager.onActiveServerChange(() => {
-      this.updateClientForActiveServer()
-      this.selectedModel = undefined
-    })
+    this._subscriptions.push(
+      this.serverManager.onStatusChange((status) => {
+        if (status !== ServerStatus.RUNNING) return
+        this.updateClientForActiveServer()
+        this.selectedModel = undefined
+      }),
+      this.serverManager.onActiveServerChange(() => {
+        this.updateClientForActiveServer()
+        this.selectedModel = undefined
+      })
+    )
   }
 
   /** Update the client to point at the currently active server. */
@@ -225,8 +227,8 @@ export class ChatParticipant implements Disposable {
     return controller.signal
   }
 
-  /** Dispose of the chat participant registration. */
   dispose(): void {
     this.participant.dispose()
+    while (this._subscriptions.length > 0) this._subscriptions.pop()?.dispose()
   }
 }

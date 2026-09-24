@@ -1,4 +1,5 @@
 import {
+  Disposable,
   EventEmitter,
   ExtensionContext,
   ThemeColor,
@@ -54,14 +55,18 @@ const DOWNLOAD_ROW_REFRESH_MS = 250
  * Tree data provider for the Servers view.
  * Shows both the Lemonade Server (System) and the lemond (Managed by Chanh) in a single tree.
  */
-export class ServerViewProvider implements TreeDataProvider<TreeItem> {
+export class ServerViewProvider implements TreeDataProvider<TreeItem>, Disposable {
   /**
    * Singleton-style factory, mirroring `LemonadeTreeDataProvider.createOrGet()`
    * from the vscode-audio-lab extension.
    */
   static async createOrGet(context: ExtensionContext, serverManager: ServerManager) {
     const provider = new ServerViewProvider(context, serverManager)
-    window.createTreeView('CHANH_TREEVIEW', { treeDataProvider: provider, showCollapseAll: true })
+    const treeView = window.createTreeView('CHANH_TREEVIEW', {
+      treeDataProvider: provider,
+      showCollapseAll: true
+    })
+    context.subscriptions.push(treeView)
     refreshEvents.fire()
     return provider
   }
@@ -108,6 +113,8 @@ export class ServerViewProvider implements TreeDataProvider<TreeItem> {
   /** Whether the downloadable section shows only hot models. */
   private _showHotOnly = false
 
+  private readonly _subscriptions: Disposable[] = []
+
   constructor(private context: ExtensionContext, private serverManager: ServerManager) {
     // Explicit, stable ids decouple node identity from labels/descriptions so
     // text updates (counts, percentages) can never break the refresh mapping.
@@ -118,8 +125,10 @@ export class ServerViewProvider implements TreeDataProvider<TreeItem> {
     // Server-level events are rare and can change server-side state, so re-query
     // before repainting. Per-percent download ticks instead use the cached
     // snapshot, so they never hit the server.
-    refreshEvents.onDidRequestRefresh(() => this.refreshServer())
-    serverManager.onStatusChange(() => this.refreshServer())
+    this._subscriptions.push(
+      refreshEvents.onDidRequestRefresh(() => this.refreshServer()),
+      serverManager.onStatusChange(() => this.refreshServer())
+    )
 
     // Restore any incomplete downloads saved from a previous session.
     const saved = this.context.workspaceState.get<Array<[string, number]>>(PARTIALS_STORAGE_KEY, [])
@@ -238,6 +247,13 @@ export class ServerViewProvider implements TreeDataProvider<TreeItem> {
     this._downloadRowRefreshedAt.delete(modelId)
     this.clearDownloadRowTimer(modelId)
     if (this._downloads.delete(modelId)) this.refresh()
+  }
+
+  dispose(): void {
+    while (this._subscriptions.length > 0) this._subscriptions.pop()?.dispose()
+    for (const timer of this._downloadRowTimers.values()) clearTimeout(timer)
+    this._downloadRowTimers.clear()
+    this._onDidChangeTreeData.dispose()
   }
 
   /** Drop any pending trailing repaint for a download row. */

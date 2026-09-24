@@ -50,15 +50,18 @@ function extractContent(message: vscode.LanguageModelChatRequestMessage): string
 class ChanhLmcProvider implements vscode.LanguageModelChatProvider, vscode.Disposable {
   readonly onDidChangeLanguageModelChatInformation?: vscode.Event<void>
   private readonly _onDidChange = new vscode.EventEmitter<void>()
+  private readonly _subscriptions: vscode.Disposable[] = []
   private disposed = false
   private modelManager?: ModelManager
 
   constructor(private serverManager: ServerManager) {
     this.onDidChangeLanguageModelChatInformation = this._onDidChange.event
-    this.serverManager.onStatusChange((s) => {
-      if (s === ServerStatus.RUNNING) this._onDidChange.fire()
-    })
-    this.serverManager.onActiveServerChange(() => this._onDidChange.fire())
+    this._subscriptions.push(
+      this.serverManager.onStatusChange((s) => {
+        if (s === ServerStatus.RUNNING) this._onDidChange.fire()
+      }),
+      this.serverManager.onActiveServerChange(() => this._onDidChange.fire())
+    )
   }
 
   setModelManager(mm: ModelManager): void {
@@ -236,6 +239,7 @@ class ChanhLmcProvider implements vscode.LanguageModelChatProvider, vscode.Dispo
 
   dispose(): void {
     this.disposed = true
+    while (this._subscriptions.length > 0) this._subscriptions.pop()?.dispose()
     this._onDidChange.dispose()
   }
 }

@@ -5,7 +5,7 @@ const execAsync = promisify(exec)
 import * as fs from 'fs'
 import * as path from 'path'
 
-import { ConfigurationTarget, ExtensionContext, QuickPickItem, WorkspaceConfiguration } from 'vscode'
+import { ConfigurationTarget, Disposable, QuickPickItem, WorkspaceConfiguration } from 'vscode'
 import { window, workspace } from 'vscode'
 const { showErrorMessage, showInformationMessage, showInputBox, showQuickPick } = window
 
@@ -316,8 +316,12 @@ export class ServerManager {
   }
 
   /** Register a callback invoked whenever the active chat server changes. */
-  onActiveServerChange(callback: () => void): void {
+  onActiveServerChange(callback: () => void): Disposable {
     this.activeServerChangeCallbacks.push(callback)
+    return new Disposable(() => {
+      const index = this.activeServerChangeCallbacks.indexOf(callback)
+      if (index >= 0) this.activeServerChangeCallbacks.splice(index, 1)
+    })
   }
 
   /** Probe the currently active server and update status accordingly. */
@@ -476,8 +480,12 @@ export class ServerManager {
   }
 
   /** Register a callback for status changes. */
-  onStatusChange(callback: (status: ServerStatus) => void): void {
+  onStatusChange(callback: (status: ServerStatus) => void): Disposable {
     this.statusChangeCallbacks.push(callback)
+    return new Disposable(() => {
+      const index = this.statusChangeCallbacks.indexOf(callback)
+      if (index >= 0) this.statusChangeCallbacks.splice(index, 1)
+    })
   }
 
   /** Update the status and notify callbacks (only on an actual change). */
@@ -827,6 +835,8 @@ export class ServerManager {
 
   /** Dispose of resources. */
   dispose(): void {
+    this.activeServerChangeCallbacks = []
+    this.statusChangeCallbacks = []
     // Only kill the process if we started it
     if (!this._usingExistingServer && this.process && !this.process.killed) this.process.kill('SIGKILL')
     this.process = null

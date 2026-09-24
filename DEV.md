@@ -1,3 +1,5 @@
+# Notes
+
 ## Current partial-download tracking: local only
 
 Incomplete downloads are tracked only inside the extension:
@@ -136,41 +138,31 @@ Watchdog notes:
 - `chatCompletionStream()` treats tool-call-only responses (no text) as valid —
   agent-mode models often answer with only a tool call.
 
----
-
-## TODO: Extension cleanup and disposables
-
-- [ ] Evaluate `ServerViewProvider` for disposable cleanup:
-  - It registers event listeners (`refreshEvents.onDidRequestRefresh`, `serverManager.onStatusChange`) that are not explicitly disposed.
-  - Consider implementing `vscode.Disposable` on `ServerViewProvider` and cleaning up internal subscriptions on deactivation.
-  - Note: `serverManager.onStatusChange` / `onActiveServerChange` use plain
-    callback arrays (no disposable returned), so making them disposable-aware
-    is a prerequisite.
-- [ ] Verify no resource leaks on extension deactivation (event emitters, HTTP clients, timers, etc.).
-
-## TODO: Code review findings
-
-Severity-ordered, from a full pass over `src/`. Fix in this order.
-
-### Remaining inline TODOs (src/)
-
-- `lmcProvider.ts` — reconsider the `/v1/health` pre-check before `/v1/load`
-  (2 round-trips on a cold model; maybe just load + catch).
-- `modelManager.ts` `setModelContext()` — `// TODO: check this`.
-- `serverTreeview.ts` capability groups — `// TODO: Consider adding additional context or actions for capability groups.`
-
-### Load-error UX (from `Bert-Phishing-ONNX` 500 `model_load_error`, 2026-09-24)
+### Load-error UX investigation (from `Bert-Phishing-ONNX`, 2026-09-24)
 
 - Server returned `500 {"error":{"code":"model_load_error","message":"Failed
-  to load model ... need model.onnx + tokenizer.json + config.json"}}` — an
-  incomplete/corrupt HF cache dir, surfaced raw as `Failed to load model:
-  Error: Failed to load model: 500 {...}` (double-wrapped prefix).
-- Follow-ups: (1) translate `model_load_error` in `LemonadeClient.loadModel()`
-  into a friendly message like the existing `slots_pinned_error` mapping
-  ("model files incomplete — remove and re-download"); (2) decide whether the
-  `Bert-Phishing-ONNX` (classification model) attempt points at a picker
-  filtering gap for chat/agent model selection.
+  to load model ... need model.onnx + tokenizer.json + config.json"}}` because the
+  Hugging Face cache directory was incomplete or corrupt.
+- The raw error was double-wrapped as `Failed to load model: Error: Failed to
+  load model: 500 {...}`.
+- `Bert-Phishing-ONNX` is a classification model, not a chat/tool-calling model.
+  Its appearance in chat/agent model selection may indicate a model-filtering gap.
 
-### Nits / polish
+## TODO
 
-Done.
+### Inline TODOs (src/)
+
+- [ ] `lmcProvider.ts` — reconsider the `/v1/health` pre-check before `/v1/load`
+  (2 round-trips on a cold model; maybe just load + catch).
+- [ ] `modelManager.ts` `setModelContext()` — `// TODO: check this`.
+- [ ] `serverTreeview.ts` capability groups — `// TODO: Consider adding additional context or actions for capability groups.`
+
+### Load-error UX follow-up
+
+- [ ] Translate `model_load_error` in `LemonadeClient.loadModel()` into a
+  friendly message, following the existing `slots_pinned_error` mapping
+  ("model files incomplete — remove and re-download").
+- [ ] Remove the duplicated `Failed to load model: Error: Failed to load model`
+  prefix.
+- [ ] Decide whether chat/agent model selection should filter out
+  classification models such as `Bert-Phishing-ONNX`.
