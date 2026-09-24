@@ -366,10 +366,11 @@ export class BinaryManager {
       Logger.info('Update check skipped (throttled, last check < 24h ago)')
       return
     }
-    this.context.globalState.update(throttleKey, now)
-
     try {
       const release = await this.getLatestRelease()
+      // Throttle only after a successful fetch: a network failure must not
+      // consume the day's check, otherwise the user waits 24h for a retry.
+      await this.context.globalState.update(throttleKey, now)
       const latestVersion = release.tag_name.replace(/^v/, '')
       const installedVersion = this.getInstalledVersion()
 

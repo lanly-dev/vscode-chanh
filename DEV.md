@@ -206,7 +206,7 @@ Severity-ordered, from a full pass over `src/`. Fix in this order.
   ECONNRESET error event that can win the `fail()` race, so cancel shows
   "Request error: socket hang up" instead of "Request aborted". Call `fail()`
   before `destroy()`.
-- [ ] `binaryManager.ts` `checkForUpdates()` — daily throttle timestamp is
+- [x] `binaryManager.ts` `checkForUpdates()` — daily throttle timestamp is
   written *before* the fetch, so a network failure consumes the day's check.
   Move `globalState.update` after a successful fetch.
 
