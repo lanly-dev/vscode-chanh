@@ -110,8 +110,9 @@ export class ModelManager {
       )
       showInformationMessage(`Model '${modelName}' loaded successfully`)
     } catch (err: unknown) {
-      Logger.error('Failed to load model', err)
-      showErrorMessage(`Failed to load model: ${err}`)
+      const message = err instanceof Error ? err.message : `Failed to load model: ${String(err)}`
+      Logger.error(message, err)
+      showErrorMessage(message)
     }
     // Loaded-models state changed, so re-query the server before repainting.
     this.treeViewProvider.refreshServer()
@@ -135,8 +136,9 @@ export class ModelManager {
       )
       showInformationMessage(`Model '${name}' unloaded successfully`)
     } catch (err: unknown) {
-      Logger.error('Failed to unload model', err)
-      showErrorMessage(`Failed to unload model: ${err}`)
+      const message = err instanceof Error ? err.message : `Failed to unload model: ${String(err)}`
+      Logger.error(message, err)
+      showErrorMessage(message)
     }
     // Loaded-models state changed, so re-query the server before repainting.
     this.treeViewProvider.refreshServer()

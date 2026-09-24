@@ -159,10 +159,5 @@ Watchdog notes:
 
 ### Load-error UX follow-up
 
-- [ ] Translate `model_load_error` in `LemonadeClient.loadModel()` into a
-  friendly message, following the existing `slots_pinned_error` mapping
-  ("model files incomplete — remove and re-download").
-- [ ] Remove the duplicated `Failed to load model: Error: Failed to load model`
-  prefix.
 - [ ] Decide whether chat/agent model selection should filter out
   classification models such as `Bert-Phishing-ONNX`.

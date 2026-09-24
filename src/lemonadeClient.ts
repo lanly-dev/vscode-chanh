@@ -17,6 +17,7 @@ import type {
  * Communicates with the local Lemonade Server using OpenAI-compatible endpoints.
  */
 export class LemonadeClient {
+
   /** Inactivity timeout for plain (non-streaming) requests. */
   private static readonly REQUEST_TIMEOUT_MS = 15000
 
@@ -130,11 +131,14 @@ export class LemonadeClient {
       LemonadeClient.LOAD_TIMEOUT_MS
     )
     if (status !== 200) {
-      throw new Error(
-        status === 409 && /slots_pinned_error/.test(data)
-          ? 'A model of this type is already loaded. Unload it first via "Chanh: Unload Model".'
-          : `Failed to load model: ${status} ${data}`
-      )
+      let message = `Failed to load model: ${status} ${data}`
+
+      // TODO: Not sure if these error exist
+      if (/model_load_error/.test(data))
+        message = 'The model files are incomplete or invalid. Remove the model and download it again.'
+      else if (status === 409 && /slots_pinned_error/.test(data))
+        message = 'A model of this type is already loaded. Unload it first via "Chanh: Unload Model".'
+      throw new Error(message)
     }
     Logger.info(`Model loaded: ${modelName}`)
   }
