@@ -19,8 +19,11 @@ function parseToolCall(raw: OpenAIMessageToolCall): ToolCall | undefined {
 
 function extractText(message: vscode.LanguageModelChatRequestMessage): string {
   const out: string[] = []
-  for (const part of message.content)
+  for (const part of message.content) {
     if (part instanceof vscode.LanguageModelTextPart) out.push(part.value)
+    else if (part instanceof vscode.LanguageModelDataPart)
+      Logger.warn(`Dropping non-text part (mime=${part.mimeType}) in assistant message`)
+  }
 
   return out.join('')
 }
@@ -87,7 +90,7 @@ class ChanhLmcProvider implements vscode.LanguageModelChatProvider, vscode.Dispo
       const vision = m.labels?.some((l) => l.includes('vision')) ?? false
       return {
         id: m.id,
-        name: m.id + ' (' + (m.recipe ?? 'unknown') + ')',
+        name: m.id,
         family: m.id,
         version: '1.0.0',
         detail: vision ? 'vision' : undefined,

@@ -187,14 +187,4 @@ Severity-ordered, from a full pass over `src/`. Fix in this order.
 
 ### Nits / polish
 
-- [ ] `chatParticipant.ts` `getModel()` filter uses `l.toLowerCase() === 'chat'`;
-  everywhere else uses `labels?.includes('chat')` — unify.
-- [ ] `modelManager.ts` `capabilityFor` maps `image` and `vision` labels to the
-  same tree group, while the provider treats only `vision` as `imageInput` —
-  cosmetic inconsistency, fine if intentional.
-- [ ] `serverTreeview.ts` `createOrGet` — `await refreshEvents.fire()` awaits
-  `void`; drop the `await`.
-- [ ] `logger.ts` — output channel is never disposed; add to subscriptions.
-- [ ] `lmcProvider.ts` `extractText` silently drops `LanguageModelDataPart` on
-  assistant messages; add a warn log if that ever happens.
-- Remove backend text when selecting model for agent
+Done — all items fixed and removed.

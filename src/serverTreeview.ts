@@ -62,7 +62,7 @@ export class ServerViewProvider implements TreeDataProvider<TreeItem> {
   static async createOrGet(context: ExtensionContext, serverManager: ServerManager) {
     const provider = new ServerViewProvider(context, serverManager)
     window.createTreeView('CHANH_TREEVIEW', { treeDataProvider: provider, showCollapseAll: true })
-    await refreshEvents.fire()
+    refreshEvents.fire()
     return provider
   }
 

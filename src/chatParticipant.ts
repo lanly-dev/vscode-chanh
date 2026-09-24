@@ -77,7 +77,7 @@ export class ChatParticipant implements Disposable {
     try {
       // No chat model configured -> let the user pick which model to chat with.
       const allModels = await this.client.listModels()
-      const chatModels = allModels.filter((m) => (m.labels ?? []).some((l) => l.toLowerCase() === 'chat'))
+      const chatModels = allModels.filter((m) => m.labels?.includes('chat') ?? false)
       const msg = 'No chat-capable models found. Please download a chat model first.'
       if (!allModels.length || !chatModels.length) {
         window.showWarningMessage(msg)
