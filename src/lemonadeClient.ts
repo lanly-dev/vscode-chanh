@@ -5,10 +5,11 @@ import type {
   ChatCompletionRequest,
   ChatCompletionResponse,
   ChatMessage,
+  DownloadProgressEvent,
   HealthResponse,
   LemonadeModel,
-  DownloadProgressEvent,
-  OpenAIMessageToolCall
+  OpenAIMessageToolCall,
+  ParsedPullProgress
 } from './interfaces'
 
 /**
@@ -58,20 +59,16 @@ export class LemonadeClient {
   ): Promise<{ status: number, data: string }> {
     return new Promise((resolve, reject) => {
       const data = body ? JSON.stringify(body) : undefined
-      const headers: Record<string, string> = {
-        'Content-Type': 'application/json'
-      }
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' }
       if (data) headers['Content-Length'] = Buffer.byteLength(data).toString()
 
-      const req = http.request(
+      const req = this.httpClient.request(
         `${this.baseUrl}${path}`,
         { method, headers },
         (res) => {
           let responseBody = ''
           res.on('data', (chunk) => { responseBody += chunk })
-          res.on('end', () => {
-            resolve({ status: res.statusCode ?? 0, data: responseBody })
-          })
+          res.on('end', () => resolve({ status: res.statusCode ?? 0, data: responseBody }))
         }
       )
       req.on('error', reject)
@@ -202,15 +199,15 @@ export class LemonadeClient {
    */
   async pullModelStream(
     modelName: string,
-    onProgress: (progress: { pct: number, written?: number, total?: number, message: string }) => void,
+    onProgress: (progress: Omit<ParsedPullProgress, 'status'>) => void,
     signal?: AbortSignal
   ): Promise<void> {
     Logger.info(`Pulling model (streaming): ${modelName}`)
     const body = JSON.stringify({ model_name: modelName, stream: true })
     const headers: Record<string, string> = {
       'Content-Type': 'application/json',
-      Accept: 'text/event-stream',
-      'Content-Length': Buffer.byteLength(body).toString()
+      'Content-Length': Buffer.byteLength(body).toString(),
+      Accept: 'text/event-stream'
     }
 
     return new Promise((resolve, reject) => {
@@ -265,9 +262,7 @@ export class LemonadeClient {
             resolve()
           })
 
-          res.on('error', (err) => {
-            reject(new Error(`Stream error: ${err.message}`))
-          })
+          res.on('error', (err) => reject(new Error(`Stream error: ${err.message}`)))
         }
       )
 
@@ -288,8 +283,7 @@ export class LemonadeClient {
   }
 
   /** Parse a single `/v1/pull` streaming event into a progress update. */
-  private parsePullEvent(line: string):
-    { status?: string, pct: number, written?: number, total?: number, message: string } {
+  private parsePullEvent(line: string): ParsedPullProgress {
     let parsed: DownloadProgressEvent & { percent?: number, bytes_downloaded?: number }
     try {
       parsed = JSON.parse(line)
@@ -330,9 +324,7 @@ export class LemonadeClient {
 
   async deleteModel(modelName: string): Promise<void> {
     Logger.info(`Deleting model: ${modelName}`)
-    const { status, data } = await this.request('POST', '/v1/delete', {
-      model_name: modelName
-    })
+    const { status, data } = await this.request('POST', '/v1/delete', { model_name: modelName })
     if (status !== 200) throw new Error(`Failed to delete model: ${status} ${data}`)
     Logger.info(`Model deleted: ${modelName}`)
   }
@@ -387,8 +379,8 @@ export class LemonadeClient {
       const body = JSON.stringify({ ...request, stream: true })
       const headers: Record<string, string> = {
         'Content-Type': 'application/json',
-        Accept: 'text/event-stream',
-        'Content-Length': Buffer.byteLength(body).toString()
+        'Content-Length': Buffer.byteLength(body).toString(),
+        Accept: 'text/event-stream'
       }
 
       const req = this.httpClient.request(
@@ -479,9 +471,8 @@ export class LemonadeClient {
       // is hung mid-generation — fail instead of spinning forever. Any byte
       // on the socket resets the timer, so slow-but-streaming is unaffected.
       req.setTimeout(LemonadeClient.STREAM_INACTIVITY_MS, () => {
-        fail(new Error(
-          `Stream went silent for ${LemonadeClient.STREAM_INACTIVITY_MS / 1000}s — the server may be hung`
-        ))
+        const timeoutSeconds = LemonadeClient.STREAM_INACTIVITY_MS / 1000
+        fail(new Error(`Stream went silent for ${timeoutSeconds}s — the server may be hung`))
         req.destroy()
       })
 
@@ -528,9 +519,7 @@ export class LemonadeClient {
     history: Array<{ role: string, content: string }>,
     command?: string
   ): ChatMessage[] {
-    const messages: ChatMessage[] = [
-      { role: 'system', content: LemonadeClient.buildSystemPrompt(command) }
-    ]
+    const messages: ChatMessage[] = [{ role: 'system', content: LemonadeClient.buildSystemPrompt(command) }]
 
     for (const msg of history) messages.push({ role: msg.role as 'user' | 'assistant', content: msg.content })
     messages.push({ role: 'user', content: prompt })

@@ -194,8 +194,7 @@ class ChanhLmcProvider implements vscode.LanguageModelChatProvider, vscode.Dispo
           if (tc) toolCalls.push(tc)
         }
       )
-      for (const tc of toolCalls)
-        progress.report(new vscode.LanguageModelToolCallPart(tc.id, tc.name, tc.args))
+      for (const tc of toolCalls) progress.report(new vscode.LanguageModelToolCallPart(tc.id, tc.name, tc.args))
       Logger.info(`Language model response complete for ${model.id}`)
     } catch (err) {
       if (token.isCancellationRequested || abort.signal.aborted) return

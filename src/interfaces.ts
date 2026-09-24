@@ -194,6 +194,16 @@ export interface DownloadProgressEvent {
   bytes_total?: number
 }
 
+/** Normalized progress update parsed from a `/v1/pull` streaming line. */
+export interface ParsedPullProgress {
+  status?: string
+  /** Percent 0-100, or -1 when the server doesn't report a ratio. */
+  pct: number
+  written?: number
+  total?: number
+  message: string
+}
+
 /** Information about a Lemonade Server release asset. */
 export interface ReleaseAsset {
   name: string

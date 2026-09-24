@@ -1,14 +1,14 @@
 import { ConfigurationTarget, ProgressLocation, QuickPickItem, ViewColumn } from 'vscode'
 import { window, workspace } from 'vscode'
 
-import { Logger } from './logger'
 import { formatSize } from './utils'
-import { ServerManager } from './serverManager'
-import type { LemonadeClient } from './lemonadeClient'
 import { LemonadeModel, ServerStatus } from './interfaces'
-import type { ChatParticipant } from './chatParticipant'
-import type { ChanhLmcProvider } from './lmcProvider'
+import { Logger } from './logger'
+import { ServerManager } from './serverManager'
 
+import type { ChanhLmcProvider } from './lmcProvider'
+import type { ChatParticipant } from './chatParticipant'
+import type { LemonadeClient } from './lemonadeClient'
 import type { ServerViewProvider } from './serverTreeview'
 
 const { showErrorMessage, showInformationMessage, showQuickPick, showWarningMessage } = window
@@ -238,7 +238,7 @@ export class ModelManager {
 
     if (pick === 'custom') {
       const rangeHint = maxCtx && maxCtx > 0
-        ? ` (${ModelManager.MIN_CUSTOM_CTX.toLocaleString()} – ${maxCtx.toLocaleString()} tokens)`
+        ? ` (${ModelManager.MIN_CUSTOM_CTX.toLocaleString()} - ${maxCtx.toLocaleString()} tokens)`
         : ` (at least ${ModelManager.MIN_CUSTOM_CTX.toLocaleString()} tokens)`
       const input = await window.showInputBox({
         title: `Custom context size for ${modelId}`,
@@ -253,8 +253,7 @@ export class ModelManager {
           if (n !== -1 && n < ModelManager.MIN_CUSTOM_CTX)
             return `Minimum is ${ModelManager.MIN_CUSTOM_CTX.toLocaleString()} tokens (4K).`
 
-          if (maxCtx && n > maxCtx)
-            return `Maximum for this model is ${maxCtx.toLocaleString()} tokens.`
+          if (maxCtx && n > maxCtx) return `Maximum for this model is ${maxCtx.toLocaleString()} tokens.`
 
           return undefined
         }
@@ -345,12 +344,10 @@ export class ModelManager {
   async offerContextIncrease(modelId: string, err: unknown): Promise<void> {
     const overflow = ModelManager.detectContextOverflow(err)
     if (!overflow) return
-    Logger.warn(
-      `Context overflow on '${modelId}': request ${overflow.used} tokens > ${overflow.available} tokens`
-    )
+    Logger.warn(`Context overflow on '${modelId}': request ${overflow.used} tokens > ${overflow.available} tokens`)
     const action = await window.showWarningMessage(
       `'${modelId}' has a ${overflow.available.toLocaleString()}-token context size, but the request `
-        + `needs ${overflow.used.toLocaleString()} tokens. Set a larger context size?`,
+      + `needs ${overflow.used.toLocaleString()} tokens. Set a larger context size?`,
       'Set Context Size'
     )
     if (action === 'Set Context Size') await this.setModelContext({ modelId })
@@ -386,12 +383,7 @@ export class ModelManager {
       // Chanh output channel.
       Logger.info(`Model entry for ${modelId}: ${JSON.stringify(model)}`)
 
-      const panel = window.createWebviewPanel(
-        'chanhModelInfo',
-        modelId,
-        ViewColumn.Active,
-        { enableScripts: false }
-      )
+      const panel = window.createWebviewPanel('chanhModelInfo', modelId, ViewColumn.Active, { enableScripts: false })
       panel.webview.html = this.buildModelInfoHtml(model, options, loaded)
     } catch (err: unknown) {
       Logger.error('Failed to show model info', err)
@@ -602,10 +594,7 @@ export class ModelManager {
         label: m.id,
         description: ModelManager.getModelLabel(m) ?? m.owned_by ?? ''
       }))
-      const selected = await showQuickPick(items, {
-        title,
-        placeHolder: 'Choose a model'
-      })
+      const selected = await showQuickPick(items, { title, placeHolder: 'Choose a model' })
       return selected?.label
     } catch (err: unknown) {
       Logger.error('Failed to list models', err)
@@ -619,7 +608,7 @@ export class ModelManager {
    * and tracking incomplete downloads in the tree view on cancel/failure.
    * Invoked from a Downloadable Models tree row (click or inline icon).
    */
-  async downloadModel(item: { modelId: string } ): Promise<void> {
+  async downloadModel(item: { modelId: string }): Promise<void> {
     const modelId = item.modelId
     if (!await this.serverManager.ensureRunning()) {
       // UI won't allow this case

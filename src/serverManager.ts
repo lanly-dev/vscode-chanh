@@ -28,6 +28,7 @@ export class ServerManager {
   private _client: LemonadeClient
   private _fatalErrorShown = false
   private _processExited = false
+
   private process: ChildProcess | null = null
   private activeServerChangeCallbacks: Array<() => void> = []
   private statusChangeCallbacks: Array<(status: ServerStatus) => void> = []
@@ -44,9 +45,7 @@ export class ServerManager {
       if (!customUrl) throw new Error('Custom server URL is not configured.')
       this._client = new LemonadeClient(customUrl)
     } else {
-      showErrorMessage(
-        `Chanh: unknown chanh.serverMode "${mode}". Remove it or set it to LEMONADE, LEMOND, or CUSTOM in settings.`
-      )
+      showErrorMessage(`Chanh: unknown chanh.serverMode "${mode}".`)
       throw new Error(`Unexpected server mode: ${mode}`) // For invalid/old configuration values
     }
     this.applyConfiguredServerMode()
