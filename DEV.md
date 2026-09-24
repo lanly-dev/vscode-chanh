@@ -147,27 +147,16 @@ Watchdog notes:
     callback arrays (no disposable returned), so making them disposable-aware
     is a prerequisite.
 - [ ] Verify no resource leaks on extension deactivation (event emitters, HTTP clients, timers, etc.).
-- [ ] Look at start/stop server if it makes sense for all modes or lemond mode only.
 
 ## TODO: Code review findings
 
 Severity-ordered, from a full pass over `src/`. Fix in this order.
-
-### Should fix
-
-- [ ] `serverManager.ts` `listenConfigsChange` — any change to the watched
-  settings with new mode !== LEMOND calls `stop()`, so editing e.g.
-  `lemonadePort` while a LEMONADE server runs kills it. Only stop when
-  switching *away* from LEMOND (the comment says that; the code doesn't).
-  (Still open — verified 2026-09-24: unconditional `stop()` on mode !== LEMOND.)
 
 ### Remaining inline TODOs (src/)
 
 - `lmcProvider.ts` — reconsider the `/v1/health` pre-check before `/v1/load`
   (2 round-trips on a cold model; maybe just load + catch).
 - `modelManager.ts` `setModelContext()` — `// TODO: check this`.
-- `serverManager.ts` `stop()` — `// TODO: Need to check`.
-- `serverManager.ts` `listenConfigsChange` — `// TODO: Check if stop before switching away from lemond mode` (same as Should-fix item 4).
 - `serverTreeview.ts` capability groups — `// TODO: Consider adding additional context or actions for capability groups.`
 
 ### Load-error UX (from `Bert-Phishing-ONNX` 500 `model_load_error`, 2026-09-24)
