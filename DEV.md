@@ -1,28 +1,3 @@
-# DEV — Lemonade downloads, deletes, and partial-download tracking
-
-## Download vs remove APIs
-
-- Download/start: `POST /v1/pull`
-  - Body: `{ model_name, stream: true }`
-  - Used by: `LemonadeClient.pullModelStream()`
-  - Consumed in: `ModelManager.downloadModel()`
-  - Behavior: one long-lived streaming response; server pushes progress lines.
-  - Cancellation is client-side: `AbortController` destroys the HTTP request.
-
-- Delete/remove: `POST /v1/delete`
-  - Body: `{ model_name }`
-  - Used by: `LemonadeClient.deleteModel()`
-  - Consumed in: `ModelManager.deleteModel()`
-  - Same endpoint is used for both complete models and partial downloads.
-  - There is no partial-specific delete endpoint in the extension.
-
-- Related one-shot endpoints:
-  - `POST /v1/load`
-  - `POST /v1/unload`
-  - `POST /v1/models/{id}/options`
-  - `GET /v1/health`
-  - `GET /v1/models?show_all=true`
-
 ## Current partial-download tracking: local only
 
 Incomplete downloads are tracked only inside the extension:
@@ -156,8 +131,8 @@ Watchdog notes:
 - The 120s also bounds **prefill** (silence before the first token). Huge
   agent-mode prompts on CPU-only large models can exceed it → false "hung"
   error. Bump the constant if that shows up in practice.
-- Non-streaming `chatCompletion()` inherits the 15s guard and must not be used
-  for generation; keep it for short request/response calls only.
+- Non-streaming `chatCompletion()` was deleted (only `chatCompletionStream()`
+  remains); generation must always go through the streaming path.
 - `chatCompletionStream()` treats tool-call-only responses (no text) as valid —
   agent-mode models often answer with only a tool call.
 
@@ -165,7 +140,6 @@ Watchdog notes:
 
 ## TODO: Extension cleanup and disposables
 
-- Add `lmcProvider` to `context.subscriptions` in `extension.ts` — it implements `vscode.Disposable` with a proper `dispose()` method but is not currently tracked.
 - Evaluate `ServerViewProvider` for disposable cleanup:
   - It registers event listeners (`refreshEvents.onDidRequestRefresh`, `serverManager.onStatusChange`) that are not explicitly disposed.
   - Consider implementing `vscode.Disposable` on `ServerViewProvider` and cleaning up internal subscriptions on deactivation.
@@ -195,20 +169,21 @@ Severity-ordered, from a full pass over `src/`. Fix in this order.
 
 ### Worth fixing
 
-- [x] `lmcProvider.ts` — `loadModel()` runs on every provider request; in agent
-  mode that's a `/v1/load` round-trip per loop iteration. Check `/v1/health`
-  first and skip when already loaded.
-- [x] `lemonadeClient.ts` — `chatCompletion()` (non-streaming) is unused since
-  the provider went streaming. Delete or keep documented as short-calls-only.
-- [x] `lmcProvider` instance still not in `context.subscriptions` (registration
-  disposable `d24` is tracked; the provider's own `dispose()` is not).
-- [x] `lemonadeClient.ts` stream abort handler — `req.destroy()` fires an
-  ECONNRESET error event that can win the `fail()` race, so cancel shows
-  "Request error: socket hang up" instead of "Request aborted". Call `fail()`
-  before `destroy()`.
-- [x] `binaryManager.ts` `checkForUpdates()` — daily throttle timestamp is
-  written *before* the fetch, so a network failure consumes the day's check.
-  Move `globalState.update` after a successful fetch.
+- Open question (see inline TODO in `lmcProvider.ts`): the `/v1/health` +
+  `/v1/load` pair is still 2 round-trips on a cold model — consider just
+  calling `loadModel()` and catching errors instead of the pre-check.
+
+### Load-error UX (from `Bert-Phishing-ONNX` 500 `model_load_error`, 2026-09-24)
+
+- Server returned `500 {"error":{"code":"model_load_error","message":"Failed
+  to load model ... need model.onnx + tokenizer.json + config.json"}}` — an
+  incomplete/corrupt HF cache dir, surfaced raw as `Failed to load model:
+  Error: Failed to load model: 500 {...}` (double-wrapped prefix).
+- Follow-ups: (1) translate `model_load_error` in `LemonadeClient.loadModel()`
+  into a friendly message like the existing `slots_pinned_error` mapping
+  ("model files incomplete — remove and re-download"); (2) decide whether the
+  `Bert-Phishing-ONNX` (classification model) attempt points at a picker
+  filtering gap for chat/agent model selection.
 
 ### Nits / polish
 
