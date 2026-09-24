@@ -343,7 +343,14 @@ export class LemonadeClient {
     Logger.info('Server configuration updated successfully')
   }
 
-  /** Send a chat completion request (non-streaming). */
+  /**
+   * Send a chat completion request (non-streaming, short calls only).
+   *
+   * Uses the default 15s inactivity guard, so this must NOT be used for
+   * text generation — local models blow past 15s on large prompts. Kept for
+   * short request/response calls only; generation must go through
+   * {@link chatCompletionStream}.
+   */
   async chatCompletion(
     request: ChatCompletionRequest
   ): Promise<ChatCompletionResponse> {

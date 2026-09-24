@@ -198,7 +198,7 @@ Severity-ordered, from a full pass over `src/`. Fix in this order.
 - [x] `lmcProvider.ts` — `loadModel()` runs on every provider request; in agent
   mode that's a `/v1/load` round-trip per loop iteration. Check `/v1/health`
   first and skip when already loaded.
-- [ ] `lemonadeClient.ts` — `chatCompletion()` (non-streaming) is unused since
+- [x] `lemonadeClient.ts` — `chatCompletion()` (non-streaming) is unused since
   the provider went streaming. Delete or keep documented as short-calls-only.
 - [ ] `lmcProvider` instance still not in `context.subscriptions` (registration
   disposable `d24` is tracked; the provider's own `dispose()` is not).
