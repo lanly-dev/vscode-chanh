@@ -167,6 +167,38 @@ export interface LemonadeModel {
   size?: number
 }
 
+/** One backend entry (a recipe paired with an accelerator) in `/v1/system-info`. */
+export interface SystemInfoBackend {
+  /** `installed`, `installable`, or `unsupported`. */
+  state?: string
+  /** Device classes this build targets (e.g. `cpu`, `nvidia_gpu`, `amd_gpu`). */
+  devices?: string[]
+  /** Pinned build version for this backend. */
+  version?: string
+  /** Why the backend is unsupported, or what is missing when installable. */
+  message?: string
+  /** CLI hint for installing this backend. */
+  action?: string
+}
+
+/** A recipe's capabilities in `/v1/system-info`. */
+export interface SystemInfoRecipe {
+  display_name?: string
+  backends?: Record<string, SystemInfoBackend>
+  /** Backend chosen when the recipe's `backend` setting is `auto`. */
+  default_backend?: string
+  /** Whether the user can pin this recipe to a specific backend. */
+  selectable_backend?: boolean
+  experimental?: boolean
+  modality?: string
+}
+
+/** Response from the Lemonade Server `/v1/system-info` endpoint. */
+export interface SystemInfoResponse {
+  recipes?: Record<string, SystemInfoRecipe>
+  unavailable_recipes?: string[]
+}
+
 export interface ModelTreeItem {
   id: string
   label: string

@@ -9,7 +9,8 @@ import type {
   HealthResponse,
   LemonadeModel,
   OpenAIMessageToolCall,
-  ParsedPullProgress
+  ParsedPullProgress,
+  SystemInfoResponse
 } from './interfaces'
 
 /**
@@ -331,6 +332,18 @@ export class LemonadeClient {
     const { status, data } = await this.request('POST', '/v1/delete', { model_name: modelName })
     if (status !== 200) throw new Error(`Failed to delete model: ${status} ${data}`)
     Logger.info(`Model deleted: ${modelName}`)
+  }
+
+  /**
+   * Fetch the server's capability report. This is the only source for backend
+   * inventory: there is no `/v1/backends` endpoint, so the installed set is
+   * derived by filtering `recipes.*.backends.*.state === 'installed'`.
+   */
+  async getSystemInfo(): Promise<SystemInfoResponse> {
+    const { status, data } = await this.request('GET', '/v1/system-info')
+    if (status !== 200) throw new Error(`Failed to read system info: ${status} ${data}`)
+    Logger.info(`System info: ${Object.keys(JSON.parse(data).recipes ?? {}).length} recipes`)
+    return JSON.parse(data)
   }
 
   /** Update server configuration (e.g., max_loaded_models). */

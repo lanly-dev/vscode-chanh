@@ -709,7 +709,7 @@ export class ModelManager {
           this.treeViewProvider.clearPartial(modelId)
           this.treeViewProvider.endDownload(modelId)
           // The model is now downloaded, so re-query the server so it shows up
-          // under Available Models and leaves the Downloadable list.
+          // under Installed Models and leaves the Downloadable list.
           this.treeViewProvider.refreshServer()
           const seconds = (Date.now() - startedAt) / 1000
           const rate = seconds > 0 ? (progressEvents / seconds).toFixed(1) : '?'

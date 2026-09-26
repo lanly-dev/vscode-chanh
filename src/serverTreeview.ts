@@ -12,13 +12,20 @@ import {
 const { Collapsed, Expanded, None } = TreeItemCollapsibleState
 
 import { formatByteProgress, formatSize, getCapIcon, getServerStatusChar } from './utils'
+import { Logger } from './logger'
 import { ModelDecorationProvider } from './modelDecorations'
 import { ModelManager } from './modelManager'
 import { refreshEvents } from './events'
 import { ServerManager } from './serverManager'
 import { ServerMode, ServerStatus } from './interfaces'
 
-import type { DownloadProgress, LemonadeModel, ServerInstance } from './interfaces'
+import type {
+  DownloadProgress,
+  LemonadeModel,
+  ServerInstance,
+  SystemInfoBackend,
+  SystemInfoResponse
+} from './interfaces'
 
 
 /** Capability grouping order and display titles for the tree view. */
@@ -106,12 +113,21 @@ export class ServerViewProvider implements TreeDataProvider<TreeItem>, Disposabl
    */
   private readonly _downloadsHeader = new TreeItem('Downloading Models', Expanded)
 
-  /** Whether available models are grouped by capability. */
-  private _groupAvaModels = false
+  /** Whether installed models are grouped by capability. */
+  private _groupInstalledModels = false
   /** Whether downloadable catalog models are grouped by capability. */
   private _groupDowModels = false
   /** Whether the downloadable section shows only hot models. */
   private _showHotOnly = false
+
+  /**
+   * Cached `/v1/system-info` report, used to list the server's backends. This
+   * response is large (tens of KB) and changes only when a backend is
+   * installed, so it is fetched once per session and reused rather than
+   * re-queried on every repaint like the model snapshot.
+   */
+  private _systemInfo: SystemInfoResponse | undefined
+  private _systemInfoStale = true
 
   private readonly _subscriptions: Disposable[] = []
 
@@ -137,15 +153,15 @@ export class ServerViewProvider implements TreeDataProvider<TreeItem>, Disposabl
       this._partials.set(modelId, { modelId, pct, message })
     }
 
-    this._groupAvaModels = this.context.workspaceState.get<boolean>(GROUP_MODELS_KEY, false)
+    this._groupInstalledModels = this.context.workspaceState.get<boolean>(GROUP_MODELS_KEY, false)
     this._groupDowModels = this.context.workspaceState.get<boolean>(GROUP_DOWNLOADABLE_MODELS_KEY, false)
     this._showHotOnly = this.context.workspaceState.get<boolean>(SHOW_HOT_ONLY_KEY, false)
   }
 
   /** Flip the group-models-by-capability toggle, persist it, and refresh. */
   toggleModelGrouping(): void {
-    this._groupAvaModels = !this._groupAvaModels
-    void this.context.workspaceState.update(GROUP_MODELS_KEY, this._groupAvaModels)
+    this._groupInstalledModels = !this._groupInstalledModels
+    void this.context.workspaceState.update(GROUP_MODELS_KEY, this._groupInstalledModels)
     this.refresh()
   }
 
@@ -178,6 +194,9 @@ export class ServerViewProvider implements TreeDataProvider<TreeItem>, Disposabl
    */
   refreshServer(): void {
     this._serverDataStale = true
+    // Backends change only when one is installed, so the report is re-fetched
+    // on the same server-state invalidation to keep the section count honest.
+    this._systemInfoStale = true
     this.refresh()
   }
 
@@ -300,7 +319,12 @@ export class ServerViewProvider implements TreeDataProvider<TreeItem>, Disposabl
 
   /** Get children of the given element (or root if undefined). */
   async getChildren(element?: TreeItem): Promise<TreeItem[]> {
-    if (element) return this.getChildrenForElement(element)
+    if (element) {
+      // Backends need an async /v1/system-info fetch, so they are resolved here
+      // rather than in the synchronous getChildrenForElement dispatch.
+      if (element.contextValue === 'CHANH_BACKENDS_HEADER') return this.getBackendChildren()
+      return this.getChildrenForElement(element)
+    }
     // Root level - fetch fresh data
     const items: TreeItem[] = []
 
@@ -342,20 +366,20 @@ export class ServerViewProvider implements TreeDataProvider<TreeItem>, Disposabl
     }
 
 
-    // Available models section
+    // Installed models section
     if (this._activeServer?.models) {
       const models = this._activeServer.models
-      const modelsHeader = new TreeItem(`Available Models (${models.length})`, Expanded)
+      const modelsHeader = new TreeItem(`Installed Models (${models.length})`, Expanded)
       modelsHeader.iconPath = new ThemeIcon('list-tree')
-      modelsHeader.contextValue = 'CHANH_AVAIL_HEADER'
+      modelsHeader.contextValue = 'CHANH_INSTALLED_HEADER'
 
-      // Total size of every available model, summed from the sizes the server
+      // Total size of every installed model, summed from the sizes the server
       // reports. Models without a reported size are skipped, so the tooltip
       // calls out how many models the total actually covers.
       const sized = models.filter((m) => (m.size ?? 0) > 0)
       const totalSizeText = formatSize(sized.reduce((sum, m) => sum + (m.size ?? 0), 0))
       const coverage = sized.length < models.length ? ` (${sized.length} of ${models.length} models)` : ''
-      const tooltip = `${models.length} model(s) available\n`
+      const tooltip = `${models.length} model(s) installed\n`
       const sizeTip = totalSizeText ? `Total size${coverage}: ${totalSizeText}` : `Total size: unknown`
       modelsHeader.tooltip = `${tooltip}${sizeTip}`
       items.push(modelsHeader)
@@ -377,12 +401,126 @@ export class ServerViewProvider implements TreeDataProvider<TreeItem>, Disposabl
     return items
   }
 
+  /**
+   * Fetch `/v1/system-info` once and cache it. Older servers may not implement
+   * the endpoint, so failures degrade to an empty list rather than breaking the
+   * rest of the view.
+   */
+  private async fetchSystemInfo(): Promise<SystemInfoResponse> {
+    if (!this._systemInfoStale && this._systemInfo) return this._systemInfo
+    try {
+      this._systemInfo = await this.serverManager.client.getSystemInfo()
+    } catch (err) {
+      Logger.warn(`Could not read system info for backends: ${err}`)
+      this._systemInfo = undefined
+    }
+    this._systemInfoStale = false
+    return this._systemInfo ?? {}
+  }
+
+  /** Number of backends this server can use: installed plus installable. */
+  private countBackends(): number {
+    return this.collectBackends(this._systemInfo ?? {}).length
+  }
+
+  /**
+   * Every backend the server reports as usable, each tagged with its state.
+   * `unsupported` entries are dropped: they are capability reporting (e.g. rocm
+   * on a non-AMD GPU), not something the user can act on.
+   */
+  /** One usable backend row: the recipe it belongs to, its name, and its state. */
+  private collectBackends(
+    info: SystemInfoResponse
+  ): Array<{ recipe: string, name: string, backend: SystemInfoBackend }> {
+    return Object.entries(info.recipes ?? {}).flatMap(([recipe, data]) =>
+      Object.entries(data.backends ?? {})
+        .filter(([, backend]) => backend.state !== 'unsupported')
+        .map(([name, backend]) => ({ recipe, name, backend }))
+    )
+  }
+
+  /**
+   * One row per usable backend (installed or installable), grouped under a
+   * collapsible header per recipe. `unsupported` entries are filtered out in
+   * `collectBackends()`; they describe hardware this machine does not have.
+   */
+  private async getBackendChildren(): Promise<TreeItem[]> {
+    const info = await this.fetchSystemInfo()
+    // Group the usable backends by recipe, keeping each recipe's own metadata
+    // for the collapsible header.
+    type BackendGroup = {
+      displayName?: string
+      modality?: string
+      selectable?: boolean
+      backends: Array<{ name: string, backend: SystemInfoBackend }>
+    }
+    const grouped = new Map<string, BackendGroup>()
+    for (const { recipe, name, backend } of this.collectBackends(info)) {
+      const data = info.recipes?.[recipe]
+      const group = grouped.get(recipe) ?? {
+        displayName: data?.display_name,
+        modality: data?.modality,
+        selectable: data?.selectable_backend,
+        backends: []
+      }
+      group.backends.push({ name, backend })
+      grouped.set(recipe, group)
+    }
+    const entries = [...grouped.entries()].sort(([a], [b]) => a.localeCompare(b))
+
+    if (entries.length === 0) {
+      const empty = new TreeItem('No backends available', None)
+      empty.iconPath = new ThemeIcon('circle-slash')
+      return [empty]
+    }
+
+    return entries.map(([recipe, group]) => {
+      const title = group.displayName ?? recipe
+      const header = new TreeItem(`${title} (${group.backends.length})`, Expanded)
+      header.iconPath = new ThemeIcon('package')
+      header.contextValue = 'CHANH_BACKEND_RECIPE'
+      header.description = recipe
+      header.tooltip = `Recipe: ${recipe}` +
+        (group.modality ? `\nModality: ${group.modality}` : '') +
+        (group.selectable ? '\nBackend is selectable' : '')
+
+      // Installed rows come first within the group so the ready-to-run backends
+      // are visible without scrolling.
+      const rows = [...group.backends]
+        .sort((a, b) => Number(b.backend.state === 'installed') - Number(a.backend.state === 'installed'))
+        .map(({ name, backend }) => this.toBackendItem(recipe, name, backend))
+      ; (header as TreeItem & { backendRows?: TreeItem[] }).backendRows = rows
+      return header
+    })
+  }
+
+  /** Build the leaf row for one usable backend, describing its state. */
+  private toBackendItem(recipe: string, name: string, backend: SystemInfoBackend): TreeItem {
+    const installed = backend.state === 'installed'
+    const item = new TreeItem(name, None)
+    item.iconPath = installed
+      ? new ThemeIcon('pass-filled', new ThemeColor('charts.green'))
+      : new ThemeIcon('cloud-download', new ThemeColor('charts.yellow'))
+    // Show the server-reported state verbatim so installed and installable rows
+    // are distinguishable at a glance.
+    item.description = backend.state ?? 'unknown'
+    item.contextValue = installed ? 'CHANH_BACKEND_INSTALLED' : 'CHANH_BACKEND_INSTALLABLE'
+    item.tooltip = [`Recipe: ${recipe}`, `State: ${backend.state ?? 'unknown'}`]
+      .concat(backend.version ? [`Version: ${backend.version}`] : [])
+      .concat(backend.devices?.length ? [`Devices: ${backend.devices.join(', ')}`] : [])
+      .concat(backend.message ? [`Note: ${backend.message}`] : [])
+      .join('\n')
+    return item
+  }
+
   private getChildrenForElement(element: TreeItem): TreeItem[] {
+    if ((element as TreeItem & { backendRows?: TreeItem[] }).backendRows)
+      return (element as TreeItem & { backendRows: TreeItem[] }).backendRows
     if (element.contextValue === 'CHANH_SERVER_HEADER') return this.getServerChildren(this._activeServer)
     if (element.contextValue === 'CHANH_LOADED_HEADER') return this.getLoadedModelChildren(element)
     if (element.contextValue === 'CHANH_DOWNLOADING_HEADER') return this.getDownloadingChildren()
     if (element.contextValue === 'CHANH_PINNED_HEADER') return this.getPinnedModelChildren(element)
-    if (element.contextValue === 'CHANH_AVAIL_HEADER') return this.getAvailableChildren(element)
+    if (element.contextValue === 'CHANH_INSTALLED_HEADER') return this.getInstalledChildren(element)
     if (element.contextValue === 'CHANH_DOWNLOADABLE_HEADER') return this.getDownloadableChildren()
     if (element.contextValue === 'CHANH_CAP_GROUP') return this.getCapGroupChildren(element)
     return []
@@ -425,6 +563,18 @@ export class ServerViewProvider implements TreeDataProvider<TreeItem>, Disposabl
       const configLabel = server.id === ServerMode.LEMOND ? ' (configured in settings)' : ''
       maxModelsItem.tooltip = `Maximum models that can be loaded simultaneously${configLabel}`
       items.push(maxModelsItem)
+    }
+
+    // Backends section - the inference backends this server can use, grouped by
+    // recipe. The count covers both installed and not-yet-installed backends,
+    // since both are actionable.
+    if (this._activeServer?.status === ServerStatus.RUNNING) {
+      const count = this.countBackends()
+      const backendsHeader = new TreeItem(`Backends (${count})`, Collapsed)
+      backendsHeader.iconPath = new ThemeIcon('circuit-board')
+      backendsHeader.contextValue = 'CHANH_BACKENDS_HEADER'
+      backendsHeader.tooltip = `${count} backend(s) installed or installable, grouped by recipe`
+      items.push(backendsHeader)
     }
 
     // Pinned models section
@@ -560,7 +710,7 @@ export class ServerViewProvider implements TreeDataProvider<TreeItem>, Disposabl
     })
   }
 
-  private getAvailableChildren(element: TreeItem): TreeItem[] {
+  private getInstalledChildren(element: TreeItem): TreeItem[] {
     const server = this._activeServer
     if (!server?.models) return []
 
@@ -570,7 +720,7 @@ export class ServerViewProvider implements TreeDataProvider<TreeItem>, Disposabl
       return [noModelsItem]
     }
 
-    if (this._groupAvaModels) return this.getCapabilityGroups(server.models)
+    if (this._groupInstalledModels) return this.getCapabilityGroups(server.models)
 
     const loadedIds = new Set(server.health?.all_models_loaded.map((m) => m.model_name) ?? [])
     const orderedModels = this.sortModelsLoadedFirst(server.models, loadedIds)
@@ -659,7 +809,7 @@ export class ServerViewProvider implements TreeDataProvider<TreeItem>, Disposabl
     return item
   }
 
-  /** Build one available-model leaf row (shared by flat and grouped modes). */
+  /** Build one installed-model leaf row (shared by flat and grouped modes). */
   private toAvaModelItem(model: LemonadeModel, isLoaded: boolean, showHotFlame = false): TreeItem {
     const item = new TreeItem(model.id, None) as TreeItem & { modelId: string }
     item.modelId = model.id
@@ -695,7 +845,7 @@ export class ServerViewProvider implements TreeDataProvider<TreeItem>, Disposabl
     item.tooltip = tooltip
 
     if (isLoaded) item.contextValue = 'CHANH_MODEL_LOADED'
-    else item.contextValue = 'CHANH_MODEL_AVAILABLE'
+    else item.contextValue = 'CHANH_MODEL_INSTALLED'
     // Rows with a saved ctx_size override get a suffix so the Reset Context
     // Size menu item can be shown only for them.
     if (model.recipe_options?.ctx_size !== undefined) item.contextValue += '_CTX_SET'
@@ -715,7 +865,7 @@ export class ServerViewProvider implements TreeDataProvider<TreeItem>, Disposabl
     })
   }
 
-  /** Group available models under one collapsible header per capability. */
+  /** Group installed models under one collapsible header per capability. */
   private getCapabilityGroups(models: LemonadeModel[], downloadable = false): TreeItem[] {
     const grouped = new Map<string, LemonadeModel[]>()
     for (const model of models) {
@@ -748,7 +898,7 @@ export class ServerViewProvider implements TreeDataProvider<TreeItem>, Disposabl
       })
   }
 
-  /** Models (available or downloadable) under one capability group header. */
+  /** Models (installed or downloadable) under one capability group header. */
   private getCapGroupChildren(element: TreeItem): TreeItem[] {
     const capability = (element as TreeItem & { capability?: string }).capability
     const downloadable = (element as TreeItem & { downloadable?: boolean }).downloadable
@@ -788,5 +938,8 @@ export class ServerViewProvider implements TreeDataProvider<TreeItem>, Disposabl
     if (!this._serverDataStale && this._activeServer) return
     this._activeServer = await this.serverManager.getActiveServer()
     this._serverDataStale = false
+    // Warm the backend cache here so the section header count is right on the
+    // first paint rather than only after the section is expanded.
+    if (this._activeServer?.status === ServerStatus.RUNNING) await this.fetchSystemInfo()
   }
 }

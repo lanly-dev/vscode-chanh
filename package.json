@@ -232,7 +232,7 @@
         },
         {
           "command": "chanh.toggleModelGrouping",
-          "when": "view == CHANH_TREEVIEW && viewItem == CHANH_AVAIL_HEADER",
+          "when": "view == CHANH_TREEVIEW && viewItem == CHANH_INSTALLED_HEADER",
           "group": "inline"
         },
         {
@@ -257,7 +257,7 @@
         },
         {
           "command": "chanh.ncp.loadModel",
-          "when": "view == CHANH_TREEVIEW && viewItem =~ /CHANH_MODEL_AVAILABLE/",
+          "when": "view == CHANH_TREEVIEW && viewItem =~ /CHANH_MODEL_INSTALLED/",
           "group": "inline"
         },
         {
@@ -267,22 +267,22 @@
         },
         {
           "command": "chanh.ncp.removeModel",
-          "when": "view == CHANH_TREEVIEW && (viewItem =~ /CHANH_MODEL_(AVAILABLE|LOADED)/ || viewItem == CHANH_LOADED_MODEL)",
+          "when": "view == CHANH_TREEVIEW && (viewItem =~ /CHANH_MODEL_(INSTALLED|LOADED)/ || viewItem == CHANH_LOADED_MODEL)",
           "group": "2_remove"
         },
         {
           "command": "chanh.ncp.setModelContext",
-          "when": "view == CHANH_TREEVIEW && viewItem =~ /CHANH_MODEL_(AVAILABLE|LOADED)/",
+          "when": "view == CHANH_TREEVIEW && viewItem =~ /CHANH_MODEL_(INSTALLED|LOADED)/",
           "group": "1_context@1"
         },
         {
           "command": "chanh.ncp.resetModelContext",
-          "when": "view == CHANH_TREEVIEW && viewItem =~ /CHANH_MODEL_(AVAILABLE|LOADED)_CTX_SET/",
+          "when": "view == CHANH_TREEVIEW && viewItem =~ /CHANH_MODEL_(INSTALLED|LOADED)_CTX_SET/",
           "group": "1_context@2"
         },
         {
           "command": "chanh.ncp.showModelInfo",
-          "when": "view == CHANH_TREEVIEW && viewItem =~ /CHANH_MODEL_(AVAILABLE|LOADED)/",
+          "when": "view == CHANH_TREEVIEW && viewItem =~ /CHANH_MODEL_(INSTALLED|LOADED)/",
           "group": "inline"
         },
         {

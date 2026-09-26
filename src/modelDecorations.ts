@@ -1,7 +1,7 @@
 import * as vscode from 'vscode'
 
 /**
- * Colors available-model rows in the Servers tree.
+ * Colors installed-model rows in the Servers tree.
  *
  * The tree-item API cannot color label text directly, so loaded models get
  * their green label through the FileDecoration API: each model row carries a
