@@ -346,6 +346,17 @@ export class LemonadeClient {
     return JSON.parse(data)
   }
 
+  /**
+   * Install one backend for a recipe (`POST /v1/install`). Used when the user
+   * picks a backend that `/v1/system-info` reports as `installable`.
+   */
+  async installBackend(recipe: string, backend: string, stream = false): Promise<void> {
+    Logger.info(`Installing backend: ${recipe}:${backend}`)
+    const { status, data } = await this.request('POST', '/v1/install', { recipe, backend, stream })
+    if (status !== 200) throw new Error(`Failed to install ${recipe}:${backend}: ${status} ${data}`)
+    Logger.info(`Backend installed: ${recipe}:${backend}`)
+  }
+
   /** Update server configuration (e.g., max_loaded_models). */
   async updateConfig(config: Record<string, unknown>): Promise<void> {
     Logger.info(`Updating server configuration: ${JSON.stringify(config)}`)

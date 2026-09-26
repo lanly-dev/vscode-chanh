@@ -2,7 +2,7 @@ import { ConfigurationTarget, ProgressLocation, QuickPickItem, ViewColumn } from
 import { window, workspace } from 'vscode'
 
 import { formatSize } from './utils'
-import { LemonadeModel, ServerStatus } from './interfaces'
+import { LemonadeModel, ServerStatus, SystemInfoResponse } from './interfaces'
 import { Logger } from './logger'
 import { ServerManager } from './serverManager'
 
@@ -116,6 +116,105 @@ export class ModelManager {
     }
     // Loaded-models state changed, so re-query the server before repainting.
     this.treeViewProvider.refreshServer()
+  }
+
+  /**
+   * Pick which backend (accelerator) a model's recipe should use, and pin it on
+   * the server. Only backends `/v1/system-info` reports as usable are offered;
+   * an `installable` one is installed on confirmation, while an `unsupported`
+   * one is never shown. The choice is server-wide for the recipe, not per model.
+   */
+  async selectBackend(item: { modelId?: string }): Promise<void> {
+    const modelId = item.modelId
+    if (!modelId) {
+      showErrorMessage('Missing model ID, please report this bug to the developers')
+      return
+    }
+    if (!await this.serverManager.ensureRunning()) return
+
+    let recipe: string | undefined
+    try {
+      const models = await this.client.listModels()
+      recipe = models.find((m) => m.id === modelId)?.recipe
+    } catch (err: unknown) {
+      Logger.warn(`Could not read recipe for ${modelId}: ${err}`)
+    }
+    if (!recipe) {
+      showWarningMessage(`The server did not report a recipe for '${modelId}', so no backend can be chosen.`)
+      return
+    }
+
+    let info: SystemInfoResponse
+    try {
+      info = await this.client.getSystemInfo()
+    } catch (err: unknown) {
+      Logger.error('Failed to read system info', err)
+      showErrorMessage(`Failed to read backend information: ${err}`)
+      return
+    }
+
+    const recipeInfo = info.recipes?.[recipe]
+    const entries = Object.entries(recipeInfo?.backends ?? {}).filter(([, b]) => b.state !== 'unsupported')
+    if (entries.length === 0) {
+      showWarningMessage(`No usable backend is available for '${recipe}' on this machine.`)
+      return
+    }
+
+    const current = recipeInfo?.default_backend
+    const items: Array<QuickPickItem & { backend: string, installed: boolean }> = entries.map(
+      ([name, backend]) => ({
+        label: `${name}${name === current ? ' — current' : ''}`,
+        description: backend.state === 'installed' ? 'Installed' : 'Installable',
+        detail: [backend.version ? `v${backend.version}` : undefined]
+          .concat(backend.devices?.length ? [backend.devices.join(', ')] : [])
+          .filter(Boolean)
+          .join(' · '),
+        backend: name,
+        installed: backend.state === 'installed'
+      })
+    )
+
+    const picked = await showQuickPick(items, {
+      title: `Select backend for ${modelId}`,
+      placeHolder: `Recipe: ${recipe}. Applies to every model using this recipe.`
+    })
+    if (!picked) return
+
+    // A backend that is not installed yet cannot be selected: install it first.
+    if (!picked.installed) {
+      const action = await showWarningMessage(
+        `The '${picked.backend}' backend is not installed. Install it before using it for '${recipe}'.`,
+        'Install Now',
+        'Cancel'
+      )
+      if (action !== 'Install Now') return
+      try {
+        const installTitle = `Installing ${recipe}:${picked.backend}`
+        await window.withProgress(
+          { location: ProgressLocation.Notification, title: installTitle, cancellable: false },
+          async (progress) => {
+            progress.report({ message: 'Downloading...' })
+            await this.client.installBackend(recipe, picked.backend)
+          }
+        )
+      } catch (err: unknown) {
+        Logger.error('Failed to install backend', err)
+        showErrorMessage(`Failed to install backend '${picked.backend}': ${err}`)
+        return
+      }
+      // Backends changed, so the cached report and the tree need a refresh.
+      this.treeViewProvider.refreshServer()
+    }
+
+    // Pin the recipe to the chosen backend. Applied through POST /v1/config,
+    // which only accepts POST; there is no GET counterpart to read it back.
+    try {
+      await this.client.updateConfig({ [recipe]: { backend: picked.backend } })
+      showInformationMessage(`'${recipe}' will use the '${picked.backend}' backend. Restart the server to apply.`)
+    } catch (err: unknown) {
+      Logger.error('Failed to set backend', err)
+      showErrorMessage(`Failed to set backend '${picked.backend}': ${err}`)
+    }
   }
 
   async unloadModel(modelName: string): Promise<void> {

@@ -114,7 +114,7 @@ export class ServerViewProvider implements TreeDataProvider<TreeItem>, Disposabl
   private readonly _downloadsHeader = new TreeItem('Downloading Models', Expanded)
 
   /** Whether installed models are grouped by capability. */
-  private _groupInstalledModels = false
+  private _groupInsModels = false
   /** Whether downloadable catalog models are grouped by capability. */
   private _groupDowModels = false
   /** Whether the downloadable section shows only hot models. */
@@ -153,15 +153,15 @@ export class ServerViewProvider implements TreeDataProvider<TreeItem>, Disposabl
       this._partials.set(modelId, { modelId, pct, message })
     }
 
-    this._groupInstalledModels = this.context.workspaceState.get<boolean>(GROUP_MODELS_KEY, false)
+    this._groupInsModels = this.context.workspaceState.get<boolean>(GROUP_MODELS_KEY, false)
     this._groupDowModels = this.context.workspaceState.get<boolean>(GROUP_DOWNLOADABLE_MODELS_KEY, false)
     this._showHotOnly = this.context.workspaceState.get<boolean>(SHOW_HOT_ONLY_KEY, false)
   }
 
   /** Flip the group-models-by-capability toggle, persist it, and refresh. */
   toggleModelGrouping(): void {
-    this._groupInstalledModels = !this._groupInstalledModels
-    void this.context.workspaceState.update(GROUP_MODELS_KEY, this._groupInstalledModels)
+    this._groupInsModels = !this._groupInsModels
+    void this.context.workspaceState.update(GROUP_MODELS_KEY, this._groupInsModels)
     this.refresh()
   }
 
@@ -418,6 +418,22 @@ export class ServerViewProvider implements TreeDataProvider<TreeItem>, Disposabl
     return this._systemInfo ?? {}
   }
 
+  /**
+   * The accelerator a recipe resolves to, from the cached `/v1/system-info`
+   * report. `default_backend` is what the server picks when the recipe's
+   * `backend` setting is `auto`; it is not an override-aware reading because
+   * `GET /v1/config` is unavailable, so a user-pinned backend is not visible.
+   */
+  private effectiveBackendFor(recipe?: string): string | undefined {
+    if (!recipe) return undefined
+    const data = this._systemInfo?.recipes?.[recipe]
+    const backend = data?.default_backend
+    if (!backend) return undefined
+    // Confirm the server reports this backend as usable before naming it.
+    const usable = Object.values(data?.backends ?? {}).filter((b) => b.state !== 'unsupported')
+    return usable.length === 0 ? undefined : `auto (${backend})`
+  }
+
   /** Number of backends this server can use: installed plus installable. */
   private countBackends(): number {
     return this.collectBackends(this._systemInfo ?? {}).length
@@ -615,7 +631,8 @@ export class ServerViewProvider implements TreeDataProvider<TreeItem>, Disposabl
           isLoaded: true,
           busy: model.is_busy,
           streaming: model.is_streaming,
-          backend: model.backend_url
+          backendUrl: model.backend_url,
+          effectiveBackend: this.effectiveBackendFor(catalogModel.recipe)
         })
       } else item.tooltip = `Model: ${model.model_name}\nBusy: ${model.is_busy}\nStreaming: ${model.is_streaming}`
 
@@ -720,7 +737,7 @@ export class ServerViewProvider implements TreeDataProvider<TreeItem>, Disposabl
       return [noModelsItem]
     }
 
-    if (this._groupInstalledModels) return this.getCapabilityGroups(server.models)
+    if (this._groupInsModels) return this.getCapabilityGroups(server.models)
 
     const loadedIds = new Set(server.health?.all_models_loaded.map((m) => m.model_name) ?? [])
     const orderedModels = this.sortModelsLoadedFirst(server.models, loadedIds)
@@ -752,7 +769,10 @@ export class ServerViewProvider implements TreeDataProvider<TreeItem>, Disposabl
       isLoaded?: boolean
       busy?: boolean
       streaming?: boolean
-      backend?: string
+      /** Per-model runtime endpoint from `/v1/health` (loaded models only). */
+      backendUrl?: string
+      /** Accelerator the recipe resolves to, e.g. `cuda` (from system-info). */
+      effectiveBackend?: string
     } = {}
   ): string {
     const lines: string[] = [model.id]
@@ -784,7 +804,10 @@ export class ServerViewProvider implements TreeDataProvider<TreeItem>, Disposabl
     //   lines.push('Status: downloaded — load to use')
 
 
-    if (opts.backend) lines.push(`Backend: ${opts.backend}`)
+    // Backend: the accelerator the recipe resolves to (from system-info), plus
+    // the per-model runtime endpoint once the model is loaded.
+    if (opts.effectiveBackend) lines.push(`Backend: ${opts.effectiveBackend}`)
+    if (opts.backendUrl) lines.push(`Endpoint: ${opts.backendUrl}`)
     if (model.update_available) lines.push('⚠ Update available upstream — pull again to update')
 
     return lines.join('\n')
@@ -833,7 +856,8 @@ export class ServerViewProvider implements TreeDataProvider<TreeItem>, Disposabl
       isLoaded,
       busy: loadedEntry?.is_busy,
       streaming: loadedEntry?.is_streaming,
-      backend: loadedEntry?.backend_url
+      backendUrl: loadedEntry?.backend_url,
+      effectiveBackend: this.effectiveBackendFor(model.recipe)
     })
 
     // Unloaded hot models wear the flame when grouped by capability; in the
