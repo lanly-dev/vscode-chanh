@@ -330,6 +330,47 @@ export class ModelManager {
     return health.all_models_loaded.some((loaded) => loaded.model_name === modelId)
   }
 
+  /**
+   * Uninstall a backend. Only offered on installed backends, and it asks first:
+   * a recipe with no backend left cannot load any of its models, and the
+   * backend directory is removed from disk.
+   */
+  async uninstallBackend(item: { recipe?: string, backend?: string }): Promise<void> {
+    const { recipe, backend } = item
+    if (!recipe || !backend) {
+      showErrorMessage('Missing backend information, please report this bug to the developers')
+      return
+    }
+    if (!await this.serverManager.ensureRunning()) return
+
+    const confirm = await showWarningMessage(
+      `Uninstall the '${backend}' backend for '${recipe}'? `
+      + 'Models using that recipe cannot be loaded until it is installed again.',
+      { modal: true },
+      'Uninstall'
+    )
+    if (confirm !== 'Uninstall') return
+
+    try {
+      const title = `Uninstalling ${recipe}:${backend}`
+      await window.withProgress(
+        { location: ProgressLocation.Notification, title, cancellable: false },
+        async (progress) => {
+          progress.report({ message: 'Removing backend files...' })
+          await this.client.uninstallBackend(recipe, backend)
+        }
+      )
+    } catch (err: unknown) {
+      Logger.error('Failed to uninstall backend', err)
+      showErrorMessage(`Failed to uninstall backend '${backend}': ${err}`)
+      return
+    }
+
+    // The pinned backend may now be gone, so re-read config and backends.
+    this.treeViewProvider.refreshServer()
+    showInformationMessage(`Uninstalled ${recipe}:${backend}`)
+  }
+
   async unloadModel(modelName: string): Promise<void> {
     if (!await this.serverManager.ensureRunning()) return
     const name = modelName
@@ -646,7 +687,7 @@ export class ModelManager {
       row('Context (default)', fmtCtx(defaultCtx)),
       row('Checkpoint', model.checkpoint),
       row('Registry', model.registry_source),
-      row('Recipe', model.recipe),
+      row('Recipe/backend', model.recipe),
       row('Type', model.type),
       row('Owned by', model.owned_by),
       row('Created', typeof model.created === 'number' && model.created > 0

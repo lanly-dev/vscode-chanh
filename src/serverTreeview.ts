@@ -458,31 +458,83 @@ export class ServerViewProvider implements TreeDataProvider<TreeItem>, Disposabl
     }
   }
 
-  /** Number of backends this server can use: installed plus installable. */
+  /**
+   * Recipes the currently installed models actually need, derived from
+   * `recipe` on each downloaded model. Backends for any other recipe cannot run
+   * a model on this machine, so they are noise in the tree. When no recipe can
+   * be determined (no models installed, or a server that omits `recipe`), this
+   * returns undefined and nothing is filtered, so the section still shows every
+   * usable backend rather than going empty.
+   */
+  private requiredRecipes(): Set<string> | undefined {
+    const models = this._activeServer?.models ?? []
+    const recipes = new Set(models.map((m) => m.recipe).filter((r): r is string => !!r))
+    return recipes.size > 0 ? recipes : undefined
+  }
+
+  /**
+   * The bare backend name a recipe resolves to, without the `auto (...)` prefix
+   * `effectiveBackendFor()` adds for tooltips. Returns undefined when the recipe
+   * is unknown or has no usable backend.
+   */
+  private resolvedBackendName(recipe: string): string | undefined {
+    const pinned = this._pinnedBackends.get(recipe)
+    if (pinned) return pinned
+    const data = this._systemInfo?.recipes?.[recipe]
+    return data?.default_backend
+  }
+
+  /**
+   * The `recipe:backend` pairs currently serving a loaded model. `/v1/health`
+   * reports only model names and a per-model endpoint, so the recipe comes from
+   * the catalog and the accelerator from the pinned config or the server's
+   * `auto` default. That is the same resolution the tooltip uses, so the
+   * highlighted row and the tooltip always agree.
+   */
+  private runningBackends(): Set<string> {
+    const running = new Set<string>()
+    const loaded = this._activeServer?.health?.all_models_loaded ?? []
+    if (loaded.length === 0) return running
+    const byId = new Map((this._activeServer?.models ?? []).map((m) => [m.id, m.recipe]))
+    for (const entry of loaded) {
+      const recipe = byId.get(entry.model_name)
+      if (!recipe) continue
+      const backend = this.resolvedBackendName(recipe)
+      if (backend) running.add(`${recipe}:${backend}`)
+    }
+    return running
+  }
+
+  /** Number of backends this server can use for the installed models. */
   private countBackends(): number {
-    return this.collectBackends(this._systemInfo ?? {}).length
+    return this.collectBackends(this._systemInfo ?? {}, this.requiredRecipes()).length
   }
 
   /**
    * Every backend the server reports as usable, each tagged with its state.
    * `unsupported` entries are dropped: they are capability reporting (e.g. rocm
-   * on a non-AMD GPU), not something the user can act on.
+   * on a non-AMD GPU), not something the user can act on. When `only` is given,
+   * backends for recipes no installed model uses are dropped too.
    */
-  /** One usable backend row: the recipe it belongs to, its name, and its state. */
   private collectBackends(
-    info: SystemInfoResponse
+    info: SystemInfoResponse,
+    only?: Set<string>
   ): Array<{ recipe: string, name: string, backend: SystemInfoBackend }> {
-    return Object.entries(info.recipes ?? {}).flatMap(([recipe, data]) =>
-      Object.entries(data.backends ?? {})
-        .filter(([, backend]) => backend.state !== 'unsupported')
-        .map(([name, backend]) => ({ recipe, name, backend }))
-    )
+    return Object.entries(info.recipes ?? {})
+      .filter(([recipe]) => !only || only.has(recipe))
+      .flatMap(([recipe, data]) =>
+        Object.entries(data.backends ?? {})
+          .filter(([, backend]) => backend.state !== 'unsupported')
+          .map(([name, backend]) => ({ recipe, name, backend }))
+      )
   }
 
   /**
-   * One row per usable backend (installed or installable), grouped under a
-   * collapsible header per recipe. `unsupported` entries are filtered out in
-   * `collectBackends()`; they describe hardware this machine does not have.
+   * One row per usable backend (installed or installable) for a recipe an
+   * installed model actually uses, grouped under a collapsible header per
+   * recipe. `unsupported` entries are filtered out in `collectBackends()`, as
+   * are recipes with no installed model; both describe backends that cannot run
+   * anything on this machine right now.
    */
   private async getBackendChildren(): Promise<TreeItem[]> {
     const info = await this.fetchSystemInfo()
@@ -495,7 +547,7 @@ export class ServerViewProvider implements TreeDataProvider<TreeItem>, Disposabl
       backends: Array<{ name: string, backend: SystemInfoBackend }>
     }
     const grouped = new Map<string, BackendGroup>()
-    for (const { recipe, name, backend } of this.collectBackends(info)) {
+    for (const { recipe, name, backend } of this.collectBackends(info, this.requiredRecipes())) {
       const data = info.recipes?.[recipe]
       const group = grouped.get(recipe) ?? {
         displayName: data?.display_name,
@@ -507,6 +559,7 @@ export class ServerViewProvider implements TreeDataProvider<TreeItem>, Disposabl
       grouped.set(recipe, group)
     }
     const entries = [...grouped.entries()].sort(([a], [b]) => a.localeCompare(b))
+    const running = this.runningBackends()
 
     if (entries.length === 0) {
       const empty = new TreeItem('No backends available', None)
@@ -524,26 +577,45 @@ export class ServerViewProvider implements TreeDataProvider<TreeItem>, Disposabl
         (group.modality ? `\nModality: ${group.modality}` : '') +
         (group.selectable ? '\nBackend is selectable' : '')
 
-      // Installed rows come first within the group so the ready-to-run backends
-      // are visible without scrolling.
+      // The backend in use by a loaded model sorts to the top, then installed
+      // ones, so what is actually running is never buried.
       const rows = [...group.backends]
-        .sort((a, b) => Number(b.backend.state === 'installed') - Number(a.backend.state === 'installed'))
-        .map(({ name, backend }) => this.toBackendItem(recipe, name, backend))
+        .sort((a, b) => {
+          const ra = Number(running.has(`${recipe}:${a.name}`)) - Number(running.has(`${recipe}:${b.name}`))
+          if (ra !== 0) return ra
+          return Number(b.backend.state === 'installed') - Number(a.backend.state === 'installed')
+        })
+        .map(({ name, backend }) =>
+          this.toBackendItem(recipe, name, backend, running.has(`${recipe}:${name}`)))
         ; (header as TreeItem & { backendRows?: TreeItem[] }).backendRows = rows
       return header
     })
   }
 
   /** Build the leaf row for one usable backend, describing its state. */
-  private toBackendItem(recipe: string, name: string, backend: SystemInfoBackend): TreeItem {
+  private toBackendItem(
+    recipe: string,
+    name: string,
+    backend: SystemInfoBackend,
+    isRunning: boolean
+  ): TreeItem {
     const installed = backend.state === 'installed'
-    const item = new TreeItem(name, None)
-    item.iconPath = installed ? new ThemeIcon('pass-filled') : new ThemeIcon('cloud-download')
+    const item = new TreeItem(name, None) as TreeItem & { recipe: string, backend: string }
+    // The uninstall command reads these off the tree item it is invoked on.
+    item.recipe = recipe
+    item.backend = name
+    // A backend currently serving a loaded model gets a green label through the
+    // FileDecoration provider; the tree-item API cannot color text directly.
+    item.resourceUri = ModelDecorationProvider.uriForBackend(recipe, name, isRunning)
+    item.iconPath = installed
+      ? new ThemeIcon('pass-filled', isRunning ? new ThemeColor('charts.green') : undefined)
+      : new ThemeIcon('cloud-download')
     // Show the server-reported state verbatim so installed and installable rows
     // are distinguishable at a glance.
-    item.description = backend.state ?? 'unknown'
+    item.description = isRunning ? 'in use' : (backend.state ?? 'unknown')
     item.contextValue = installed ? 'CHANH_BACKEND_INSTALLED' : 'CHANH_BACKEND_INSTALLABLE'
     item.tooltip = [`Recipe: ${recipe}`, `State: ${backend.state ?? 'unknown'}`]
+      .concat(isRunning ? ['In use by a loaded model'] : [])
       .concat(backend.version ? [`Version: ${backend.version}`] : [])
       .concat(backend.devices?.length ? [`Devices: ${backend.devices.join(', ')}`] : [])
       .concat(backend.message ? [`Note: ${backend.message}`] : [])
@@ -610,7 +682,7 @@ export class ServerViewProvider implements TreeDataProvider<TreeItem>, Disposabl
     // since both are actionable.
     if (this._activeServer?.status === ServerStatus.RUNNING) {
       const count = this.countBackends()
-      const backendsHeader = new TreeItem(`Backends (${count})`, Collapsed)
+      const backendsHeader = new TreeItem(`Backends/Recipes (${count})`, Collapsed)
       backendsHeader.iconPath = new ThemeIcon('circuit-board')
       backendsHeader.contextValue = 'CHANH_BACKENDS_HEADER'
       backendsHeader.tooltip = `${count} backend(s) installed or installable, grouped by recipe`

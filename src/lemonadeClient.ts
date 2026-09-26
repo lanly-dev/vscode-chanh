@@ -359,6 +359,18 @@ export class LemonadeClient {
   }
 
   /**
+   * Uninstall a backend for a recipe (`POST /v1/uninstall`). Verified on
+   * Lemonade Server 11.7.0: returns success even for a backend that is not
+   * installed, so this is safe to call without checking first.
+   */
+  async uninstallBackend(recipe: string, backend: string): Promise<void> {
+    Logger.info(`Uninstalling backend: ${recipe}:${backend}`)
+    const { status, data } = await this.request('POST', '/v1/uninstall', { recipe, backend })
+    if (status !== 200) throw new Error(`Failed to uninstall ${recipe}:${backend}: ${status} ${data}`)
+    Logger.info(`Backend uninstalled: ${recipe}:${backend}`)
+  }
+
+  /**
    * Read the live server configuration (`GET /internal/config`). Returns the
    * merged config, including per-recipe sections such as `llamacpp.backend`.
    * This is the only way to read back a pinned backend: `/v1/config` does not

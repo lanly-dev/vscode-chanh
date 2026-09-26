@@ -187,6 +187,11 @@
         "icon": "$(circuit-board)"
       },
       {
+        "command": "chanh.ncp.uninstallBackend",
+        "title": "Uninstall Backend",
+        "icon": "$(trash)"
+      },
+      {
         "command": "chanh.selectChatModel",
         "title": "Chanh: Select Chat Model"
       }
@@ -258,6 +263,11 @@
         {
           "command": "chanh.stopServer",
           "when": "view == CHANH_TREEVIEW && viewItem == CHANH_SERVER_RUNNING && config.chanh.serverMode == LEMOND",
+          "group": "inline"
+        },
+        {
+          "command": "chanh.ncp.uninstallBackend",
+          "when": "view == CHANH_TREEVIEW && viewItem == CHANH_BACKEND_INSTALLED",
           "group": "inline"
         },
         {
@@ -382,6 +392,10 @@
       },
       {
         "command": "chanh.ncp.showModelInfo",
+        "when": "false"
+      },
+      {
+        "command": "chanh.ncp.uninstallBackend",
         "when": "false"
       },
       {
