@@ -232,14 +232,102 @@ export class ModelManager {
     // `auto` restores the server's own default selection.
     try {
       await this.client.updateConfig({ [recipe]: { backend: picked.backend } })
-      this.treeViewProvider.refreshServer()
-      showInformationMessage(
-        `'${recipe}' backend set to '${picked.backend}'. Restart the server to apply it.`
-      )
     } catch (err: unknown) {
       Logger.error('Failed to set backend', err)
       showErrorMessage(`Failed to set backend '${picked.backend}': ${err}`)
+      return
     }
+
+    // The recipe is resolved per load, so a loaded model keeps running on its
+    // old backend until it is reloaded. Reload here so the change takes effect
+    // immediately rather than on the user's next manual load.
+    await this.reloadRecipeModels(recipe, modelId, picked.backend)
+  }
+
+  /**
+   * Reload every loaded model that uses `recipe` so it picks up the new backend.
+   * The model the user acted on is reloaded first, since that is the one they
+   * are looking at. A model that fails to come back is reported, not silently
+   * dropped: the server may have been mid-slot, or the new backend may not fit
+   * the model.
+   */
+  private async reloadRecipeModels(recipe: string, preferred: string, backend: string): Promise<void> {
+    let loaded: Array<{ model_name: string, is_busy?: boolean, is_streaming?: boolean }> = []
+    try {
+      const health = await this.client.getHealth()
+      const catalog = await this.client.listModels()
+      // Match on the recipe, since /v1/health reports only model names.
+      const byRecipe = new Set(catalog.filter((m) => m.recipe === recipe).map((m) => m.id))
+      loaded = health.all_models_loaded.filter((m) => byRecipe.has(m.model_name))
+    } catch (err: unknown) {
+      Logger.warn(`Could not read loaded models before backend change: ${err}`)
+    }
+
+    if (loaded.length === 0) {
+      this.treeViewProvider.refreshServer()
+      showInformationMessage(`'${recipe}' backend set to '${backend}'. It applies on the next model load.`)
+      return
+    }
+
+    // Reload the model the user clicked first, then any siblings on this recipe.
+    const ordered = [...loaded].sort((a, b) =>
+      Number(b.model_name === preferred) - Number(a.model_name === preferred))
+    const failed: string[] = []
+
+    for (const entry of ordered) {
+      const name = entry.model_name
+      // A busy or streaming model may be serving a request; unloading it now
+      // would abort that work, so it is left alone and reported instead.
+      if (entry.is_busy || entry.is_streaming) {
+        Logger.warn(`Skipping reload of busy model ${name} after backend change`)
+        failed.push(`${name} (in use)`)
+        continue
+      }
+      try {
+        await window.withProgress(
+          { location: ProgressLocation.Notification, title: `Reloading ${name}`, cancellable: false },
+          async (progress) => {
+            progress.report({ message: `Switching to ${backend}...` })
+            await this.reloadModel(name, `'${recipe}' backend set to '${backend}'`, 'backend change')
+          }
+        )
+      } catch (err: unknown) {
+        Logger.error(`Failed to reload ${name} after backend change`, err)
+        failed.push(name)
+      }
+    }
+
+    this.treeViewProvider.refreshServer()
+    if (failed.length === 0) {
+      showInformationMessage(`'${recipe}' backend set to '${backend}'. Reloaded ${ordered.length} model(s).`)
+    } else {
+      showWarningMessage(
+        `'${recipe}' backend set to '${backend}'. Could not reload: ${failed.join(', ')}. `
+        + 'Unload and load them again manually.'
+      )
+    }
+  }
+
+  /**
+   * Unload and load a model so it picks up server-side state that only applies
+   * at load time (saved recipe options, the pinned backend). Shared by context
+   * changes and backend switches. Throws with `context` in the message so the
+   * caller can say what was persisted if the reload fails.
+   */
+  private async reloadModel(modelId: string, context: string, reason: string): Promise<void> {
+    await this.client.unloadModel(modelId)
+    try {
+      await this.client.loadModel(modelId)
+    } catch (err: unknown) {
+      throw new Error(`${context}, but reloading '${modelId}' failed: ${err}`)
+    }
+    Logger.info(`Reloaded ${modelId} (${reason})`)
+  }
+
+  /** Whether the model is currently loaded on the server. */
+  private async isModelLoaded(modelId: string): Promise<boolean> {
+    const health = await this.client.getHealth()
+    return health.all_models_loaded.some((loaded) => loaded.model_name === modelId)
   }
 
   async unloadModel(modelName: string): Promise<void> {
@@ -297,15 +385,9 @@ export class ModelManager {
 
           // Saved options apply at load time — reload automatically if the
           // model is currently loaded so the change takes effect immediately.
-          const health = await this.client.getHealth()
-          if (health.all_models_loaded.some((loaded) => loaded.model_name === modelId)) {
+          if (await this.isModelLoaded(modelId)) {
             progress.report({ message: 'Reloading...' })
-            await this.client.unloadModel(modelId)
-            try {
-              await this.client.loadModel(modelId)
-            } catch (err: unknown) {
-              throw new Error(`Context size was saved, but reloading '${modelId}' failed: ${err}`)
-            }
+            await this.reloadModel(modelId, 'Context size was saved', 'context size change')
           }
 
           // Re-query /v1/models so VS Code's token budget picks up the new context.
