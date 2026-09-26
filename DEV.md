@@ -1,163 +1,92 @@
-# Notes
+# Chanh development notes
 
-## Current partial-download tracking: local only
+Verified against the current TypeScript source on 2026-09-24. Treat this file as agent-facing implementation guidance, not as a substitute for checking the Lemonade Server API version supported by a release.
 
-Incomplete downloads are tracked only inside the extension:
+## Project shape and ownership
 
-- Runtime state: `ServerViewProvider._partials`
-- Persistence: VS Code `workspaceState`
-  - Key: `partialDownloads`
-  - Value: `Array<[modelId, pct]>`
-- Created in:
-  - `ModelManager.downloadModel()` cancellation path
-  - `ModelManager.downloadModel()` failure path
-- Cleared in:
-  - Successful download
-  - Retry/start of download
-  - Successful delete/remove
-- Displayed in:
-  - `getPartialDownloadChildren()`
-  - Context value: `CHANH_PARTIAL_MODEL`
-- Actions on partial rows:
-  - Retry: `chanh.downloadModel` → `POST /v1/pull`
-  - Remove: `chanh.removeModel` → `POST /v1/delete`
+- `src/extension.ts`: activation, dependency wiring, command registration, and disposables.
+- `src/serverManager.ts`: server selection and lifecycle. Chanh can start/stop only the managed `lemond` process in `LEMOND` mode; `LEMONADE` and `CUSTOM` modes connect to externally managed servers.
+- `src/lemonadeClient.ts`: HTTP client and wire-format translation for Lemonade endpoints.
+- `src/modelManager.ts`: model lifecycle, download, context configuration, and model-info operations.
+- `src/serverTreeview.ts`: server/model tree state, persisted view preferences, and partial-download rows.
+- `src/lmcProvider.ts`: VS Code language-model provider for native agent mode.
+- `src/chatParticipant.ts`: the separate `@chanh` chat participant.
 
-Limitations:
+Keep server process lifecycle in `ServerManager` and model operations in `ModelManager`. Tree items should remain presentation state; invoke the appropriate manager/API rather than duplicating API behavior in `serverTreeview.ts`.
 
-- No cross-machine visibility.
-- No detection of interruptions outside the extension.
-- Can go stale if files change outside the extension.
-- The extension infers completion from the `/v1/pull` stream, not from a server-owned job ledger.
+## Download state: current implementation
 
-## Server-owned download state: available but unused
+Downloads are still extension-owned at runtime:
 
-Relevant but currently uncalled endpoints:
+- Active pulls: `ServerViewProvider._downloads`.
+- Cancelled or failed pulls: `ServerViewProvider._partials`.
+- Persistence for incomplete pulls: VS Code `workspaceState` under `partialDownloads`, shaped as `Array<[modelId, pct]>`.
+- Source of progress: the streaming `POST /v1/pull` response parsed by `LemonadeClient.pullModelStream()`.
+- Partial-row retry starts another `/v1/pull`; remove uses the model-delete endpoint. There is no server-ledger reconciliation or explicit resume.
 
-- `GET /v1/downloads`
-  - Probable purpose: query the server's download-job ledger.
-  - Expected data: job id, model, status, percent, bytes, files.
-- `POST /v1/downloads/control`
-  - Probable purpose: manage an existing download job.
-  - Actions are unverified; do not implement pause/resume/cancel/retry/remove through it yet.
-- `POST /v1/pull`
-  - Documented server-owned mode uses:
-    - `stream: true`
-    - `subscribe: false`
-  - Returns a job snapshot; progress can then be observed through the downloads ledger.
+Known limitations:
 
-Related upstream work:
+- The extension cannot discover downloads interrupted by another client or while the server continued working.
+- Local rows can become stale if files change outside VS Code.
+- Completion is inferred from the stream, not a persistent server job.
+- Cancelling the extension request does not imply a verified server-side pause/resume contract.
 
-- PR #3235: makes `/api/v1/downloads` the source of truth for the desktop GUI.
-- PR #2876: interrupted downloads should remain resumable and should not be exposed as completed models.
-- Test reference: `test/server_downloads.py`.
+The client currently does not call Lemonade's download-list/control APIs. Before adopting them, verify the exact response schema, supported actions, restart semantics, and behavior on the oldest server version this extension intends to support. Keep local state as a compatibility fallback unless that migration is deliberately implemented and tested.
 
-## Refactor goal
+## Native agent provider contract
 
-Stop relying on local `workspaceState` as the source of truth for partial downloads.
+`ChanhLmcProvider` is a thin translator between VS Code's agent harness and the OpenAI-compatible Lemonade API:
 
-Target behavior:
+- Forward `options.tools` without executing tools in the provider.
+- Omit `tools` and `tool_choice` when the tool list is empty; some servers reject empty arrays.
+- Run one streamed completion per `provideLanguageModelChatResponse()` call.
+- Report text as `LanguageModelTextPart` and tool calls as `LanguageModelToolCallPart`.
+- Preserve tool results as `role: 'tool'` messages keyed by `tool_call_id`; do not flatten them into user text.
+- The native picker lists only models carrying both exact `chat` and `tool-calling` labels. Plain chat models remain available through `@chanh`.
+- A `vision` label enables image input and picker detail. Text token counts are estimated at four characters per token; images are estimated at 1500 tokens each.
 
-1. Query `/v1/downloads` to determine which downloads/models are incomplete.
-2. Derive "Incomplete Downloads" rows from server-owned job records.
-3. Keep local partial tracking only as a fallback for:
-   - old server versions without `/v1/downloads`;
-   - transient client-only cancellation state;
-   - offline/unavailable responses.
-4. Do not implement `/v1/downloads/control` actions until the action enum is verified against the running server.
-5. Retry should eventually reuse/resume server-side state rather than blindly restarting the pull stream.
+Do not add a provider-side tool-execution loop or completion retry loop; VS Code owns that agent loop.
 
-## Verification steps before refactoring
+## Request and timeout policy
 
-1. Add a temporary read-only `listDownloads()` client method.
-2. Call `GET /v1/downloads` against the local server.
-3. Log raw response JSON.
-4. Confirm:
-   - exact job field names;
-   - status values;
-   - percent/byte fields;
-   - whether cancelled/failed jobs persist;
-   - whether partial state survives server restart.
-5. Confirm the same on the minimum supported server version.
-6. Only then replace `_partials` hydration and row derivation.
+`LemonadeClient` uses socket inactivity rather than total wall-clock limits:
 
-## Open questions
+| Request class | Current guard | Purpose |
+| --- | --- | --- |
+| Normal JSON requests | 15 seconds | Fail fast for health, catalog, options, and delete requests |
+| `POST /v1/load` | 10 minutes | Allow long silent model loads |
+| Chat completion stream | 120 seconds of socket silence | Detect a hung response while allowing slow streaming |
 
-- Exact `POST /v1/downloads/control` request and action enum.
-- Whether dead jobs are retained or removed automatically.
-- Whether non-terminal job records include enough identity to map back to model ids.
-- Whether old servers without `/v1/downloads` need indefinite local fallback.
+The stream watchdog resets whenever socket activity arrives. It also bounds initial prefill: a very large first prompt on a slow CPU-only model can exceed 120 seconds before the first token. Tool-call-only streamed responses are valid and must not be treated as empty failures.
 
 ---
 
-## Agent harness and timeout policy
+## Current TODO
 
-The language model provider (`lmcProvider.ts`) is a **thin translator** for the
-VS Code agent harness — the host (Copilot Chat agent mode) owns the tools, the
-tool-call loop, edit application, and confirmations. Do not re-add provider-side
-tool execution or retry loops:
+### Agent-provider load path
 
-- Forward `options.tools` as-is (omit `tools`/`tool_choice` when empty — some
-  servers reject empty arrays).
-- Run exactly one completion per `provideLanguageModelChatResponse()` call.
-- Report text via `LanguageModelTextPart` and tool calls via
-  `LanguageModelToolCallPart`; never execute tool calls in the provider.
-- Translate `LanguageModelToolResultPart` to `role: 'tool'` messages keyed by
-  `tool_call_id` — flattening them into user text breaks tool-call correlation.
+- [ ] In `lmcProvider.ts`, remove or cache the `/v1/health` pre-check before `/v1/load`. The current path adds a health round trip on every agent response and relies on `loadModel()` handling an already-loaded model. Measure behavior and preserve compatibility with supported servers.
 
-Model listing policy:
+### Context configuration validation
 
-- The picker lists only models with both `chat` + `tool-calling` labels;
-  plain chat models remain reachable through the `@chanh` participant, whose
-  quick pick intentionally has no tool-calling filter.
-- Vision models (`vision` label, not `image` — that's image *generation*) set
-  `capabilities.imageInput` and get `detail: 'vision'` in the picker (other
-  entries omit `detail` — every listed model is tool-capable by construction,
-  so labeling the baseline is noise). User-message images are translated from
-  `LanguageModelDataPart` to
-  OpenAI `image_url` data-URI content parts; `provideTokenCount` estimates
-  ~1500 tokens per image.
+- [ ] Add coverage for `setModelContext()` across loaded/unloaded models, automatic (`-1`) sizing, 4K minimum input, `max_context_window`, missing options, and reload failure. Replace the old check this note with tests based on the implemented behavior.
 
-Timeout policy in `LemonadeClient` — wall-clock timeouts are the wrong tool for
-local inference (duration is unbounded), so each path has its own guard:
+### Managed server lifecycle
 
-| Path | Guard | Rationale |
-| --- | --- | --- |
-| Health / models / config / delete (`request()` default) | `REQUEST_TIMEOUT_MS` = 15s inactivity | Local server should answer instantly; fail fast for status polling |
-| `POST /v1/load` | `LOAD_TIMEOUT_MS` = 10min inactivity | Multi-GB GGUF loads sit silent for minutes |
-| Chat (`chatCompletionStream()`) | `STREAM_INACTIVITY_MS` = 120s **silence watchdog** + user cancellation | Every streamed token resets the socket timer, so slow-but-streaming is unaffected; only a hung server trips it |
+- [ ] Verify `ServerManager.start()` and `stop()` transitions for managed process start, reconnecting to an existing Chanh-owned binary, an occupied port owned by another process, and LEMOND-to-non-LEMOND mode changes. Ensure `_usingExistingServer` and `process` ownership cannot be confused.
 
-Watchdog notes:
+### Model-load error UX
 
-- `req.setTimeout()` measures socket inactivity, not elapsed time — any byte
-  resets it.
-- The 120s also bounds **prefill** (silence before the first token). Huge
-  agent-mode prompts on CPU-only large models can exceed it → false "hung"
-  error. Bump the constant if that shows up in practice.
-- Non-streaming `chatCompletion()` was deleted (only `chatCompletionStream()`
-  remains); generation must always go through the streaming path.
-- `chatCompletionStream()` treats tool-call-only responses (no text) as valid —
-  agent-mode models often answer with only a tool call.
+- [ ] Confirm the Lemonade error codes emitted for incomplete or corrupt model files, then test the friendly message in `loadModel()`. Avoid matching on an unverified single code if current servers expose a structured error shape.
 
-### Load-error UX investigation (from `Bert-Phishing-ONNX`, 2026-09-24)
+### Download ownership migration
 
-- Server returned `500 {"error":{"code":"model_load_error","message":"Failed
-  to load model ... need model.onnx + tokenizer.json + config.json"}}` because the
-  Hugging Face cache directory was incomplete or corrupt.
-- The raw error was double-wrapped as `Failed to load model: Error: Failed to
-  load model: 500 {...}`.
-- `Bert-Phishing-ONNX` is a classification model, not a chat/tool-calling model.
-  Its appearance in chat/agent model selection may indicate a model-filtering gap.
+- [ ] Probe the supported server's download-list and download-control contracts. If migration is supported, add typed read-only discovery first, reconcile server jobs with tree rows, and preserve local `workspaceState` as a fallback until compatibility is proven.
 
-## TODO
+### Capability-group actions
 
-### Inline TODOs (src/)
+- [ ] Decide whether capability group headers need meaningful actions. Grouping, icons, tooltips, multi-capability duplication, hot filtering, and loaded-first ordering are already implemented; only add commands that provide real user value.
 
-- [ ] `lmcProvider.ts` — reconsider the `/v1/health` pre-check before `/v1/load`
-  (2 round-trips on a cold model; maybe just load + catch).
-- [ ] `modelManager.ts` `setModelContext()` — `// TODO: check this`.
-- [ ] `serverTreeview.ts` capability groups — `// TODO: Consider adding additional context or actions for capability groups.`
+### Chat command prompts
 
-### Load-error UX follow-up
-
-- [ ] Decide whether chat/agent model selection should filter out
-  classification models such as `Bert-Phishing-ONNX`.
+- [ ] Replace the generic `/fix` and `/explain` system prompts with tested, repository-safe prompt templates that clearly separate instructions, selected code, and user context.
