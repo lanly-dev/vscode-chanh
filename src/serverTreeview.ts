@@ -766,7 +766,7 @@ export class ServerViewProvider implements TreeDataProvider<TreeItem>, Disposabl
 
     const loadedIds = new Set(server.health?.all_models_loaded.map((m) => m.model_name) ?? [])
     const orderedModels = this.sortModelsLoadedFirst(server.models, loadedIds)
-    return orderedModels.map((model) => this.toAvaModelItem(model, loadedIds.has(model.id)))
+    return orderedModels.map((model) => this.toInsModelItem(model, loadedIds.has(model.id)))
   }
 
   /** Downloadable catalog models (not yet on disk) — each pulls on click. */
@@ -848,7 +848,7 @@ export class ServerViewProvider implements TreeDataProvider<TreeItem>, Disposabl
     // Hot models get the flame icon so the user can spot them at a glance;
     // non-hot downloadable models keep the cloud-download icon.
     const isHot = ModelManager.isHotModel(model)
-    item.iconPath = isHot ? getCapIcon(this.context.extensionUri, 'hot') : new ThemeIcon('circle-filled')
+    item.iconPath = isHot ? getCapIcon(this.context.extensionUri, 'hot') : new ThemeIcon('circle')
 
     let tooltip = this.buildModelTooltip(model, { isDownloadable: true })
     if (isHot) tooltip = `🔥 ${tooltip}`
@@ -859,7 +859,7 @@ export class ServerViewProvider implements TreeDataProvider<TreeItem>, Disposabl
   }
 
   /** Build one installed-model leaf row (shared by flat and grouped modes). */
-  private toAvaModelItem(model: LemonadeModel, isLoaded: boolean, showHotFlame = false): TreeItem {
+  private toInsModelItem(model: LemonadeModel, isLoaded: boolean, showHotFlame = false): TreeItem {
     const item = new TreeItem(model.id, None) as TreeItem & { modelId: string }
     item.modelId = model.id
 
@@ -890,7 +890,7 @@ export class ServerViewProvider implements TreeDataProvider<TreeItem>, Disposabl
     // flat list the flame is suppressed so no per-model marker is needed.
     if (showHotFlame && isHot && !isLoaded) item.iconPath = getCapIcon(this.context.extensionUri, 'hot')
     else if (isLoaded) item.iconPath = new ThemeIcon('pass-filled', new ThemeColor('charts.green'))
-    else item.iconPath = new ThemeIcon('circle')
+    else item.iconPath = new ThemeIcon('circle-filled')
 
     item.tooltip = tooltip
 
@@ -976,7 +976,7 @@ export class ServerViewProvider implements TreeDataProvider<TreeItem>, Disposabl
     const loadedIds = new Set(server?.health?.all_models_loaded.map((m) => m.model_name) ?? [])
     // Within each capability group, surface loaded models first.
     const ordered = this.sortModelsLoadedFirst(filtered, loadedIds)
-    return ordered.map((m) => this.toAvaModelItem(m, loadedIds.has(m.id), true))
+    return ordered.map((m) => this.toInsModelItem(m, loadedIds.has(m.id), true))
   }
 
   /**
