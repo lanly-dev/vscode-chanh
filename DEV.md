@@ -63,30 +63,10 @@ The stream watchdog resets whenever socket activity arrives. It also bounds init
 
 ## Current TODO
 
-### Agent-provider load path
-
-- [ ] In `lmcProvider.ts`, remove or cache the `/v1/health` pre-check before `/v1/load`. The current path adds a health round trip on every agent response and relies on `loadModel()` handling an already-loaded model. Measure behavior and preserve compatibility with supported servers.
-
-### Context configuration validation
-
-- [ ] Add coverage for `setModelContext()` across loaded/unloaded models, automatic (`-1`) sizing, 4K minimum input, `max_context_window`, missing options, and reload failure. Replace the old check this note with tests based on the implemented behavior.
-
-### Managed server lifecycle
-
-- [ ] Verify `ServerManager.start()` and `stop()` transitions for managed process start, reconnecting to an existing Chanh-owned binary, an occupied port owned by another process, and LEMOND-to-non-LEMOND mode changes. Ensure `_usingExistingServer` and `process` ownership cannot be confused.
-
-### Model-load error UX
-
-- [ ] Confirm the Lemonade error codes emitted for incomplete or corrupt model files, then test the friendly message in `loadModel()`. Avoid matching on an unverified single code if current servers expose a structured error shape.
-
-### Download ownership migration
-
-- [ ] Probe the supported server's download-list and download-control contracts. If migration is supported, add typed read-only discovery first, reconcile server jobs with tree rows, and preserve local `workspaceState` as a fallback until compatibility is proven.
-
-### Capability-group actions
-
-- [ ] Decide whether capability group headers need meaningful actions. Grouping, icons, tooltips, multi-capability duplication, hot filtering, and loaded-first ordering are already implemented; only add commands that provide real user value.
-
-### Chat command prompts
-
-- [ ] Replace the generic `/fix` and `/explain` system prompts with tested, repository-safe prompt templates that clearly separate instructions, selected code, and user context.
+- [ ] `src/lmcProvider.ts:130` - cache or drop the `/v1/health` pre-check before `/v1/load`.
+- [ ] `src/modelManager.ts:215` - add tests for `setModelContext()` sizing, min/max limits, and reload failure.
+- [ ] `src/serverManager.ts:500` - verify port-occupied, reconnect, and mode-switch paths in `start()` / `stop()`.
+- [ ] `src/lemonadeClient.ts:136` - confirm real error codes for corrupt model files.
+- [ ] `src/lemonadeClient.ts:498` - replace generic `/fix` and `/explain` prompts with tested templates.
+- [ ] `src/serverTreeview.ts:741` - decide on capability-group header actions, if any.
+- [ ] `src/serverTreeview.ts:100` - probe server download APIs and reconcile with local partials.
