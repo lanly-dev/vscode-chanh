@@ -33,6 +33,14 @@ Known limitations:
 
 The client currently does not call Lemonade's download-list/control APIs. Before adopting them, verify the exact response schema, supported actions, restart semantics, and behavior on the oldest server version this extension intends to support. Keep local state as a compatibility fallback unless that migration is deliberately implemented and tested.
 
+## Backend installation and `/v1/system-info`
+
+`ServerViewProvider` caches the `/v1/system-info` report (`_systemInfo` / `_systemInfoStale`) because it is large and only changes when a backend is installed. `refreshServer()` sets `_systemInfoStale = true` so the next `getChildren` re-queries it, and `ModelManager.selectBackend()` calls `refreshServer()` right after an on-demand `installBackend()`.
+
+Known limitation:
+
+- After an on-demand backend install, the server's `/v1/system-info` is not guaranteed to report the new backend immediately. The freshly fetched report can still show `state: 'installable'` for the backend that was just installed, so the tree's backend count, the installed/installed icons, and the `Installed` / `Installable` labels in the "Select Backend" quick pick can lag behind reality. Only the server is authoritative here; the extension does not patch the cached response. A later `refreshServer()` (or restarting the server) is what converges the view.
+
 ## Native agent provider contract
 
 `ChanhLmcProvider` is a thin translator between VS Code's agent harness and the OpenAI-compatible Lemonade API:
@@ -70,3 +78,4 @@ The stream watchdog resets whenever socket activity arrives. It also bounds init
 - [ ] `src/lemonadeClient.ts:498` - replace generic `/fix` and `/explain` prompts with tested templates.
 - [ ] `src/serverTreeview.ts:741` - decide on capability-group header actions, if any.
 - [ ] `src/serverTreeview.ts:100` - probe server download APIs and reconcile with local partials.
+- [ ] `src/serverTreeview.ts:129` - decide how to surface backends the server has installed but `/v1/system-info` still reports as `installable`.
