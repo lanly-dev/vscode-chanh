@@ -55,6 +55,8 @@ Known limitation:
 
 Do not add a provider-side tool-execution loop or completion retry loop; VS Code owns that agent loop.
 
+The `LanguageModelChatProvider` interface in the pinned 1.138.0 engine exposes only the four methods above — there is no prepare/precache hook — so the provider cannot inject project context itself. Improving how the model behaves in agent mode is therefore a matter of correct metadata and registered tools, not a provider-side loop. See "Agent quality (native agent mode)" under Current TODO for the specific gaps.
+
 ## Request and timeout policy
 
 `LemonadeClient` uses socket inactivity rather than total wall-clock limits:
@@ -70,6 +72,19 @@ The stream watchdog resets whenever socket activity arrives. It also bounds init
 ---
 
 ## Current TODO
+
+### Agent quality (native agent mode)
+
+- [ ] `src/lmcProvider.ts:252` - replace the `chars / 4` estimate in `provideTokenCount()` with real tokenizer counts. The host budgets the context from this, so undercounting ships oversized requests that the server truncates or rejects. Check for a `/v1/tokenize` route or a ratio reported by `/v1/stats`; a model-specific constant is the fallback. Highest-impact item here: wrong counts make agent mode look unreliable for reasons unrelated to the model.
+- [ ] `src/lmcProvider.ts:123` - set `maxOutputTokens` from a real value instead of reusing `maxInputTokens`. Declaring output equal to input inflates the host's budget and under-reserves room for the prompt.
+- [ ] `src/lmcProvider.ts:113` - stop defaulting `maxInput` to 8192 when the server reports no context size. That silently caps a larger model; omit the field or read `defaults` from `/v1/models/{id}/options`.
+- [ ] `src/lmcProvider.ts:110` - make the `chat` / `tool-calling` label match case-insensitive, reusing `ModelManager.capabilityFor()`. The current exact match means a differently-cased label drops every model from the picker with no error.
+- [ ] `src/lmcProvider.ts:119` - derive a per-model `version` (mtime or size) instead of the hardcoded `'1.0.0'` on line 118, so the picker busts its cache when a model is updated.
+- [ ] `src/lmcProvider.ts:203` - honor `options.toolMode` beyond the single-tool `Required` case; currently everything else becomes `tool_choice: 'auto'`.
+- [ ] `src/lmcProvider.ts:240` - verify parallel tool-call ids survive the round trip; some local servers renumber them.
+- [ ] Register agent tools via `vscode.lm.registerTool()` (available in the pinned 1.138.0 engine) so the model can read files, search, and inspect symbols. The provider API has no prepare/precache hook, so tools are the supported route to autonomous behavior; the alternative is to build the loop in the `vscode.chat` participant.
+
+### Existing
 
 - [ ] `src/lmcProvider.ts:130` - cache or drop the `/v1/health` pre-check before `/v1/load`.
 - [ ] `src/modelManager.ts:215` - add tests for `setModelContext()` sizing, min/max limits, and reload failure.
