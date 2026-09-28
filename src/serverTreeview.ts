@@ -721,8 +721,15 @@ export class ServerViewProvider implements TreeDataProvider<TreeItem>, Disposabl
     }
 
     return loadedModels.map((model) => {
-      const item = new TreeItem(model.model_name, None)
+      const item = new TreeItem(model.model_name, None) as TreeItem & { modelId: string }
+      // The inline Unload/Remove menus on this row hand the item to the command
+      // handlers, which read `modelId` from it.
+      item.modelId = model.model_name
       item.iconPath = new ThemeIcon('pass-filled', new ThemeColor('charts.green'))
+      // Loaded models get a green label through the FileDecoration provider, the
+      // same way installed-model rows do (the tree-item API cannot color label
+      // text directly). Every row here is loaded, hence the hard-coded true.
+      item.resourceUri = ModelDecorationProvider.uriFor(model.model_name, true)
       // Enrich the runtime status with the downloaded model's catalog metadata
       // (size, context, recipe...) when the model is in the server's model list.
       const catalogModel = server.models?.find((m) => m.id === model.model_name)
