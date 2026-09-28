@@ -47,11 +47,6 @@ export class ServerManager {
     return this._status
   }
 
-  /** Why the server is in ERROR (undefined otherwise). Shown on the status row. */
-  get statusError(): string | undefined {
-    return this._statusError
-  }
-
   /** Get the lemond binary port. */
   get lemondPort(): number {
     return this._lemondPort
@@ -91,11 +86,6 @@ export class ServerManager {
   get activeServerName(): string {
     if (this._serverName) return this._serverName
     return 'Missing Active Server'
-  }
-
-  /** Get whether the lemond server is selected. */
-  get isLemondActive(): boolean {
-    return this.activeServerUrl === this.lemondUrl
   }
 
   /** A client bound to the currently active server for model operations. */

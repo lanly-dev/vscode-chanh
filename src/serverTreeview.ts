@@ -706,7 +706,6 @@ export class ServerViewProvider implements TreeDataProvider<TreeItem>, Disposabl
       pinnedHeader.contextValue = 'CHANH_PINNED_HEADER'
       items.push(pinnedHeader)
     }
-
     return items
   }
 
@@ -780,7 +779,6 @@ export class ServerViewProvider implements TreeDataProvider<TreeItem>, Disposabl
   /** Render the latest progress state onto a cached download row in place. */
   private applyDownloadProgress(item: TreeItem, download: DownloadProgress): void {
     item.tooltip = download.message ? `${download.modelId}\n${download.message}` : download.modelId
-    console.log(`Applying download progress for model ${download.modelId}:`, download)
     const subtextParts: string[] = []
     const hasBytes = typeof download.written === 'number' && typeof download.total === 'number'
     // One decimal so the percentage visibly advances on every repaint; a whole

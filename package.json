@@ -283,7 +283,7 @@
         {
           "command": "chanh.ncp.unloadModel",
           "when": "view == CHANH_TREEVIEW && (viewItem =~ /CHANH_MODEL_LOADED/ || viewItem == CHANH_LOADED_MODEL)",
-          "group": "inline"
+          "group": "inline@2"
         },
         {
           "command": "chanh.ncp.removeModel",

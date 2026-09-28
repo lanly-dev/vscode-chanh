@@ -41,11 +41,6 @@ export class LemonadeClient {
     return this.baseUrl.startsWith('https://') ? https : http
   }
 
-  /** Update the base URL (e.g., when port changes). */
-  updatePort(port: number): void {
-    this.baseUrl = `http://localhost:${port}`
-  }
-
   /** Set a custom base URL. */
   setBaseUrl(url: string): void {
     // Clean trailing slashes
