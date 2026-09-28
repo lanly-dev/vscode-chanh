@@ -17,6 +17,7 @@ import {
 
 
 import { LemonadeClient } from './lemonadeClient'
+import { refreshEvents } from './events'
 import { Logger } from './logger'
 import { ModelManager } from './modelManager'
 import { ServerManager } from './serverManager'
@@ -97,6 +98,8 @@ export class ChatParticipant implements Disposable {
         this.selectedModel = selected.label
         // Load the model if not already loaded
         await this.client.loadModel(selected.label)
+        // Keep the tree view's loaded rows in sync with this implicit load.
+        refreshEvents.fire()
         return selected.label
       }
     } catch (err) {
@@ -159,11 +162,22 @@ export class ChatParticipant implements Disposable {
       messages.splice(1, 0, contextMessage)
     }
 
-    // Stream the response
+    // Stream the response. The server reports per-model `is_busy`, so repaint
+    // the tree around the stream to keep the loaded row's busy/idle honest.
+    let paintedBusy = false
+    const markBusy = () => {
+      if (paintedBusy) return
+      paintedBusy = true
+      refreshEvents.fire()
+    }
+    refreshEvents.fire()
     try {
       const fullResponse = await this.client.chatCompletionStream(
         { model, messages },
-        (tokenChunk) => response.markdown(tokenChunk),
+        (tokenChunk) => {
+          markBusy()
+          response.markdown(tokenChunk)
+        },
         this.createAbortSignal(token)
       )
 
@@ -176,6 +190,8 @@ export class ChatParticipant implements Disposable {
       await this.modelManager.offerContextIncrease(model, err)
       response.markdown(`\n\n**Error:** ${message}`)
       return { errorDetails: { message } }
+    } finally {
+      refreshEvents.fire()
     }
   }
 

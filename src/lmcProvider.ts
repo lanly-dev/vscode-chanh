@@ -1,4 +1,5 @@
 import * as vscode from 'vscode'
+import { refreshEvents } from './events'
 import { Logger } from './logger'
 import { ServerStatus } from './interfaces'
 import type { ChatContentPart, ChatMessage, OpenAIMessageToolCall } from './interfaces'
@@ -73,6 +74,17 @@ class ChanhLmcProvider implements vscode.LanguageModelChatProvider, vscode.Dispo
     if (!this.disposed) this._onDidChange.fire()
   }
 
+  /**
+   * Repaint the tree so the loaded-model row tracks the request lifecycle:
+   * `/v1/health` reports `is_busy`, so the row should read "busy" while a
+   * completion runs and fall back to "idle" when it settles. The server only
+   * flips to busy once the request is being served, so the caller re-fires
+   * after the first token as well as at the end.
+   */
+  private syncRuntimeStatus(): void {
+    if (!this.disposed) refreshEvents.fire()
+  }
+
   register(): vscode.Disposable {
     const disposable = vscode.lm.registerLanguageModelChatProvider('chanh', this)
     Logger.info('Registered Chanh language model provider')
@@ -137,8 +149,12 @@ class ChanhLmcProvider implements vscode.LanguageModelChatProvider, vscode.Dispo
       } catch {
         alreadyLoaded = false
       }
-      if (!alreadyLoaded) await client.loadModel(model.id)
-      else Logger.info(`Model already loaded, skipping load: ${model.id}`)
+      if (!alreadyLoaded) {
+        await client.loadModel(model.id)
+        // Agent mode loaded the model on demand, so the tree view's loaded
+        // state is stale: ask it to re-query before repainting.
+        refreshEvents.fire()
+      } else Logger.info(`Model already loaded, skipping load: ${model.id}`)
     } catch (err) {
       Logger.warn(`Could not preload '${model.id}': ${err}`)
     }
@@ -194,6 +210,15 @@ class ChanhLmcProvider implements vscode.LanguageModelChatProvider, vscode.Dispo
     // Streamed: the non-streaming request path has a 15s inactivity timeout
     // that local models blow past on large agent-mode prompts.
     const toolCalls: ToolCall[] = []
+    // Paint the loaded row's busy state as the request starts, once the server
+    // is actually serving, and again when it settles back to idle.
+    let paintedBusy = false
+    const markBusy = () => {
+      if (paintedBusy) return
+      paintedBusy = true
+      this.syncRuntimeStatus()
+    }
+    this.syncRuntimeStatus()
     try {
       if (token.isCancellationRequested) return
       await client.chatCompletionStream(
@@ -202,7 +227,10 @@ class ChanhLmcProvider implements vscode.LanguageModelChatProvider, vscode.Dispo
           messages: base,
           ...(tools.length > 0 ? { tools, tool_choice: toolChoice } : {})
         },
-        (text) => progress.report(new vscode.LanguageModelTextPart(text)),
+        (text) => {
+          markBusy()
+          progress.report(new vscode.LanguageModelTextPart(text))
+        },
         abort.signal,
         (raw) => {
           const tc = parseToolCall(raw)
@@ -217,6 +245,7 @@ class ChanhLmcProvider implements vscode.LanguageModelChatProvider, vscode.Dispo
       throw err
     } finally {
       cancel.dispose()
+      this.syncRuntimeStatus()
     }
   }
 
