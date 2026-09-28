@@ -240,19 +240,15 @@ export class ServerManager {
     }
   }
 
-  /** Split the full catalog (?show_all=true) into downloaded vs downloadable models. */
+  /**
+   * Split the full catalog into downloaded vs downloadable models.
+   */
   private async fetchAllCatalogModels(client: LemonadeClient):
     Promise<{ models: LemonadeModel[], downloadableModels: LemonadeModel[] }> {
-    try {
-      const all = await client.listModels(true)
-      return {
-        models: all.filter((m) => m.downloaded !== false),
-        downloadableModels: all.filter((m) => m.downloaded === false)
-      }
-    } catch {
-      // Older servers may not support ?show_all=true — fall back to downloaded only.
-      const models = await client.listModels()
-      return { models, downloadableModels: [] }
+    const all = await client.listModels(true)
+    return {
+      models: all.filter((m) => m.downloaded !== false),
+      downloadableModels: all.filter((m) => m.downloaded === false)
     }
   }
 

@@ -79,3 +79,4 @@ The stream watchdog resets whenever socket activity arrives. It also bounds init
 - [ ] `src/serverTreeview.ts:741` - decide on capability-group header actions, if any.
 - [ ] `src/serverTreeview.ts:100` - probe server download APIs and reconcile with local partials.
 - [ ] `src/serverTreeview.ts:129` - decide how to surface backends the server has installed but `/v1/system-info` still reports as `installable`.
+- [ ] Leaking test

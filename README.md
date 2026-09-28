@@ -43,6 +43,8 @@ Plain chat models (no `tool-calling` label) remain available through the `@chanh
 | `chanh.maxLoadedModels` | (unset) | Maximum number of loaded models. Use `-1` for unlimited. |
 
 ## Release Notes
+### 0.1.1
+- Add backends/recipes management
 
 ### 0.1.0
 - Change the extension name from Lemon to Chanh

@@ -3,12 +3,45 @@ All notable changes to the "Chanh" extension will be documented in this file.\
 Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how to structure this file.
 
 ## [TODO]
-- Backend runtime management
 - Chat follow up
 - Explore and add functionality for different types of models, e.g. image
 - Focus on coding-related features
 - GPU stats
 - Token stats
+
+## [0.1.1] - 2026-09-27
+- Added backends/recipes management
+- `Show Model Info` inline button on downloadable model rows, same as the installed/loaded rows
+- Treeview now repaints when agent mode loads a model on demand - show the request lifecycle (`idle` / `busy` / `streaming`)
+- Models reload if backend change
+- 19 files, 69.75 KB, 1.138.0
+
+```
+chanh-0.1.1.vsix
+├─ [Content_Types].xml
+├─ extension.vsixmanifest
+└─ extension/
+   ├─ LICENSE.txt [1.06 KB]
+   ├─ changelog.md [4.05 KB]
+   ├─ package.json [12.93 KB]
+   ├─ readme.md [3.07 KB]
+   ├─ dist/
+   │  └─ extension.js [80.3 KB]
+   └─ media/
+      ├─ chanh.png [31.65 KB]
+      ├─ chanh.svg [3.83 KB]
+      └─ capabilities/
+         ├─ 3d.svg [0.36 KB]
+         ├─ classification.svg [0.4 KB]
+         ├─ embedding.svg [0.45 KB]
+         ├─ hot.svg [0.44 KB]
+         ├─ image.svg [0.33 KB]
+         ├─ llm.svg [0.46 KB]
+         ├─ reranking.svg [0.3 KB]
+         ├─ tool-calling.svg [0.29 KB]
+         ├─ transcription.svg [0.3 KB]
+         └─ tts.svg [0.29 KB]
+```
 
 ## [0.1.0] - 2026-09-21
 ### Renamed

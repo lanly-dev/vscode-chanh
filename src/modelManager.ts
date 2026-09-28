@@ -625,18 +625,12 @@ export class ModelManager {
     if (!await this.serverManager.ensureRunning()) return
 
     try {
-      // Options and health are best-effort: older servers may not expose them,
-      // and neither endpoint knows anything about a model that was never pulled.
-      // `show_all=true` includes not-yet-downloaded catalog entries; older
-      // servers reject the query param, so fall back to the downloaded list.
-      const [downloaded, all, health, options] = await Promise.all([
-        this.client.listModels(),
-        this.client.listModels(true).catch(() => undefined),
+      const [all, health, options] = await Promise.all([
+        this.client.listModels(true),
         this.client.getHealth().catch(() => undefined),
         this.client.getModelOptions(modelId).catch(() => undefined)
       ])
-      const model = downloaded.find((m) => m.id === modelId)
-        ?? all?.find((m) => m.id === modelId)
+      const model = all.find((m) => m.id === modelId)
       if (!model) {
         showErrorMessage(`Model '${modelId}' was not found on the server`)
         return
