@@ -238,7 +238,7 @@
         {
           "command": "chanh.ncp.downloadModel",
           "when": "view == CHANH_TREEVIEW && viewItem == CHANH_DOWNLOADABLE_MODEL",
-          "group": "inline"
+          "group": "inline@2"
         },
         {
           "command": "chanh.toggleModelGrouping",
@@ -303,6 +303,11 @@
         {
           "command": "chanh.ncp.showModelInfo",
           "when": "view == CHANH_TREEVIEW && viewItem =~ /CHANH_MODEL_(INSTALLED|LOADED)/",
+          "group": "inline"
+        },
+        {
+          "command": "chanh.ncp.showModelInfo",
+          "when": "view == CHANH_TREEVIEW && viewItem == CHANH_DOWNLOADABLE_MODEL",
           "group": "inline"
         },
         {

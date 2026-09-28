@@ -612,7 +612,9 @@ export class ModelManager {
   /**
    * Show every server-reported detail for a model in a popup panel:
    * capabilities, size, context (effective/saved/default), recipe, ownership,
-   * add date, and current runtime state when loaded.
+   * add date, and current runtime state when loaded. Works for downloaded and
+   * for catalog-only (not yet pulled) models, since the tree offers this on
+   * both kinds of row.
    */
   async showModelInfo(item?: { modelId?: string }): Promise<void> {
     const modelId = item?.modelId
@@ -623,13 +625,18 @@ export class ModelManager {
     if (!await this.serverManager.ensureRunning()) return
 
     try {
-      // Options and health are best-effort: older servers may not expose them.
-      const [models, health, options] = await Promise.all([
+      // Options and health are best-effort: older servers may not expose them,
+      // and neither endpoint knows anything about a model that was never pulled.
+      // `show_all=true` includes not-yet-downloaded catalog entries; older
+      // servers reject the query param, so fall back to the downloaded list.
+      const [downloaded, all, health, options] = await Promise.all([
         this.client.listModels(),
+        this.client.listModels(true).catch(() => undefined),
         this.client.getHealth().catch(() => undefined),
         this.client.getModelOptions(modelId).catch(() => undefined)
       ])
-      const model = models.find((m) => m.id === modelId)
+      const model = downloaded.find((m) => m.id === modelId)
+        ?? all?.find((m) => m.id === modelId)
       if (!model) {
         showErrorMessage(`Model '${modelId}' was not found on the server`)
         return
@@ -678,7 +685,9 @@ export class ModelManager {
       row('Status', loaded
         ? ['Loaded', loaded.is_busy ? 'busy' : 'idle', loaded.is_streaming ? 'streaming' : undefined]
           .filter(Boolean).join(' — ')
-        : 'Downloaded (not loaded)'),
+        : model.downloaded === false
+          ? 'Not downloaded — pull to install'
+          : 'Downloaded (not loaded)'),
       row('Size', formatSize(model.size)),
       row('Context (effective)', fmtCtx(effectiveCtx)),
       row('Context (reported)', fmtCtx(model.context_length)),
