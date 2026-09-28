@@ -641,15 +641,20 @@ export class ServerViewProvider implements TreeDataProvider<TreeItem>, Disposabl
     if (!server) return []
 
     const items: TreeItem[] = []
-    // Status indicator — on error, the message becomes the row's subtext
-    // (description) so the user sees what's wrong next to the status.
+    // Status indicator — on error the reason goes in the row's tooltip in full
+    // (HTTP error bodies are long and multi-line). The row keeps no subtext:
+    // the tooltip is the only place the message appears.
     const { color, icon, text } = getServerStatusChar(server.status)
     const statusItem = new TreeItem(`Status: ${text}`, None)
     statusItem.iconPath = new ThemeIcon(icon, new ThemeColor(color))
     statusItem.contextValue = `CHANH_SERVER_${server.status}`
-    if (server.status === ServerStatus.ERROR && server.error) {
-      statusItem.description = server.error
-    }
+    const errorMessage = server.status === ServerStatus.ERROR ? server.error : undefined
+    statusItem.tooltip = [
+      `Status: ${text}`,
+      `Server: ${server.name}`,
+      `URL: ${server.url || 'not configured'}`,
+      ...(errorMessage ? ['', `Error: ${errorMessage}`] : [])
+    ].join('\n')
     items.push(statusItem)
 
     // Server URL

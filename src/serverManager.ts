@@ -23,11 +23,15 @@ export class ServerManager {
   private _serverName: string = ''
   private _serverUrl: string = ''
   private _status: ServerStatus = ServerStatus.STOPPED
+  /** Why the status is ERROR (shown on the status row); cleared on any other status. */
+  private _statusError?: string
   private _usingExistingServer = false
 
   private _client?: LemonadeClient
   private _fatalErrorShown = false
   private _processExited = false
+  /** Last line the lemond process wrote to stderr; explains a failed startup. */
+  private _lastStderr?: string
   private _lastAppliedMode: ServerMode = ServerMode.LEMONADE
 
   private process: ChildProcess | null = null
@@ -41,6 +45,11 @@ export class ServerManager {
   /** Get the current server status. */
   get status(): ServerStatus {
     return this._status
+  }
+
+  /** Why the server is in ERROR (undefined otherwise). Shown on the status row. */
+  get statusError(): string | undefined {
+    return this._statusError
   }
 
   /** Get the lemond binary port. */
@@ -163,8 +172,13 @@ export class ServerManager {
         break
     }
 
-    // Reflect the active server's status onto the manager.
-    if (instance) this.setStatus(instance.status)
+    // Reflect the active server's status onto the manager. A probe that failed
+    // without its own message keeps the reason recorded by an earlier action
+    // (e.g. a failed start), so the status row can still explain the error.
+    if (instance) {
+      if (instance.status === ServerStatus.ERROR && !instance.error) instance.error = this._statusError
+      this.setStatus(instance.status, instance.error)
+    }
     return instance
   }
 
@@ -185,12 +199,16 @@ export class ServerManager {
         downloadableModels,
         maxLoadedModels: health.max_loaded_models
       }
-    } catch {
+    } catch (err) {
+      const reason = `Could not reach the Lemonade Server at http://localhost:${lemonadePort}: ` +
+        `${err instanceof Error ? err.message : String(err)}`
+      Logger.warn(reason)
       return {
         id: ServerMode.LEMONADE,
         name: 'Lemonade Server (System)',
         url: `http://localhost:${lemonadePort}`,
-        status: ServerStatus.ERROR
+        status: ServerStatus.ERROR,
+        error: reason
       }
     }
   }
@@ -268,30 +286,46 @@ export class ServerManager {
       }
     }
 
-    // Server is healthy — fetch full details
-    const health = await lemondClient.getHealth()
-    const { models, downloadableModels } = await this.fetchAllCatalogModels(lemondClient)
-    let maxLoadedModels = config.get<number>('maxLoadedModels', 1)
+    // Server is healthy — fetch full details. If a detail endpoint fails (e.g. a
+    // 500 from /v1/models), report the server's own message on the status row
+    // instead of letting the tree render with no data and no explanation.
+    try {
+      const health = await lemondClient.getHealth()
+      const { models, downloadableModels } = await this.fetchAllCatalogModels(lemondClient)
+      let maxLoadedModels = config.get<number>('maxLoadedModels', 1)
 
-    // If the server reports its max_loaded_models, keep the extension config in sync
-    if (typeof health.max_loaded_models === 'number' && Number.isInteger(health.max_loaded_models)) {
-      maxLoadedModels = health.max_loaded_models
-      if (config.get<number>('maxLoadedModels', 1) !== maxLoadedModels) {
-        await config.update('maxLoadedModels', maxLoadedModels, ConfigurationTarget.Global)
-        Logger.info(`Synced chanh.maxLoadedModels from server to ${maxLoadedModels}`)
+      // If the server reports its max_loaded_models, keep the extension config in sync
+      if (typeof health.max_loaded_models === 'number' && Number.isInteger(health.max_loaded_models)) {
+        maxLoadedModels = health.max_loaded_models
+        if (config.get<number>('maxLoadedModels', 1) !== maxLoadedModels) {
+          await config.update('maxLoadedModels', maxLoadedModels, ConfigurationTarget.Global)
+          Logger.info(`Synced chanh.maxLoadedModels from server to ${maxLoadedModels}`)
+        }
       }
-    }
 
-    return {
-      id: ServerMode.LEMOND,
-      name: 'lemond (Managed by Chanh)',
-      url: this.lemondUrl,
-      status: ServerStatus.RUNNING,
-      version: this.binaryManager.getInstalledVersion() ?? undefined,
-      health,
-      models,
-      downloadableModels,
-      maxLoadedModels
+      return {
+        id: ServerMode.LEMOND,
+        name: 'lemond (Managed by Chanh)',
+        url: this.lemondUrl,
+        status: ServerStatus.RUNNING,
+        version: this.binaryManager.getInstalledVersion() ?? undefined,
+        health,
+        models,
+        downloadableModels,
+        maxLoadedModels
+      }
+    } catch (err) {
+      const reason = `lemond is reachable but returned an error: ${err instanceof Error ? err.message : String(err)}`
+      Logger.warn(reason)
+      return {
+        id: ServerMode.LEMOND,
+        name: 'lemond (Managed by Chanh)',
+        url: this.lemondUrl,
+        status: ServerStatus.ERROR,
+        error: reason,
+        version: this.binaryManager.getInstalledVersion() ?? undefined,
+        maxLoadedModels: config.get<number>('maxLoadedModels', 1)
+      }
     }
   }
 
@@ -488,10 +522,16 @@ export class ServerManager {
     })
   }
 
-  /** Update the status and notify callbacks (only on an actual change). */
-  private setStatus(status: ServerStatus): void {
-    if (this._status === status) return
+  /**
+   * Update the status and notify callbacks (only on an actual change). `error`
+   * is the reason to surface on the status row when the new status is ERROR;
+   * any other status clears the recorded reason.
+   */
+  private setStatus(status: ServerStatus, error?: string): void {
+    const message = status === ServerStatus.ERROR ? error : undefined
+    if (this._status === status && this._statusError === message) return
     this._status = status
+    this._statusError = message
     for (const callback of this.statusChangeCallbacks) callback(status)
   }
 
@@ -550,19 +590,19 @@ export class ServerManager {
       const owner = ownerPaths.length
         ? ownerPaths.join(', ')
         : `unknown process (PID available via netstat port ${this._lemondPort})`
+      const reason = `Port ${this._lemondPort} is already in use by: ${owner}. ` +
+        'Connect to that server via chanh.serverMode or change chanh.lemondPort.'
       showInformationMessage(
-        `Port ${this._lemondPort} is already in use by: ${owner}. ` +
-        'If this is your own Lemonade server, connect to it via chanh.serverMode ' +
-        'instead of starting a new lemond binary, or change chanh.lemondPort.'
+        reason + ' If this is your own Lemonade server, connect to it instead of starting a new lemond binary.'
       )
-      this.setStatus(ServerStatus.ERROR)
+      this.setStatus(ServerStatus.ERROR, reason)
       return false
     }
 
     // Ensure binary is installed
     const installed = await this.binaryManager.ensureBinary()
     if (!installed) {
-      this.setStatus(ServerStatus.ERROR)
+      this.setStatus(ServerStatus.ERROR, 'Lemonade Server binary missing. Run "Chanh: Download/Update Binary".')
       return false
     }
 
@@ -598,7 +638,7 @@ export class ServerManager {
       })
     } catch (err) {
       Logger.error('Failed to start server process', err)
-      this.setStatus(ServerStatus.ERROR)
+      this.setStatus(ServerStatus.ERROR, `Failed to start Lemonade Server: ${err}`)
       showErrorMessage(`Failed to start Lemonade Server: ${err}`)
       return false
     }
@@ -606,6 +646,7 @@ export class ServerManager {
     // Handle process output
     this._fatalErrorShown = false
     this._processExited = false
+    this._lastStderr = undefined
     this.process.stdout?.on('data', (data: Buffer) => {
       const text = data.toString().trim()
       if (text) Logger.info(`[chanh] ${text}`)
@@ -615,6 +656,9 @@ export class ServerManager {
       const text = data.toString().trim()
       if (!text) return
       Logger.warn(`[chanh] ${text}`)
+      // Remember the last diagnostic: if the process dies before becoming ready,
+      // this is the real cause shown on the status row.
+      this._lastStderr = text
       // The lemond process reports a fatal startup error (e.g. port already
       // in use) through its own logs. Surface it to the user as an error popup.
       if (!this._fatalErrorShown && /already in use|ERROR|will now exit/i.test(text)) {
@@ -625,7 +669,7 @@ export class ServerManager {
 
     this.process.on('error', (err) => {
       Logger.error('Server process error', err)
-      this.setStatus(ServerStatus.ERROR)
+      this.setStatus(ServerStatus.ERROR, `Lemonade Server error: ${err.message}`)
       showErrorMessage(`Lemonade Server error: ${err.message}`)
     })
 
@@ -648,15 +692,25 @@ export class ServerManager {
     }
 
     // The process exited before becoming ready. The real cause (e.g. port
-    // already in use) was already reported, so skip the misleading timeout.
+    // already in use) came through stderr, so report it instead of a timeout.
     if (this._processExited) {
       Logger.info('Server process exited before becoming ready; skipping timeout wait.')
-      this.setStatus(ServerStatus.ERROR)
+      this.setStatus(
+        ServerStatus.ERROR,
+        this._lastStderr
+          ? `Lemonade Server exited before it was ready: ${this._lastStderr}`
+          : 'Lemonade Server exited before it was ready. Check the Chanh output for details.'
+      )
       return false
     }
 
     Logger.error('Server failed to become ready within timeout')
-    this.setStatus(ServerStatus.ERROR)
+    this.setStatus(
+      ServerStatus.ERROR,
+      this._lastStderr
+        ? 'Lemonade Server did not become ready within 60 seconds. Last output: ' + this._lastStderr
+        : 'Lemonade Server failed to start within 60 seconds. Check the output for details.'
+    )
     showErrorMessage('Lemonade Server failed to start within 60 seconds. Check the output for details.')
     return false
   }
