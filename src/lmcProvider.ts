@@ -7,6 +7,19 @@ import type { ToolCall, ToolDefinition } from './interfaces'
 import type { ModelManager } from './modelManager'
 import type { ServerManager } from './serverManager'
 
+/**
+ * Output budget for a context window: half is kept for the prompt and the
+ * conversation, and the ceiling stops a wide window from inviting a rambling
+ * answer. Used both to declare `maxOutputTokens` to the host and to cap each
+ * request, so the two can never disagree. Measured on llama.cpp, the window is
+ * shared by prompt and completion (an uncapped turn stopped at exactly
+ * `total_tokens == ctx_size`), so declaring input and output each equal to the
+ * whole window over-promises by 2x.
+ */
+function outputTokenBudget(maxInput: number): number {
+  return Math.min(Math.max(Math.floor(maxInput / 2), 256), 4096)
+}
+
 function parseToolCall(raw: OpenAIMessageToolCall): ToolCall | undefined {
   let args: Record<string, unknown> = {}
   try {
@@ -118,6 +131,7 @@ class ChanhLmcProvider implements vscode.LanguageModelChatProvider, vscode.Dispo
     Logger.info('Loaded ' + chatModels.length + ' downloaded tool-calling chat models')
     return chatModels.map((m): vscode.LanguageModelChatInformation => {
       const maxInput = m.context_length ?? m.max_context_window ?? 8192
+      const maxOutput = outputTokenBudget(maxInput)
       const vision = m.labels?.some((l) => l.includes('vision')) ?? false
       return {
         id: m.id,
@@ -127,7 +141,7 @@ class ChanhLmcProvider implements vscode.LanguageModelChatProvider, vscode.Dispo
         detail: vision ? 'vision' : undefined,
         tooltip: `${m.id}\nCapabilities: ${(m.labels ?? []).join(', ')}\nContext: ${maxInput.toLocaleString()} tokens`,
         maxInputTokens: maxInput,
-        maxOutputTokens: maxInput,
+        maxOutputTokens: maxOutput,
         capabilities: { toolCalling: true, imageInput: vision }
       }
     })
@@ -319,9 +333,8 @@ class ChanhLmcProvider implements vscode.LanguageModelChatProvider, vscode.Dispo
    * Cap the output of a single request. Uncapped, a turn generated until the
    * server's context filled up (measured on llama.cpp: 4056 of a 4096-token
    * window, ending in `finish_reason: length`), leaving the next agent
-   * iteration no room for its history. Half the window is kept for the prompt
-   * and the conversation, and the ceiling stops a wide window from inviting a
-   * rambling answer. A `max_tokens` from the host wins over the estimate.
+   * iteration no room for its history. A `max_tokens` from the host wins over
+   * the budget this provider declared to it.
    */
   private outputTokenLimit(
     model: vscode.LanguageModelChatInformation,
@@ -329,7 +342,7 @@ class ChanhLmcProvider implements vscode.LanguageModelChatProvider, vscode.Dispo
   ): number {
     const requested: unknown = options.modelOptions?.max_tokens
     if (typeof requested === 'number' && Number.isFinite(requested) && requested > 0) return Math.floor(requested)
-    return Math.min(Math.max(Math.floor(model.maxInputTokens / 2), 256), 4096)
+    return outputTokenBudget(model.maxInputTokens)
   }
 
   dispose(): void {
