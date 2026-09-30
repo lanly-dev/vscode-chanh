@@ -39,7 +39,12 @@ export interface ChatCompletionRequest {
   max_tokens?: number
   top_p?: number
   tools?: ToolDefinition[]
-  tool_choice?: 'auto' | 'none' | { type: 'function', function: { name: string } }
+  /**
+   * `'required'` is the bare-string spelling of "must call some tool". The
+   * explicit single-function form is how a model that only supports one tool in
+   * that mode is addressed. Omitted entirely when no tools are offered.
+   */
+  tool_choice?: 'auto' | 'none' | 'required' | { type: 'function', function: { name: string } }
 }
 
 /** Non-streaming chat completion response. */

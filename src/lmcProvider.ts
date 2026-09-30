@@ -3,7 +3,7 @@ import { refreshEvents } from './events'
 import { Logger } from './logger'
 import { ServerStatus } from './interfaces'
 import { ModelManager } from './modelManager'
-import type { ChatContentPart, ChatMessage, OpenAIMessageToolCall } from './interfaces'
+import type { ChatCompletionRequest, ChatContentPart, ChatMessage, OpenAIMessageToolCall } from './interfaces'
 import type { ToolCall, ToolDefinition } from './interfaces'
 import type { ServerManager } from './serverManager'
 
@@ -25,6 +25,28 @@ function outputTokenBudget(contextWindow: number): number {
 function contextBudget(contextWindow: number): { maxInput: number, maxOutput: number } {
   const maxOutput = outputTokenBudget(contextWindow)
   return { maxInput: Math.max(contextWindow - maxOutput, 1), maxOutput }
+}
+
+/** The `tool_choice` shapes the server accepts for a non-empty tool list. */
+type ToolChoice = NonNullable<ChatCompletionRequest['tool_choice']>
+
+/**
+ * Translate the host's tool requirement into the server's `tool_choice`.
+ *
+ * One required tool stays the explicit function form, which is the shape a
+ * model that "only support[s] a single tool when using this mode" expects.
+ * Several required tools are forwarded as the bare `'required'` string —
+ * llama.cpp accepts it and answers `finish_reason: 'tool_calls'` — instead of
+ * the previous silent downgrade to `'auto'` that dropped the host's
+ * requirement on the floor.
+ *
+ * The call site omits `tool_choice` entirely when no tools are offered, so the
+ * `'auto'` returned for that case is never sent.
+ */
+function toolChoiceFor(required: boolean, tools: ToolDefinition[]): ToolChoice {
+  if (!required || tools.length === 0) return 'auto'
+  if (tools.length === 1) return { type: 'function', function: { name: tools[0].function.name } }
+  return 'required'
 }
 
 /**
@@ -131,12 +153,23 @@ class ChanhLmcProvider implements vscode.LanguageModelChatProvider, vscode.Dispo
    */
   private readonly tokenCounts = new Map<string, number>()
   private tokenCountFallbackWarned = false
+  /**
+   * The model whose tokenizer produced the memoised counts. `/v1/tokenize` is
+   * not model-parameterised — it counts with whichever model the server has
+   * loaded — so a count only holds while that model stays loaded.
+   */
+  private tokenCountModel?: string
 
   constructor(private serverManager: ServerManager) {
     this.onDidChangeLanguageModelChatInformation = this._onDidChange.event
     this._subscriptions.push(
       this.serverManager.onStatusChange((s) => {
-        if (s === ServerStatus.RUNNING) this._onDidChange.fire()
+        if (s === ServerStatus.RUNNING) {
+          // A restart (or a reconnect to another server) discards the loaded
+          // set, so no memoised count is trustworthy any more.
+          this.noteTokenCountModel()
+          this._onDidChange.fire()
+        }
       }),
       this.serverManager.onActiveServerChange(() => this._onDidChange.fire())
     )
@@ -233,6 +266,9 @@ class ChanhLmcProvider implements vscode.LanguageModelChatProvider, vscode.Dispo
         // state is stale: ask it to re-query before repainting.
         refreshEvents.fire()
       } else Logger.info(`Model already loaded, skipping load: ${model.id}`)
+      // Counts taken before this request were tokenized by whatever model was
+      // loaded then, so they do not apply to the one being served now.
+      this.noteTokenCountModel(model.id)
     } catch (err) {
       Logger.warn(`Could not preload '${model.id}': ${err}`)
     }
@@ -278,10 +314,9 @@ class ChanhLmcProvider implements vscode.LanguageModelChatProvider, vscode.Dispo
       type: 'function',
       function: { name: t.name, description: t.description, parameters: t.inputSchema ?? {} }
     }))
-    const requireSingleTool = options.toolMode === vscode.LanguageModelChatToolMode.Required && tools.length === 1
-    const toolChoice = requireSingleTool
-      ? { type: 'function' as const, function: { name: tools[0].function.name } }
-      : ('auto' as const)
+    const requireToolCall =
+      options.toolMode === vscode.LanguageModelChatToolMode.Required && tools.length > 0
+    const toolChoice = toolChoiceFor(requireToolCall, tools)
 
     const abort = new AbortController()
     const cancel = token.onCancellationRequested(() => abort.abort())
@@ -330,6 +365,22 @@ class ChanhLmcProvider implements vscode.LanguageModelChatProvider, vscode.Dispo
           `usually lets the model correct them.`
         )
       }
+      // `Required` is a contract, not a hint, but no local server enforces it:
+      // llama.cpp's `--jinja` accepts `tool_choice` and still answers a prose
+      // prompt with prose (measured: the same prompt returned the same text
+      // under `auto` and `required`, once degenerating into a repeat loop with
+      // no call at all). Text is still worth delivering, so an unmet
+      // requirement is logged where a turn that produced nothing (above)
+      // rejects.
+      if (requireToolCall && toolCalls.length === 0) {
+        Logger.warn(
+          `'${model.id}' was told to call one of ${tools.length} tool(s) ` +
+          `(tool_choice: ${typeof toolChoice === 'string' ? toolChoice : toolChoice.function.name}) ` +
+          `and answered with ${reportedText ? 'text' : 'nothing'} instead` +
+          `${droppedCalls > 0 ? `, besides ${droppedCalls} unusable tool call(s)` : ''}. ` +
+          `Asking again usually produces a call.`
+        )
+      }
       Logger.info(`Language model response complete for ${model.id}`)
     } catch (err) {
       if (token.isCancellationRequested || abort.signal.aborted) return
@@ -354,6 +405,27 @@ class ChanhLmcProvider implements vscode.LanguageModelChatProvider, vscode.Dispo
    * (Thai measured ~2x, code ~1.25-1.36x). Never throws: an unreachable server
    * falls back to the estimate so counting cannot break a request.
    */
+  /**
+   * Note which model the tokenizer is now counting with, dropping the memo when
+   * it changed. The host counts tokens for the model it is about to call, but
+   * `/v1/tokenize` answers with whichever model the server has loaded, so a
+   * count collected for another model was never valid for this one.
+   *
+   * Limitation: the loaded model is only observed where a request ensures it,
+   * or when the server restarts. Counts taken while a different model is loaded
+   * stay cached until then, and two llms loaded at once cannot be told apart
+   * here for the same reason.
+   */
+  private noteTokenCountModel(loadedModel?: string): void {
+    if (loadedModel !== undefined && this.tokenCountModel === loadedModel) return
+    if (this.tokenCounts.size > 0) {
+      Logger.info(`Discarding ${this.tokenCounts.size} cached token count(s) counted by ` +
+        `${this.tokenCountModel ?? 'the previously loaded model'}`)
+    }
+    this.tokenCountModel = loadedModel
+    this.tokenCounts.clear()
+  }
+
   private async countTokens(text: string): Promise<number> {
     if (!text) return 0
     const cached = this.tokenCounts.get(text)
