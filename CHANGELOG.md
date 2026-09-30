@@ -9,6 +9,17 @@ Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how 
 - GPU stats
 - Token stats
 
+## [0.1.2] - 2026-09-30
+- Host token counting uses the server's own tokenizer (`POST /v1/tokenize`) instead of `ceil(chars / 4)`, memoised per text and discarded when the model the server has loaded changes; the character estimate stays as the fallback when the server cannot answer (`ee90799`)
+- Streamed parallel tool calls are split by `index`; a delta without one starts a new call when it announces a different call id, instead of merging two calls into arguments that are not valid JSON (`7dc969f`)
+- A tool call whose `arguments` cannot be parsed is dropped and logged rather than run with no arguments, and a turn that delivers neither text nor a surviving call now fails with the reason (`09937ae`)
+- A single turn is capped by `max_tokens` - half the context window, floor 256, ceiling 4096 - instead of generating until the window filled up (`f00a788`)
+- Truncated completions (`finish_reason: 'length'`) are surfaced: rejected when they produced nothing, warned otherwise (`bd70441`)
+- `maxInputTokens` and `maxOutputTokens` come from one split of the real context window instead of summing to 1.5x it, and the picker tooltip shows the window next to the reserved share (`966d95d`, `64927e1`)
+- The agent picker matches capability labels case-insensitively through `ModelManager.capabilityFor()`, so an `llm`-labelled tool-calling model is listed instead of skipped (`966d95d`)
+- A multi-tool `Required` mode is forwarded as `tool_choice: 'required'` instead of being downgraded to `'auto'`, and a `Required` turn that ends without a tool call is logged with the shape that was sent (`92672be`)
+- `DEV.md` restructured: landed fixes are recorded per commit, separate from endpoint behaviour and disproven items (`e2be660`)
+
 ## [0.1.1] - 2026-09-27
 - Added backends/recipes management
 - `Show Model Info` inline button on downloadable model rows, same as the installed/loaded rows
