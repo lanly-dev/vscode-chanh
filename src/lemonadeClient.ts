@@ -473,6 +473,12 @@ export class LemonadeClient {
 
           let fullContent = ''
           let buffer = ''
+          // Tool-call deltas normally carry `index`, identifying the call they
+          // extend. Track the call being appended to plus the next free slot so
+          // servers that omit the field still get one slot per call.
+          let currentToolIndex: number | undefined
+          let nextToolIndex = 0
+          let sawIndexlessDelta = false
           const processEvent = (event: string): void => {
             const trimmed = event.trim()
             if (!trimmed || !trimmed.startsWith('data: ')) return
@@ -511,7 +517,34 @@ export class LemonadeClient {
                 | Array<{ index?: number, id?: string, function?: { name?: string, arguments?: string } }>
                 | undefined
               for (const dc of deltaCalls ?? []) {
-                const idx = dc.index ?? 0
+                let idx: number
+                if (typeof dc.index === 'number') {
+                  idx = dc.index
+                  nextToolIndex = Math.max(nextToolIndex, idx + 1)
+                } else {
+                  // Defaulting an absent `index` to a constant merges parallel
+                  // calls into a single slot and concatenates their argument
+                  // fragments into invalid JSON, so start a new slot whenever
+                  // the delta announces a call id other than the current one.
+                  // With neither index nor id there is no boundary to detect.
+                  if (!sawIndexlessDelta) {
+                    sawIndexlessDelta = true
+                    Logger.warn(
+                      `Tool-call delta for ${request.model} arrived without an "index"; ` +
+                      `deriving call boundaries from call ids instead.`
+                    )
+                  }
+                  const current = currentToolIndex === undefined ? undefined : toolCalls.get(currentToolIndex)
+                  const differentCall = current !== undefined && dc.id !== undefined
+                    && current.id !== '' && dc.id !== current.id
+                  if (currentToolIndex !== undefined && !differentCall) {
+                    idx = currentToolIndex
+                  } else {
+                    idx = nextToolIndex
+                    nextToolIndex++
+                  }
+                }
+                currentToolIndex = idx
                 const acc = toolCalls.get(idx) ?? { id: '', name: '', args: '' }
                 if (dc.id) acc.id = dc.id
                 if (dc.function?.name) acc.name += dc.function.name
