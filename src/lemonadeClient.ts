@@ -406,6 +406,11 @@ export class LemonadeClient {
     return new Promise((resolve, reject) => {
       let settled = false
       let lastEvent = ''
+      // Last non-null `finish_reason` seen on the stream. The server reports
+      // `length` when it stopped at the output token limit; discarding this
+      // makes a truncated response indistinguishable from a finished one.
+      // Declared here because `finish` reads it while `processEvent` assigns it.
+      let finishReason: string | null = null
       // Streamed tool calls arrive as chunks keyed by `index`.
       const toolCalls = new Map<number, { id: string, name: string, args: string }>()
       const finish = (content: string): void => {
@@ -413,11 +418,25 @@ export class LemonadeClient {
         settled = true
         // Tool-call-only responses carry no text — still a valid response.
         if (!content && toolCalls.size === 0) {
+          if (finishReason === 'length') {
+            reject(new Error(
+              `Chat completion for ${request.model} hit the output token limit before producing any ` +
+              `content or tool calls (finish_reason: length). Reasoning models spend output tokens on ` +
+              `thinking before answering, so the thinking phase may have consumed the entire budget.`
+            ))
+            return
+          }
           reject(new Error(
             `Chat completion returned no content from ${this.baseUrl} for model ${request.model}. ` +
             `Last server event: ${lastEvent || 'none'}`
           ))
           return
+        }
+        if (finishReason === 'length') {
+          Logger.warn(
+            `Chat completion for ${request.model} was truncated at the output token limit ` +
+            `(finish_reason: length); the response may be incomplete.`
+          )
         }
         if (onToolCall) {
           const ordered = [...toolCalls.entries()].sort((a, b) => a[0] - b[0])
@@ -478,13 +497,16 @@ export class LemonadeClient {
                 return
               }
               const choice = parsed.choices?.[0]
-              const content = choice?.delta?.content
-                ?? choice?.delta?.reasoning_content
-                ?? choice?.message?.content
+              // `reasoning_content` carries reasoning-model chain-of-thought.
+              // This engine exposes no thinking-part type, so surfacing it would
+              // report private reasoning as assistant text and then feed it back
+              // into the next agent-loop iteration as if it were the answer.
+              const content = choice?.delta?.content ?? choice?.message?.content
               if (typeof content === 'string' && content) {
                 fullContent += content
                 onToken(content)
               }
+              if (choice?.finish_reason) finishReason = choice.finish_reason
               const deltaCalls = choice?.delta?.tool_calls as
                 | Array<{ index?: number, id?: string, function?: { name?: string, arguments?: string } }>
                 | undefined
