@@ -193,6 +193,20 @@ export class LemonadeClient {
     Logger.info(`Reset options for ${modelName}`)
   }
 
+  /**
+   * Count tokens with the server's own tokenizer so callers can budget context
+   * against real numbers. The route is not model-parameterised: it tokenizes
+   * with whichever model the server currently has loaded, and unknown body
+   * fields are ignored rather than rejected.
+   */
+  async tokenize(content: string): Promise<number> {
+    const { status, data } = await this.request('POST', '/v1/tokenize', { content })
+    if (status !== 200) throw new Error(`Failed to tokenize content: ${status} ${data}`)
+    const parsed = JSON.parse(data) as { tokens?: unknown }
+    if (!Array.isArray(parsed.tokens)) throw new Error(`Unexpected tokenize response: ${data}`)
+    return parsed.tokens.length
+  }
+
   /** Pull (download) a model using the streaming `/v1/pull` endpoint so callers
    * can display live download progress. `onProgress` is called for each event
    * with a percent (0-100, or -1 when the server doesn't report a ratio) and a

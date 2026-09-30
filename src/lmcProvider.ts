@@ -55,6 +55,13 @@ class ChanhLmcProvider implements vscode.LanguageModelChatProvider, vscode.Dispo
   private readonly _subscriptions: vscode.Disposable[] = []
   private disposed = false
   private modelManager?: ModelManager
+  /**
+   * Memoised server token counts, keyed by the exact text that was tokenized.
+   * The host recounts the whole conversation on every request, so without this
+   * each turn would re-tokenize every message.
+   */
+  private readonly tokenCounts = new Map<string, number>()
+  private tokenCountFallbackWarned = false
 
   constructor(private serverManager: ServerManager) {
     this.onDidChangeLanguageModelChatInformation = this._onDidChange.event
@@ -249,26 +256,67 @@ class ChanhLmcProvider implements vscode.LanguageModelChatProvider, vscode.Dispo
     }
   }
 
+  /** Character-based estimate, used when the server's tokenizer is unavailable. */
+  private estimateTokens(text: string): number {
+    return Math.ceil(text.length / 4)
+  }
+
+  /**
+   * Count tokens with the server's tokenizer. `chars / 4` was wrong in both
+   * directions, so the host sized requests incorrectly: measured against the
+   * server, plain English was overcounted (129 chars -> 22 real tokens, but
+   * estimated 33) while code, Windows paths, and Thai were undercounted
+   * (Thai measured ~2x, code ~1.25-1.36x). Never throws: an unreachable server
+   * falls back to the estimate so counting cannot break a request.
+   */
+  private async countTokens(text: string): Promise<number> {
+    if (!text) return 0
+    const cached = this.tokenCounts.get(text)
+    if (cached !== undefined) return cached
+
+    let count: number
+    try {
+      count = await this.serverManager.client.tokenize(text)
+    } catch (err) {
+      if (!this.tokenCountFallbackWarned) {
+        this.tokenCountFallbackWarned = true
+        Logger.warn(`Cannot reach the server tokenizer, using the character estimate: ${err}`)
+      }
+      return this.estimateTokens(text)
+    }
+
+    // Bound the cache so a long session cannot retain every message forever.
+    if (this.tokenCounts.size >= 512) this.tokenCounts.clear()
+    this.tokenCounts.set(text, count)
+    return count
+  }
+
   async provideTokenCount(
     _model: vscode.LanguageModelChatInformation,
     text: string | vscode.LanguageModelChatRequestMessage,
     _token: vscode.CancellationToken
   ): Promise<number> {
-    if (typeof text === 'string') return Math.ceil(text.length / 4)
-    let chars = 0
+    if (typeof text === 'string') return this.countTokens(text)
+
+    const parts: string[] = []
     let images = 0
     for (const part of text.content) {
-      if (part instanceof vscode.LanguageModelTextPart) chars += part.value.length
+      if (part instanceof vscode.LanguageModelTextPart) parts.push(part.value)
       else if (part instanceof vscode.LanguageModelDataPart && part.mimeType.startsWith('image/')) images++
     }
 
+    // Joining the parts keeps this to a single round trip; tokenizing each part
+    // separately would only differ by a few boundary tokens.
+    const textTokens = await this.countTokens(parts.join(''))
+
     // Servers tokenize images by resolution; ~1500/image is a safe estimate so
     // the host's context budget doesn't overflow on screenshots.
-    return Math.ceil(chars / 4) + images * 1500
+    return textTokens + images * 1500
   }
 
   dispose(): void {
     this.disposed = true
+    this.tokenCounts.clear()
     while (this._subscriptions.length > 0) this._subscriptions.pop()?.dispose()
     this._onDidChange.dispose()
   }
