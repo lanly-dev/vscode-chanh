@@ -232,6 +232,7 @@ class ChanhLmcProvider implements vscode.LanguageModelChatProvider, vscode.Dispo
         {
           model: model.id,
           messages: base,
+          max_tokens: this.outputTokenLimit(model, options),
           ...(tools.length > 0 ? { tools, tool_choice: toolChoice } : {})
         },
         (text) => {
@@ -312,6 +313,23 @@ class ChanhLmcProvider implements vscode.LanguageModelChatProvider, vscode.Dispo
     // Servers tokenize images by resolution; ~1500/image is a safe estimate so
     // the host's context budget doesn't overflow on screenshots.
     return textTokens + images * 1500
+  }
+
+  /**
+   * Cap the output of a single request. Uncapped, a turn generated until the
+   * server's context filled up (measured on llama.cpp: 4056 of a 4096-token
+   * window, ending in `finish_reason: length`), leaving the next agent
+   * iteration no room for its history. Half the window is kept for the prompt
+   * and the conversation, and the ceiling stops a wide window from inviting a
+   * rambling answer. A `max_tokens` from the host wins over the estimate.
+   */
+  private outputTokenLimit(
+    model: vscode.LanguageModelChatInformation,
+    options: vscode.ProvideLanguageModelChatResponseOptions
+  ): number {
+    const requested: unknown = options.modelOptions?.max_tokens
+    if (typeof requested === 'number' && Number.isFinite(requested) && requested > 0) return Math.floor(requested)
+    return Math.min(Math.max(Math.floor(model.maxInputTokens / 2), 256), 4096)
   }
 
   dispose(): void {
