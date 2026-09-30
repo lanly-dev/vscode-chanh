@@ -20,15 +20,44 @@ function outputTokenBudget(maxInput: number): number {
   return Math.min(Math.max(Math.floor(maxInput / 2), 256), 4096)
 }
 
+/** Bound a logged fragment so one corrupt payload cannot flood the output channel. */
+function previewText(text: string, limit = 200): string {
+  return text.length <= limit ? text : `${text.slice(0, limit)}... (${text.length} chars total)`
+}
+
+/**
+ * Parse a streamed tool call. Missing, `null`, or `[]` arguments mean a
+ * parameterless tool and stay silent. Anything else that is not a JSON object
+ * cannot be delivered, so the call is dropped with a bounded copy of the raw
+ * fragment logged rather than run with no arguments.
+ */
 function parseToolCall(raw: OpenAIMessageToolCall): ToolCall | undefined {
-  let args: Record<string, unknown> = {}
+  const argsText: unknown = raw.function.arguments
+  const text = typeof argsText === 'string' ? argsText.trim() : ''
+  const call = (args: Record<string, unknown>): ToolCall => ({ id: raw.id, name: raw.function.name, args })
+
+  if (!text) return call({})
+
+  let parsed: unknown
   try {
-    const parsed: unknown = JSON.parse(raw.function.arguments || '{}')
-    if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) args = parsed as Record<string, unknown>
+    parsed = JSON.parse(text)
   } catch {
-    args = {}
+    Logger.warn(`Dropping tool call '${raw.function.name}' (${raw.id}): arguments are not valid JSON: ` +
+      previewText(text))
+    return undefined
   }
-  return { id: raw.id, name: raw.function.name, args }
+
+  // `null` and an empty array carry no argument data, so a parameterless tool
+  // is the only sensible reading.
+  if (parsed === null || (Array.isArray(parsed) && parsed.length === 0)) return call({})
+
+  if (typeof parsed !== 'object' || Array.isArray(parsed)) {
+    Logger.warn(`Dropping tool call '${raw.function.name}' (${raw.id}): arguments are not a JSON object: ` +
+      previewText(text))
+    return undefined
+  }
+
+  return call(parsed as Record<string, unknown>)
 }
 
 function extractText(message: vscode.LanguageModelChatRequestMessage): string {
@@ -242,6 +271,10 @@ class ChanhLmcProvider implements vscode.LanguageModelChatProvider, vscode.Dispo
     this.syncRuntimeStatus()
     try {
       if (token.isCancellationRequested) return
+      // Drop calls with unusable arguments, but track both halves of the
+      // response: a turn whose only call is dropped must fail visibly.
+      let reportedText = false
+      let droppedCalls = 0
       await client.chatCompletionStream(
         {
           model: model.id,
@@ -251,15 +284,24 @@ class ChanhLmcProvider implements vscode.LanguageModelChatProvider, vscode.Dispo
         },
         (text) => {
           markBusy()
+          reportedText = true
           progress.report(new vscode.LanguageModelTextPart(text))
         },
         abort.signal,
         (raw) => {
           const tc = parseToolCall(raw)
           if (tc) toolCalls.push(tc)
+          else droppedCalls++
         }
       )
       for (const tc of toolCalls) progress.report(new vscode.LanguageModelToolCallPart(tc.id, tc.name, tc.args))
+      if (droppedCalls > 0 && toolCalls.length === 0 && !reportedText) {
+        throw new Error(
+          `The model returned ${droppedCalls} tool call(s) with arguments that could not be parsed ` +
+          `and produced no text. The raw arguments are in the Chanh output channel; asking again ` +
+          `usually lets the model correct them.`
+        )
+      }
       Logger.info(`Language model response complete for ${model.id}`)
     } catch (err) {
       if (token.isCancellationRequested || abort.signal.aborted) return
