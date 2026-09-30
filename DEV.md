@@ -48,16 +48,17 @@ Known limitation:
 - Forward `options.tools` without executing tools in the provider.
 - Omit `tools` and `tool_choice` when the tool list is empty; some servers reject empty arrays.
 - Translate `options.toolMode` into `tool_choice`: `Required` with one tool names that tool, `Required` with several tools sends the bare `'required'` string, and `Auto` sends `'auto'`. A local server may ignore the requirement, so an unmet one is logged rather than rejected (see "`Required` is forwarded instead of downgraded" under Landed fixes).
+- Send `chat_template_kwargs: { "enable_thinking": false }` only to a model that has already proved it wastes its budget: a turn that carried `reasoning_content` and delivered nothing (`thinkingWastedTurn()`). No setting, and no label either — the rule is what the stream did, and the chain of thought is counted, never forwarded.
 - Run one streamed completion per `provideLanguageModelChatResponse()` call.
 - Report text as `LanguageModelTextPart` and tool calls as `LanguageModelToolCallPart`.
 - Preserve tool results as `role: 'tool'` messages keyed by `tool_call_id`; do not flatten them into user text.
-- The native picker lists only models carrying both exact `chat` and `tool-calling` labels. Plain chat models remain available through `@chanh`.
+- The native picker lists only chat models that also advertise tool calling (`ModelManager.capabilityFor()` for the chat side, a lowercased `tool-calling` label), so a differently-cased label never hides a model. Plain chat models remain available through `@chanh`.
 - A `vision` label enables image input and picker detail. Text token counts come from the server's own tokenizer (`POST /v1/tokenize`), keeping `ceil(chars / 4)` only as the fallback when the server is unreachable; images are still estimated at 1500 tokens each.
 - Output is budgeted on both sides of the contract: `maxOutputTokens` declares `outputTokenBudget(context_length)` and every request sends that same number as `max_tokens`, unless `options.modelOptions.max_tokens` overrides it. The window is shared by prompt and completion, so the budget keeps roughly half of it free for the conversation.
 
 Do not add a provider-side tool-execution loop or completion retry loop; VS Code owns that agent loop.
 
-The `LanguageModelChatProvider` interface in the pinned 1.138.0 engine exposes only the four methods above — there is no prepare/precache hook — so the provider cannot inject project context itself. Improving how the model behaves in agent mode is therefore a matter of correct metadata (budgets, capabilities, versions) and of the host's own tool selection, not a provider-side loop. See "Agent quality (native agent mode)" under Current TODO for the specific gaps.
+The `LanguageModelChatProvider` interface in the pinned 1.138.0 engine exposes only the four methods above — there is no prepare/precache hook — so the provider cannot inject project context itself. Improving how the model behaves in agent mode is therefore a matter of correct metadata (budgets, capabilities, versions) and of the host's own tool selection, not a provider-side loop. "Landed fixes" records what has been closed; the remaining gaps are under Current TODO, with the ones that turned out not to be defects listed under "Investigated and disproven".
 
 ## Request and timeout policy
 
@@ -76,6 +77,28 @@ The stream watchdog resets whenever socket activity arrives. It also bounds init
 ## Landed fixes
 
 Verified against Lemonade Server 11.8.1 (llama.cpp backend, `Qwen3-0.6B-GGUF`) on 2026-09-30. The commit named in each heading is where that change landed.
+
+### A turn that spent its budget thinking stops paying for it (4cb046e)
+
+`reasoning_content` is never surfaced — 1.138 exposes no thinking part, and forwarding it would feed private reasoning back into the next agent turn as if it were the answer — so a reasoning model's thinking is output tokens the host never sees. With `max_tokens` capped (`f00a788`), a turn can end `finish_reason: 'length'` having spent the whole budget and delivered nothing at all, which is the failure `bd70441` rejects.
+
+`chatCompletionStream()` now counts those characters into a caller-supplied `ChatStreamStats` (counted, never reported), and the provider judges the turn once it settles: carried reasoning **and** delivered nothing is evidence that this model wastes its budget, so later turns to that model send `chat_template_kwargs: { "enable_thinking": false }`. There is no setting for it. The rule keys on what a turn actually did rather than on the server's `reasoning` label, which describes 1 of the 7 tool-calling chat models on the live server — `/v1/models/{id}` exposes no template and no thinking-capability field, only `recipe_options: { ctx_size }`.
+
+Measured on `Qwen3-0.6B-GGUF` with two tools and "Compare the climates of Paris and Lyon, then use the tools." at `max_tokens: 24`: with thinking on, 103 characters of reasoning, no content, no tool call, `finish_reason: 'length'` — nothing delivered. The identical turn with thinking suppressed: zero reasoning characters, 125 characters of answer. Same failure, same budget, opposite outcome.
+
+A wider A/B on the same model at temperature 0, judging the answer rather than the token count:
+
+| Task | Thinking on | Thinking off | Verdict |
+| --- | --- | --- | --- |
+| One tool call | correct call, 114 tokens | same call, 20 tokens | same result, 5.7x cheaper |
+| Two tool calls (`max_tokens: 2048`) | both calls, 193 tokens | both calls, 40 tokens | same result, 4.8x cheaper |
+| Prose arithmetic (no forced tool choice) | correct `155`, 1212 tokens | correct `155`, 91 tokens | same result, 13x cheaper |
+| Two tool calls (`max_tokens: 200`) | nothing, `finish_reason: 'length'` | both calls, 40 tokens | off is the only one that answered |
+| Multi-step tool task (`max_tokens: 200`) | nothing, `finish_reason: 'length'` | both calls, 40 tokens | off is the only one that answered |
+
+Thinking did not produce a better answer in any of them, so "off" is not a quality judgement about reasoning models: it is that on a 0.6B model the thinking phase costs 5-13x the tokens for the same result, and inside a capped budget that difference is the difference between an answer and nothing. The earlier "20 against 98 completion tokens" was the same effect on a single tool call. What remains unmeasured is model size — none of the other six tool-calling models on the live server carries the `reasoning` label, so whether a 4B-class model's thinking pays for itself is still open. If one turns out to need it, this rule needs a per-model override.
+
+Deliberately narrow, and it is not the whole prize. A turn that answers, however long it thought first, is left alone, so the saving measured on *successful* turns (98 → 20 completion tokens for the same tool call) is not captured here: that trade is a per-model decision rather than an automatic one. The memo is keyed by model id, so switching models is self-correcting, and it is cleared with the token memo when the server restarts, because what one server's models taught us says nothing about the next. A cancelled turn is not evidence — the user stopping a turn is not a model wasting it.
 
 ### `Required` is forwarded instead of downgraded (92672be)
 
@@ -177,25 +200,26 @@ Live check: a two-city prompt returned two calls with `index` `0` and `1`, every
 
 Line references below were re-checked against the source on 2026-09-30. They drift as the files are edited, so grep the named symbol rather than trusting a number.
 
-### Agent quality (native agent mode)
-
-- [ ] `src/lmcProvider.ts:341` - a reasoning model is never told to stop thinking, and on the one model measured that costs real work. Adding `chat_template_kwargs: {"enable_thinking": false}` to the request body against `Qwen3-0.6B-GGUF` returned the identical tool call for a fifth of the tokens (20 completion tokens against 98), and twice turned a turn that had ended in `finish_reason: 'length'` with nothing forwarded into a clean call. It is a candidate rather than a proven fix: one 0.6B model and one recipe were measured, the flag is llama.cpp-specific, and the only gate the provider can see is the server's `reasoning` label. Shape it as an opt-in `chanh.*` setting (1.138's `LanguageModelChatInformation` has no `configurationSchema`, so there is no per-model control in the picker, and the server's own `--reasoning-budget 0` only applies at load time) and default it to today's behaviour until a 4B-class reasoning model has been measured on a real agent task. `interfaces.ts` has no field for it yet.
-
 ### Investigated and disproven (do not re-open without new evidence)
 
 Re-checked against the running Lemonade 11.8.1 server on 2026-09-30. Each of these was recorded here as a defect and turned out not to be one:
 
 - The `?? 8192` fallback for a missing `context_length` is unreachable. `context_length` is present on every catalog entry and does track `ctx_size` overrides (4096 <-> 32768 verified with a round trip through `/v1/models/{id}/options` on `LFM2-1.2B-GGUF`), so it is dead code rather than a silent cap on a larger model.
 - The exact label match is not why any model is missing: every label on the live server is lowercase. The case-insensitivity item above is defensive, not a fix.
-- `vscode.lm.registerTool()` is not what enables autonomy. `options.tools` is already forwarded (`src/lmcProvider.ts:313-316`) and VS Code owns the tool loop (`:310-312`), so agent mode works without the extension registering anything. The provider's job is metadata, not tools.
+- `vscode.lm.registerTool()` is not what enables autonomy. `options.tools` is already forwarded (`src/lmcProvider.ts:355-358`) and VS Code owns the tool loop (`:352-354`), so agent mode works without the extension registering anything. The provider's job is metadata, not tools.
 - `tool_choice: 'required'` is accepted by the server: a probe returned `finish_reason: 'tool_calls'` with `{"path": "foo.txt"}`, so the single-tool `Required` promotion was sound. That answered the only question this list can answer (is the wire format accepted) and the forwarding itself is now implemented — see "`Required` is forwarded instead of downgraded" under Landed fixes. What the item got wrong was treating acceptance as enforcement.
 - The `/v1/health` name match is sound: `all_models_loaded[].model_name` equals the `/v1/models` id, so the `alreadyLoaded` probe does not cause a redundant `/v1/load`.
 - Model availability is not a constraint. 19 models are downloaded and 7 carry both `chat` and `tool-calling` (`Bonsai-1.7B/4B/8B`, `LFM2.5-1.2B-Instruct`, `MiniCPM-V-4.6`, `Qwen3-0.6B`, `Qwen3.5-4B-MTP`).
-- Deriving a per-model `version` fixes nothing the picker needs. `LanguageModelChatInformation.version` is documented in 1.138.0 as "Opaque version string of the model. This is used as a lookup value in `LanguageModelChatSelector.version`" (`index.d.ts:20616`) — a `selectChatModels` key, with no caching semantics anywhere in the interface. The documented change signal is `onDidChangeLanguageModelChatInformation`, "An optional event fired when the available set of language models changes" (`:20696`), which the provider already fires on a status change to `RUNNING` (`src/lmcProvider.ts:167`) and on an active-server change, and `ModelManager` calls `lmcProvider.refresh()` after a context-size change (`src/modelManager.ts:438`). The proposed implementation was also unavailable as written: `LemonadeModel` carries no mtime, and `size` is a poor discriminator rather than an absent field — `Qwen3-0.6B-GGUF` reports `0.356` on `/v1/models` and `/v1/models?show_all=true` alike, the same value a same-quant re-download would report again.
+- Deriving a per-model `version` fixes nothing the picker needs. `LanguageModelChatInformation.version` is documented in 1.138.0 as "Opaque version string of the model. This is used as a lookup value in `LanguageModelChatSelector.version`" (`index.d.ts:20616`) — a `selectChatModels` key, with no caching semantics anywhere in the interface. The documented change signal is `onDidChangeLanguageModelChatInformation`, "An optional event fired when the available set of language models changes" (`:20696`), which the provider already fires on a status change to `RUNNING` (`src/lmcProvider.ts:203`) and on an active-server change, and `ModelManager` calls `lmcProvider.refresh()` after a context-size change (`src/modelManager.ts:438`). The proposed implementation was also unavailable as written: `LemonadeModel` carries no mtime, and `size` is a poor discriminator rather than an absent field — `Qwen3-0.6B-GGUF` reports `0.356` on `/v1/models` and `/v1/models?show_all=true` alike, the same value a same-quant re-download would report again.
+
+### Agent quality (native agent mode)
+
+- [ ] `src/lemonadeClient.ts:531` - measure thinking on against thinking off on a 4B-class reasoning model, and find out whether the other tool-calling models have a controllable thinking phase at all. The A/B on `Qwen3-0.6B-GGUF` (table under Landed fixes) found that thinking never improved the answer and cost 5-13x the tokens, but only one model was measured and none of the other six carries the server's `reasoning` label, so "send the kwarg and see whether `reasoning_content` appears" is the cheapest next step. If some model's thinking does pay off, the implicit off-rule (`4cb046e`) needs a per-model override.
+- [ ] no code reference - should a model that *can* think be told to? `chat_template_kwargs: { "enable_thinking": true }` is mostly a no-op, because a reasoning template defaults thinking on; it would only matter for a template that gates reasoning behind the kwarg. Forcing it on a template whose publisher chose thinking-off is the mirror image of the mistake the off-rule avoids, and on the one model measured here thinking-on was actively harmful. Capability is not benefit: only an A/B showing thinking improves the result justifies the flip. The `reasoningChars` counter already tells us whether a model thinks at all, so "labelled `reasoning` but never reasons" is detectable without spending a request on it.
 
 ### Existing
 
-- [ ] `src/lmcProvider.ts:258` - cache or drop the `/v1/health` pre-check before `/v1/load` (the `alreadyLoaded` probe around `client.getHealth()`).
+- [ ] `src/lmcProvider.ts:300` - cache or drop the `/v1/health` pre-check before `/v1/load` (the `alreadyLoaded` probe around `client.getHealth()`).
 - [ ] `src/modelManager.ts:457` - add tests for `setModelContext()` sizing, min/max limits, and reload failure.
 - [ ] `src/serverManager.ts:527` / `src/serverManager.ts:803` - verify port-occupied, reconnect, and mode-switch paths in `start()` / `stop()`.
 - [ ] `src/lemonadeClient.ts:133` - confirm real error codes for corrupt model files.
@@ -204,4 +228,4 @@ Re-checked against the running Lemonade 11.8.1 server on 2026-09-30. Each of the
 - [ ] `src/serverTreeview.ts:94` - probe server download APIs and reconcile with local partials (`_downloads`, `_partials`, `PARTIALS_STORAGE_KEY`).
 - [ ] `src/serverTreeview.ts:129` - decide how to surface backends the server has installed but `/v1/system-info` still reports as `installable`.
 - [ ] Add a test harness before the testing items above can be written: `package.json` defines no `test` script and the repository contains no test files. Any runner also needs a way to stand in for the `vscode` module, since `lmcProvider.ts`, `serverTreeview.ts`, and `modelManager.ts` all import it at module scope.
-- [ ] Need to check if memory leak, found many vscode processes)
+- [ ] Need to check if memory leak, found many vscode processes

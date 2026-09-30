@@ -5,6 +5,7 @@ import type {
   ChatCompletionRequest,
   ChatCompletionResponse,
   ChatMessage,
+  ChatStreamStats,
   DownloadProgressEvent,
   HealthResponse,
   LemonadeModel,
@@ -410,12 +411,16 @@ export class LemonadeClient {
    * Send a streaming chat completion request.
    * Calls onToken for each content chunk received. Streamed tool-call deltas
    * are accumulated and emitted via onToolCall once the stream completes.
+   * Pass `stats` to learn what the stream carried that the callbacks do not
+   * surface — the reasoning a model spends its budget on, which stays private
+   * to this layer and is only ever counted.
    */
   async chatCompletionStream(
     request: ChatCompletionRequest,
     onToken: (token: string) => void,
     signal?: AbortSignal,
-    onToolCall?: (toolCall: OpenAIMessageToolCall) => void
+    onToolCall?: (toolCall: OpenAIMessageToolCall) => void,
+    stats?: ChatStreamStats
   ): Promise<string> {
     return new Promise((resolve, reject) => {
       let settled = false
@@ -521,6 +526,14 @@ export class LemonadeClient {
               // This engine exposes no thinking-part type, so surfacing it would
               // report private reasoning as assistant text and then feed it back
               // into the next agent-loop iteration as if it were the answer.
+              // Counting it into `stats` is not surfacing it: it is what tells a
+              // caller whether the turn answered or spent its budget thinking.
+              if (stats) {
+                const reasoning = choice?.delta?.reasoning_content
+                if (typeof reasoning === 'string') {
+                  stats.reasoningChars = (stats.reasoningChars ?? 0) + reasoning.length
+                }
+              }
               const content = choice?.delta?.content ?? choice?.message?.content
               if (typeof content === 'string' && content) {
                 fullContent += content

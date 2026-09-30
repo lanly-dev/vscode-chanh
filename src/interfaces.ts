@@ -45,6 +45,12 @@ export interface ChatCompletionRequest {
    * that mode is addressed. Omitted entirely when no tools are offered.
    */
   tool_choice?: 'auto' | 'none' | 'required' | { type: 'function', function: { name: string } }
+  /**
+   * llama.cpp extension, read by its Jinja chat templates: `enable_thinking:
+   * false` suppresses a reasoning model's chain of thought. A template that
+   * does not read the key ignores it, and other recipes ignore the object.
+   */
+  chat_template_kwargs?: { enable_thinking?: boolean }
 }
 
 /** Non-streaming chat completion response. */
@@ -59,6 +65,17 @@ export interface ChatCompletionResponse {
     completion_tokens: number
     total_tokens: number
   }
+}
+
+/**
+ * What a stream actually carried, filled in by the client and read by the
+ * caller afterwards. `reasoningChars` counts the chain-of-thought the host is
+ * never shown, which is what tells a turn that answered apart from one that
+ * spent its output budget thinking.
+ */
+export interface ChatStreamStats {
+  /** Characters received in `delta.reasoning_content`, accumulated. */
+  reasoningChars?: number
 }
 
 /** A content part of a multimodal chat message (OpenAI format). */

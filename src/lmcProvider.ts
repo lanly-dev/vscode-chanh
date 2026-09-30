@@ -5,6 +5,7 @@ import { ServerStatus } from './interfaces'
 import { ModelManager } from './modelManager'
 import type { ChatCompletionRequest, ChatContentPart, ChatMessage, OpenAIMessageToolCall } from './interfaces'
 import type { ToolCall, ToolDefinition } from './interfaces'
+import type { ChatStreamStats } from './interfaces'
 import type { ServerManager } from './serverManager'
 
 /**
@@ -67,6 +68,27 @@ function isToolCallingChatModel(labels: string[] | undefined): boolean {
  */
 function hasVisionLabel(labels: string[] | undefined): boolean {
   return (labels ?? []).some((l) => l.toLowerCase().includes('vision'))
+}
+
+/**
+ * The `chat_template_kwargs` a request should carry, or `undefined` for none.
+ * `enable_thinking: false` is llama.cpp's switch for suppressing a chain of
+ * thought, which the host never sees (1.138 exposes no thinking part), so the
+ * tokens it spends are spent for nothing.
+ */
+function chatTemplateKwargs(skipThinking: boolean): ChatCompletionRequest['chat_template_kwargs'] {
+  return skipThinking ? { enable_thinking: false } : undefined
+}
+
+/**
+ * Whether a turn proves its model spent the output budget thinking instead of
+ * answering. Deliberately the narrow test: the turn carried reasoning *and*
+ * delivered nothing, which is the failure the client already rejects, so the
+ * next turn can stop paying for it. A turn that answered — however long it
+ * thought first — is not evidence, and is left alone.
+ */
+function thinkingWastedTurn(stats: ChatStreamStats, delivered: boolean): boolean {
+  return !delivered && (stats.reasoningChars ?? 0) > 0
 }
 
 /** Bound a logged fragment so one corrupt payload cannot flood the output channel. */
@@ -159,6 +181,12 @@ class ChanhLmcProvider implements vscode.LanguageModelChatProvider, vscode.Dispo
    * loaded — so a count only holds while that model stays loaded.
    */
   private tokenCountModel?: string
+  /**
+   * Model ids whose thinking we have stopped paying for, after a turn proved
+   * the cost was wasted. Keyed by id, so switching models is self-correcting,
+   * and cleared with the token memo when the server restarts.
+   */
+  private readonly thinkingSkipped = new Set<string>()
 
   constructor(private serverManager: ServerManager) {
     this.onDidChangeLanguageModelChatInformation = this._onDidChange.event
@@ -166,8 +194,10 @@ class ChanhLmcProvider implements vscode.LanguageModelChatProvider, vscode.Dispo
       this.serverManager.onStatusChange((s) => {
         if (s === ServerStatus.RUNNING) {
           // A restart (or a reconnect to another server) discards the loaded
-          // set, so no memoised count is trustworthy any more.
+          // set, so no memoised count is trustworthy any more, and what we
+          // learned about one server's models says nothing about the next.
           this.noteTokenCountModel()
+          this.thinkingSkipped.clear()
           this._onDidChange.fire()
         }
       }),
@@ -317,6 +347,10 @@ class ChanhLmcProvider implements vscode.LanguageModelChatProvider, vscode.Dispo
     const requireToolCall =
       options.toolMode === vscode.LanguageModelChatToolMode.Required && tools.length > 0
     const toolChoice = toolChoiceFor(requireToolCall, tools)
+    // Implicit, not configured: this model already spent a whole turn's budget
+    // thinking and delivered nothing (`thinkingWastedTurn`), so later turns stop
+    // paying for a phase the host never receives.
+    const thinkingKwargs = chatTemplateKwargs(this.thinkingSkipped.has(model.id))
 
     const abort = new AbortController()
     const cancel = token.onCancellationRequested(() => abort.abort())
@@ -332,18 +366,22 @@ class ChanhLmcProvider implements vscode.LanguageModelChatProvider, vscode.Dispo
       this.syncRuntimeStatus()
     }
     this.syncRuntimeStatus()
+    // What the stream actually carried, so the turn can be judged once it has
+    // settled — including when it throws.
+    const stats: ChatStreamStats = {}
+    let reportedText = false
+    let droppedCalls = 0
     try {
       if (token.isCancellationRequested) return
       // Drop calls with unusable arguments, but track both halves of the
       // response: a turn whose only call is dropped must fail visibly.
-      let reportedText = false
-      let droppedCalls = 0
       await client.chatCompletionStream(
         {
           model: model.id,
           messages: base,
           max_tokens: this.outputTokenLimit(model, options),
-          ...(tools.length > 0 ? { tools, tool_choice: toolChoice } : {})
+          ...(tools.length > 0 ? { tools, tool_choice: toolChoice } : {}),
+          ...(thinkingKwargs ? { chat_template_kwargs: thinkingKwargs } : {})
         },
         (text) => {
           markBusy()
@@ -355,7 +393,8 @@ class ChanhLmcProvider implements vscode.LanguageModelChatProvider, vscode.Dispo
           const tc = parseToolCall(raw)
           if (tc) toolCalls.push(tc)
           else droppedCalls++
-        }
+        },
+        stats
       )
       for (const tc of toolCalls) progress.report(new vscode.LanguageModelToolCallPart(tc.id, tc.name, tc.args))
       if (droppedCalls > 0 && toolCalls.length === 0 && !reportedText) {
@@ -387,6 +426,10 @@ class ChanhLmcProvider implements vscode.LanguageModelChatProvider, vscode.Dispo
       await this.modelManager?.offerContextIncrease(model.id, err)
       throw err
     } finally {
+      // A cancelled turn is the user's own doing, not evidence about a model.
+      if (!abort.signal.aborted) {
+        this.noteThinkingWaste(model.id, stats, reportedText || toolCalls.length > 0)
+      }
       cancel.dispose()
       this.syncRuntimeStatus()
     }
@@ -405,6 +448,28 @@ class ChanhLmcProvider implements vscode.LanguageModelChatProvider, vscode.Dispo
    * (Thai measured ~2x, code ~1.25-1.36x). Never throws: an unreachable server
    * falls back to the estimate so counting cannot break a request.
    */
+  private async countTokens(text: string): Promise<number> {
+    if (!text) return 0
+    const cached = this.tokenCounts.get(text)
+    if (cached !== undefined) return cached
+
+    let count: number
+    try {
+      count = await this.serverManager.client.tokenize(text)
+    } catch (err) {
+      if (!this.tokenCountFallbackWarned) {
+        this.tokenCountFallbackWarned = true
+        Logger.warn(`Cannot reach the server tokenizer, using the character estimate: ${err}`)
+      }
+      return this.estimateTokens(text)
+    }
+
+    // Bound the cache so a long session cannot retain every message forever.
+    if (this.tokenCounts.size >= 512) this.tokenCounts.clear()
+    this.tokenCounts.set(text, count)
+    return count
+  }
+
   /**
    * Note which model the tokenizer is now counting with, dropping the memo when
    * it changed. The host counts tokens for the model it is about to call, but
@@ -426,26 +491,16 @@ class ChanhLmcProvider implements vscode.LanguageModelChatProvider, vscode.Dispo
     this.tokenCounts.clear()
   }
 
-  private async countTokens(text: string): Promise<number> {
-    if (!text) return 0
-    const cached = this.tokenCounts.get(text)
-    if (cached !== undefined) return cached
-
-    let count: number
-    try {
-      count = await this.serverManager.client.tokenize(text)
-    } catch (err) {
-      if (!this.tokenCountFallbackWarned) {
-        this.tokenCountFallbackWarned = true
-        Logger.warn(`Cannot reach the server tokenizer, using the character estimate: ${err}`)
-      }
-      return this.estimateTokens(text)
-    }
-
-    // Bound the cache so a long session cannot retain every message forever.
-    if (this.tokenCounts.size >= 512) this.tokenCounts.clear()
-    this.tokenCounts.set(text, count)
-    return count
+  /**
+   * Stop paying for thinking on a model that has just shown what it costs.
+   * Sticky per model until the server restarts, because the budget is wasted on
+   * every later turn too; a turn that answered leaves the model alone.
+   */
+  private noteThinkingWaste(modelId: string, stats: ChatStreamStats, delivered: boolean): void {
+    if (!thinkingWastedTurn(stats, delivered) || this.thinkingSkipped.has(modelId)) return
+    this.thinkingSkipped.add(modelId)
+    Logger.info(`'${modelId}' spent a whole turn thinking (${stats.reasoningChars} characters of ` +
+      'reasoning) and delivered nothing; later turns to it will ask for no chain of thought')
   }
 
   async provideTokenCount(

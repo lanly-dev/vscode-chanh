@@ -18,6 +18,7 @@ Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how 
 - `maxInputTokens` and `maxOutputTokens` come from one split of the real context window instead of summing to 1.5x it, and the picker tooltip shows the window next to the reserved share (`966d95d`, `64927e1`)
 - The agent picker matches capability labels case-insensitively through `ModelManager.capabilityFor()`, so an `llm`-labelled tool-calling model is listed instead of skipped (`966d95d`)
 - A multi-tool `Required` mode is forwarded as `tool_choice: 'required'` instead of being downgraded to `'auto'`, and a `Required` turn that ends without a tool call is logged with the shape that was sent (`92672be`)
+- A turn that spent its output budget on a chain of thought the host never sees, and delivered nothing, is now counted: later turns to that model ask it for no chain of thought. No setting, and the rule keys on what a turn did rather than on the server's `reasoning` label, which 6 of the 7 tool-calling models on a live server do not carry (`4cb046e`)
 - `DEV.md` restructured: landed fixes are recorded per commit, separate from endpoint behaviour and disproven items (`e2be660`)
 
 ## [0.1.1] - 2026-09-27
