@@ -219,11 +219,13 @@ Re-checked against the running Lemonade 11.8.1 server on 2026-09-30. Each of the
 
 ### Existing
 
-- [ ] `src/lmcProvider.ts:300` - cache or drop the `/v1/health` pre-check before `/v1/load` (the `alreadyLoaded` probe around `client.getHealth()`).
+- [ ] `src/lmcProvider.ts:277` - handle a `false` result from `serverManager.ensureRunning()` in `provideLanguageModelChatResponse()`; a declined or failed start currently falls through into model loading and completion against an unavailable server instead of returning a clear provider error.
+- [ ] `src/chatParticipant.ts:83` - align chat model filtering with `ModelManager.capabilityFor()` so models labelled `llm` are treated like `chat`; the native agent picker already accepts both, but `@chanh` currently accepts only the literal `chat` label.
+- [ ] `src/lmcProvider.ts:288` - cache or drop the `/v1/health` pre-check before `/v1/load` (the `alreadyLoaded` probe around `client.getHealth()`).
 - [ ] `src/modelManager.ts:457` - add tests for `setModelContext()` sizing, min/max limits, and reload failure.
 - [ ] `src/serverManager.ts:527` / `src/serverManager.ts:803` - verify port-occupied, reconnect, and mode-switch paths in `start()` / `stop()`.
 - [ ] `src/lemonadeClient.ts:133` - confirm real error codes for corrupt model files.
-- [ ] `src/lemonadeClient.ts:622` - replace the generic `/fix` and `/explain` prompts in `buildSystemPrompt()` with tested templates.
+- [ ] `src/lemonadeClient.ts:633` - replace the generic `/fix` and `/explain` prompts in `buildSystemPrompt()` with tested templates.
 - [ ] `src/serverTreeview.ts:1001` - decide on capability-group header actions, if any.
 - [ ] `src/serverTreeview.ts:94` - probe server download APIs and reconcile with local partials (`_downloads`, `_partials`, `PARTIALS_STORAGE_KEY`).
 - [ ] `src/serverTreeview.ts:129` - decide how to surface backends the server has installed but `/v1/system-info` still reports as `installable`.
