@@ -2,22 +2,49 @@ import * as vscode from 'vscode'
 import { refreshEvents } from './events'
 import { Logger } from './logger'
 import { ServerStatus } from './interfaces'
+import { ModelManager } from './modelManager'
 import type { ChatContentPart, ChatMessage, OpenAIMessageToolCall } from './interfaces'
 import type { ToolCall, ToolDefinition } from './interfaces'
-import type { ModelManager } from './modelManager'
 import type { ServerManager } from './serverManager'
 
 /**
- * Output budget for a context window: half is kept for the prompt and the
- * conversation, and the ceiling stops a wide window from inviting a rambling
- * answer. Used both to declare `maxOutputTokens` to the host and to cap each
- * request, so the two can never disagree. Measured on llama.cpp, the window is
- * shared by prompt and completion (an uncapped turn stopped at exactly
- * `total_tokens == ctx_size`), so declaring input and output each equal to the
- * whole window over-promises by 2x.
+ * Completion budget for a context window: half the window, floored at 256 and
+ * capped at 4096 so a wide window does not invite a rambling answer.
  */
-function outputTokenBudget(maxInput: number): number {
-  return Math.min(Math.max(Math.floor(maxInput / 2), 256), 4096)
+function outputTokenBudget(contextWindow: number): number {
+  return Math.min(Math.max(Math.floor(contextWindow / 2), 256), 4096)
+}
+
+/**
+ * Split a context window between prompt and completion. Measured on llama.cpp,
+ * the window is shared by the two (an uncapped turn stopped at exactly
+ * `total_tokens == ctx_size`), so declaring each equal to the whole window
+ * over-promises by 2x: the host assembles a prompt the completion no longer
+ * fits alongside, and the server drops the oldest tokens without saying so.
+ */
+function contextBudget(contextWindow: number): { maxInput: number, maxOutput: number } {
+  const maxOutput = outputTokenBudget(contextWindow)
+  return { maxInput: Math.max(contextWindow - maxOutput, 1), maxOutput }
+}
+
+/**
+ * Whether a model belongs in the agent picker: a chat model that also
+ * advertises tool calling. `chat` is one spelling of `capabilityFor`'s `llm`
+ * group, and a differently-cased label must not drop a model with no error.
+ */
+function isToolCallingChatModel(labels: string[] | undefined): boolean {
+  const ls = labels ?? []
+  const isChat = ls.some((l) => ModelManager.capabilityFor(l) === 'llm')
+  return isChat && ls.some((l) => l.toLowerCase() === 'tool-calling')
+}
+
+/**
+ * Whether a model accepts image input. A substring test rather than
+ * `capabilityFor`, which folds image *generation* into `image`; only `vision`
+ * sets `imageInput`.
+ */
+function hasVisionLabel(labels: string[] | undefined): boolean {
+  return (labels ?? []).some((l) => l.toLowerCase().includes('vision'))
 }
 
 /** Bound a logged fragment so one corrupt payload cannot flood the output channel. */
@@ -156,19 +183,20 @@ class ChanhLmcProvider implements vscode.LanguageModelChatProvider, vscode.Dispo
     }
     // Only chat models with tool-calling support are listed: the picker serves
     // agent mode, while plain chat models stay available through @chanh.
-    const chatModels = models.filter((m) => m.labels?.includes('chat') && m.labels?.includes('tool-calling'))
+    const chatModels = models.filter((m) => isToolCallingChatModel(m.labels))
     Logger.info('Loaded ' + chatModels.length + ' downloaded tool-calling chat models')
     return chatModels.map((m): vscode.LanguageModelChatInformation => {
-      const maxInput = m.context_length ?? m.max_context_window ?? 8192
-      const maxOutput = outputTokenBudget(maxInput)
-      const vision = m.labels?.some((l) => l.includes('vision')) ?? false
+      const contextWindow = m.context_length ?? m.max_context_window ?? 8192
+      const { maxInput, maxOutput } = contextBudget(contextWindow)
+      const vision = hasVisionLabel(m.labels)
       return {
         id: m.id,
         name: m.id,
         family: m.id,
         version: '1.0.0',
         detail: vision ? 'vision' : undefined,
-        tooltip: `${m.id}\nCapabilities: ${(m.labels ?? []).join(', ')}\nContext: ${maxInput.toLocaleString()} tokens`,
+        tooltip: `${m.id}\nCapabilities: ${(m.labels ?? []).join(', ')}\n` +
+          `Context: ${contextWindow.toLocaleString()} tokens (${maxOutput.toLocaleString()} reserved for output)`,
         maxInputTokens: maxInput,
         maxOutputTokens: maxOutput,
         capabilities: { toolCalling: true, imageInput: vision }
@@ -384,7 +412,10 @@ class ChanhLmcProvider implements vscode.LanguageModelChatProvider, vscode.Dispo
   ): number {
     const requested: unknown = options.modelOptions?.max_tokens
     if (typeof requested === 'number' && Number.isFinite(requested) && requested > 0) return Math.floor(requested)
-    return outputTokenBudget(model.maxInputTokens)
+    // Prefer the completion share this provider declared to the host;
+    // recomputing it from `maxInputTokens` (the window minus that share) is a
+    // conservative fallback that halves the cap on small windows.
+    return model.maxOutputTokens ?? outputTokenBudget(model.maxInputTokens)
   }
 
   dispose(): void {

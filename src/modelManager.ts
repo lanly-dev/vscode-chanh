@@ -34,8 +34,11 @@ export class ModelManager {
     return model.type
   }
 
-  /** Canonical capability category for a raw model label/type, when recognized. */
-  private static capabilityFor(raw: string): string | undefined {
+  /**
+   * Canonical capability category for a raw model label/type, when recognized.
+   * `lmcProvider.ts` reuses this to decide which models the agent picker lists.
+   */
+  static capabilityFor(raw: string): string | undefined {
     const l = raw.toLowerCase()
     if (l === 'chat' || l === 'llm') return 'llm'
     // Lemonade labels embedding models with the plural "embeddings".

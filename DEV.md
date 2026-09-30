@@ -86,6 +86,18 @@ Absent, `null`, and `[]` arguments still count as "no arguments" — a parameter
 
 The call site already skipped `undefined` (`if (tc) toolCalls.push(tc)`), so a dead branch went live rather than new plumbing being added. It is the only place in `src/` that parses model-produced tool arguments.
 
+### The declared context window is split between input and output (pending commit)
+
+`provideLanguageModelChatInformation()` published the whole window as `maxInputTokens` while `maxOutputTokens` took half of it, so the declared pair summed to 1.5x the real window (6144 against 4096 on the test model). On llama.cpp the window is shared by prompt and completion — an uncapped turn stopped at exactly `total_tokens == ctx_size` — so the host could assemble a prompt the completion no longer fitted alongside, and the server then dropped the oldest tokens without saying so. `contextBudget()` now returns both halves, input being the window minus the completion share, and the tooltip shows the window alongside the reserved share.
+
+The request cap follows the declared output: `outputTokenLimit()` prefers `maxOutputTokens`, because re-deriving it from the shrunken `maxInputTokens` would halve the cap and would also break the `64927e1` invariant that the declared and sent numbers agree. The completion share itself is unchanged, so a 4096-token window still caps at the 2048 measured under `f00a788`. The trade-off: on a small window the host now keeps roughly half the history it used to, and buying that back means shrinking the completion share — a decision to make with live agent-mode behaviour in hand rather than by guesswork.
+
+### Picker labels match case-insensitively (pending commit)
+
+`provideLanguageModelChatInformation()` filtered with `labels?.includes('chat') && labels?.includes('tool-calling')`, so a `Chat` or `Tool-Calling` label would have hidden a model from the picker with no error. Every label on the live 11.8.1 server is lowercase, so nothing is hidden today; the filter is now `isToolCallingChatModel()`, where `ModelManager.capabilityFor()` owns the `chat`/`llm` alias and `tool-calling` is compared lowercased.
+
+`vision` sets `imageInput` and the `detail` subtext, and it stays a substring test rather than `capabilityFor`, which folds image *generation* into `image` and must not claim image input. `capabilityFor` also maps an `llm` label to the chat capability, so an `llm`-labelled model that advertises tool calling is now listed where a strict `chat` test skipped it.
+
 ### A single turn can no longer consume the whole context window (`f00a788`)
 
 Uncapped, a turn generated until the server's context filled up, leaving the next agent iteration no room for its history. Measured against a 4096-token window: a rambling prompt returned `finish_reason: 'length'` with `completion_tokens: 4056` and `total_tokens: 4096` — exactly `ctx_size`. `provideLanguageModelChatResponse()` now sends `max_tokens`, taken from `options.modelOptions.max_tokens` when the host supplies a positive number, otherwise from `outputTokenBudget()`: half the window, floor 256, ceiling 4096. The same prompt with `max_tokens: 2048` stops at exactly `completion_tokens: 2048`, `total_tokens: 2088`.
@@ -140,11 +152,9 @@ Line references below were re-checked against the source on 2026-09-30. They dri
 
 ### Agent quality (native agent mode)
 
-- [ ] `src/lmcProvider.ts:105` - the `tokenCounts` memo is keyed by the text alone, while `/v1/tokenize` is not model-parameterised and counts with whichever model the server has loaded (see the note under `ee90799`). A count can therefore reflect a different vocabulary than the model being counted for, and it survives a model switch until the cache fills or `dispose()`. Key it by the loaded model, or clear it when the loaded model changes.
-- [ ] `src/lmcProvider.ts:172` - `maxInputTokens` still claims the whole context window while `maxOutputTokens` now takes half of it, so the declared pair can exceed the real window (6144 against 4096 today). Publishing `window - output` would be consistent but roughly halves the history the host keeps. Decide with real host behaviour in hand rather than by guesswork.
-- [ ] `src/lmcProvider.ts:159` - make the `chat` / `tool-calling` label match case-insensitive, reusing `ModelManager.capabilityFor()` (`src/modelManager.ts:38`). Defensive only: every label on the live 11.8.1 server is already lowercase, so the exact match is not hiding any model today, but a differently-cased label would drop a model from the picker with no error.
-- [ ] `src/lmcProvider.ts:169` - derive a per-model `version` (mtime or size) instead of the hardcoded `'1.0.0'`, so the picker busts its cache when a model is updated.
-- [ ] `src/lmcProvider.ts:253` - honor `options.toolMode` beyond the single-tool `Required` case; currently everything else becomes `tool_choice: 'auto'`. The server accepts both shapes of `tool_choice`, including the bare string `'required'`, so a multi-tool `Required` can be forwarded as-is. Caveat from the engine's own docs: `LanguageModelChatToolMode.Required` states "some models only support a single tool when using this mode", so keep the exact single-tool function form for one tool and treat a multi-tool `Required` as the case to forward, not to downgrade.
+- [ ] `src/lmcProvider.ts:132` - the `tokenCounts` memo is keyed by the text alone, while `/v1/tokenize` is not model-parameterised and counts with whichever model the server has loaded (see the note under `ee90799`). A count can therefore reflect a different vocabulary than the model being counted for, and it survives a model switch until the cache fills or `dispose()`. Key it by the loaded model, or clear it when the loaded model changes.
+- [ ] `src/lmcProvider.ts:196` - derive a per-model `version` (mtime or size) instead of the hardcoded `'1.0.0'`, so the picker busts its cache when a model is updated.
+- [ ] `src/lmcProvider.ts:281` - honor `options.toolMode` beyond the single-tool `Required` case; currently everything else becomes `tool_choice: 'auto'`. The server accepts both shapes of `tool_choice`, including the bare string `'required'`, so a multi-tool `Required` can be forwarded as-is. Caveat from the engine's own docs: `LanguageModelChatToolMode.Required` states "some models only support a single tool when using this mode", so keep the exact single-tool function form for one tool and treat a multi-tool `Required` as the case to forward, not to downgrade.
 
 ### Investigated and disproven (do not re-open without new evidence)
 
@@ -152,15 +162,15 @@ Re-checked against the running Lemonade 11.8.1 server on 2026-09-30. Each of the
 
 - The `?? 8192` fallback for a missing `context_length` is unreachable. `context_length` is present on every catalog entry and does track `ctx_size` overrides (4096 <-> 32768 verified with a round trip through `/v1/models/{id}/options` on `LFM2-1.2B-GGUF`), so it is dead code rather than a silent cap on a larger model.
 - The exact label match is not why any model is missing: every label on the live server is lowercase. The case-insensitivity item above is defensive, not a fix.
-- `vscode.lm.registerTool()` is not what enables autonomy. `options.tools` is already forwarded (`src/lmcProvider.ts:249-252`) and VS Code owns the tool loop (`:246-248`), so agent mode works without the extension registering anything. The provider's job is metadata, not tools.
+- `vscode.lm.registerTool()` is not what enables autonomy. `options.tools` is already forwarded (`src/lmcProvider.ts:277-280`) and VS Code owns the tool loop (`:274-276`), so agent mode works without the extension registering anything. The provider's job is metadata, not tools.
 - `tool_choice: 'required'` is accepted by the server: a probe returned `finish_reason: 'tool_calls'` with `{"path": "foo.txt"}`, so the single-tool `Required` promotion is sound and could be extended.
 - The `/v1/health` name match is sound: `all_models_loaded[].model_name` equals the `/v1/models` id, so the `alreadyLoaded` probe does not cause a redundant `/v1/load`.
 - Model availability is not a constraint. 19 models are downloaded and 7 carry both `chat` and `tool-calling` (`Bonsai-1.7B/4B/8B`, `LFM2.5-1.2B-Instruct`, `MiniCPM-V-4.6`, `Qwen3-0.6B`, `Qwen3.5-4B-MTP`).
 
 ### Existing
 
-- [ ] `src/lmcProvider.ts:197` - cache or drop the `/v1/health` pre-check before `/v1/load` (the `alreadyLoaded` probe around `client.getHealth()`).
-- [ ] `src/modelManager.ts:454` - add tests for `setModelContext()` sizing, min/max limits, and reload failure.
+- [ ] `src/lmcProvider.ts:225` - cache or drop the `/v1/health` pre-check before `/v1/load` (the `alreadyLoaded` probe around `client.getHealth()`).
+- [ ] `src/modelManager.ts:457` - add tests for `setModelContext()` sizing, min/max limits, and reload failure.
 - [ ] `src/serverManager.ts:527` / `src/serverManager.ts:803` - verify port-occupied, reconnect, and mode-switch paths in `start()` / `stop()`.
 - [ ] `src/lemonadeClient.ts:133` - confirm real error codes for corrupt model files.
 - [ ] `src/lemonadeClient.ts:622` - replace the generic `/fix` and `/explain` prompts in `buildSystemPrompt()` with tested templates.
