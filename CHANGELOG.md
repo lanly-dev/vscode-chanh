@@ -3,29 +3,59 @@ All notable changes to the "Chanh" extension will be documented in this file.\
 Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how to structure this file.
 
 ## [TODO]
+- Agent benchmarking
+- Agent integration via URL only
 - Chat follow up
 - Explore and add functionality for different types of models, e.g. image
 - Focus on coding-related features
 - GPU stats
 - Token stats
 
-## [0.1.2] - 2026-09-30
-- Host token counting uses the server's own tokenizer (`POST /v1/tokenize`) instead of `ceil(chars / 4)`, memoised per text and discarded when the model the server has loaded changes; the character estimate stays as the fallback when the server cannot answer (`ee90799`)
-- Streamed parallel tool calls are split by `index`; a delta without one starts a new call when it announces a different call id, instead of merging two calls into arguments that are not valid JSON (`7dc969f`)
-- A tool call whose `arguments` cannot be parsed is dropped and logged rather than run with no arguments, and a turn that delivers neither text nor a surviving call now fails with the reason (`09937ae`)
-- A single turn is capped by `max_tokens` - half the context window, floor 256, ceiling 4096 - instead of generating until the window filled up (`f00a788`)
-- Truncated completions (`finish_reason: 'length'`) are surfaced: rejected when they produced nothing, warned otherwise (`bd70441`)
-- `maxInputTokens` and `maxOutputTokens` come from one split of the real context window instead of summing to 1.5x it, and the picker tooltip shows the window next to the reserved share (`966d95d`, `64927e1`)
-- The agent picker matches capability labels case-insensitively through `ModelManager.capabilityFor()`, so an `llm`-labelled tool-calling model is listed instead of skipped (`966d95d`)
-- A multi-tool `Required` mode is forwarded as `tool_choice: 'required'` instead of being downgraded to `'auto'`, and a `Required` turn that ends without a tool call is logged with the shape that was sent (`92672be`)
-- A turn that spent its output budget on a chain of thought the host never sees, and delivered nothing, is now counted: later turns to that model ask it for no chain of thought. No setting, and the rule keys on what a turn did rather than on the server's `reasoning` label, which 6 of the 7 tool-calling models on a live server do not carry (`4cb046e`)
-- `DEV.md` restructured: landed fixes are recorded per commit, separate from endpoint behaviour and disproven items (`e2be660`)
+## [0.1.2] - 2026-10-06
+- Token counting uses the server tokenizer (`POST /v1/tokenize`), memoised; char estimate is the fallback (`ee90799`)
+- Parallel tool calls split by `index`; indexless deltas split on new call ID, not merged (`7dc969f`)
+- Unparseable tool-call arguments are dropped and logged; an empty turn fails with an explanatory error (`09937ae`)
+- Each turn is capped by `max_tokens` (half window, 256-4096) instead of filling the whole window (`f00a788`)
+- Truncated (`finish_reason: 'length'`) turns: rejected when empty, warned otherwise (`bd70441`)
+- `maxInputTokens`/`maxOutputTokens` split one window instead of each claiming the whole window (`966d95d`, `64927e1`)
+- Agent picker matches labels case-insensitively; `llm` counts as chat (`966d95d`)
+- Multi-tool `Required` forwards `tool_choice: 'required'`; unmet ones are logged with the request shape (`92672be`)
+- A turn that thinks yet delivers nothing disables thinking for that model; no setting (`4cb046e`)
+- 19 files, 71.89 KB, 1.140.0
+```
+chanh-0.1.2.vsix
+├─ [Content_Types].xml
+├─ extension.vsixmanifest
+└─ extension/
+   ├─ LICENSE.txt [1.06 KB]
+   ├─ changelog.md [6.04 KB]
+   ├─ package.json [12.93 KB]
+   ├─ readme.md [3.21 KB]
+   ├─ dist/
+   │  └─ extension.js [84.39 KB]
+   └─ media/
+      ├─ chanh.png [31.65 KB]
+      ├─ chanh.svg [3.83 KB]
+      └─ capabilities/
+         ├─ 3d.svg [0.36 KB]
+         ├─ classification.svg [0.4 KB]
+         ├─ embedding.svg [0.45 KB]
+         ├─ hot.svg [0.44 KB]
+         ├─ image.svg [0.33 KB]
+         ├─ llm.svg [0.46 KB]
+         ├─ reranking.svg [0.3 KB]
+         ├─ tool-calling.svg [0.29 KB]
+         ├─ transcription.svg [0.3 KB]
+         └─ tts.svg [0.29 KB]
+```
+### Notes
+- After improving agent integration, an eval/test/benchmarking suite is needed to tell whether it actually improved
 
 ## [0.1.1] - 2026-09-27
-- Added backends/recipes management
+- Adds backends/recipes management
 - `Show Model Info` inline button on downloadable model rows, same as the installed/loaded rows
-- Treeview now repaints when agent mode loads a model on demand - show the request lifecycle (`idle` / `busy` / `streaming`)
-- Models reload if backend change
+- Treeview now repaints when agent mode loads a model on demand, showing the request lifecycle (`idle` / `busy` / `streaming`)
+- Models reload when the backend changes
 - 19 files, 69.75 KB, 1.138.0
 
 ```
@@ -57,7 +87,7 @@ chanh-0.1.1.vsix
 
 ## [0.1.0] - 2026-09-21
 ### Renamed
-- Extension renamed from *Lemon* to *Chanh*, also the icon change
+- Extension renamed from *Lemon* to *Chanh*, plus the icon change
 - Server modes renamed: `LEMONADE` (system install), `LEMOND` (binary), `CUSTOM`
 - Settings renamed: `chanh.serverMode` (was `chanh.targetServer`), `chanh.lemonadePort`, `chanh.lemondPort`
 
@@ -66,7 +96,7 @@ chanh-0.1.1.vsix
 - Model capability labels (llm, embedding, reranking, transcription, tts, image, 3d) in the tree view
 - Custom server mode: URL validation on switch; unreachable error shown as subtext/description on the status row
 - Treeview inline buttons
-- Binary update check to once per day
+- Binary update check throttled to once per day
 - 19 files, 66.21 KB, 1.138.0
 ```
 chanh-0.1.0.vsix

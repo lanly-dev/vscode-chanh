@@ -28,7 +28,7 @@ The `@chanh` chat participant supports the following slash commands:
 The tree view in the sidebar shows the active server, its status and its models. You can pick different server modes, such as using the system-installed Lemonade Server or downloading the binary version.
 
 ## Agent mode and the model picker
-Models served by the active Lemonade Server are exposed to VS Code's native model picker under the `Chanh 🍋` provider. Only models carrying both the `chat` and `tool-calling` labels are listed, since agent mode relies on tool calling. Vision models (`vision` label) are tagged in the picker and accept image attachments.
+Models served by the active Lemonade Server are exposed to VS Code's native model picker under the `Chanh 🍋` provider. Only chat-capable models that also advertise `tool-calling` are listed, since agent mode relies on tool calling. `chat` and `llm` labels are treated the same, and label matching is case-insensitive. Vision models (`vision` label) are tagged in the picker and accept image attachments.
 
 Plain chat models (no `tool-calling` label) remain available through the `@chanh` participant. `chanh.chatModel` remembers the last model used for `@chanh` (leave empty to be prompted).
 
@@ -43,6 +43,9 @@ Plain chat models (no `tool-calling` label) remain available through the `@chanh
 | `chanh.maxLoadedModels` | (unset) | Maximum number of loaded models. Use `-1` for unlimited. |
 
 ## Release Notes
+### 0.1.2
+- Bugfixes and improve agent integration
+
 ### 0.1.1
 - Add backends/recipes management
 
