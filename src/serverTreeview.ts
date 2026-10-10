@@ -1105,20 +1105,31 @@ export class ServerViewProvider implements TreeDataProvider<TreeItem>, Disposabl
       .map((category) => {
         const bucket = grouped.get(category) ?? []
         const title = CAPABILITY_TITLES[category] ?? category
-        const item = new TreeItem(`${title} (${bucket.length})`, Collapsed)
         const subFilter = this._capSubFilters.get(ServerViewProvider.subFilterKey(category, downloadable))
+        const subCount = this.subCapabilitiesFor(category, downloadable).length
+
+        // Number of models actually shown once the sub-capability filter is
+        // applied, so the header count matches the (filtered) children below.
+        const matchCount = subFilter
+          ? bucket.filter((m) => (m.labels ?? []).includes(subFilter)).length
+          : bucket.length
+
+        const item = new TreeItem(`${title} (${matchCount})`, Collapsed)
         item.contextValue = subFilter
           ? 'CHANH_CAP_GROUP_FILTERED'
-          : (this.subCapabilitiesFor(category, downloadable).length > 0 ? 'CHANH_CAP_GROUP' : 'CHANH_CAP_GROUP_NOSUB')
-        // TODO: Consider adding additional context or actions for capability groups.
+          : (subCount > 0 ? 'CHANH_CAP_GROUP' : 'CHANH_CAP_GROUP_NOSUB')
         ; (item as TreeItem & { capability: string }).capability = category
         ; (item as TreeItem & { downloadable: boolean }).downloadable = downloadable
-        // When a sub-capability filter is active, surface it next to the group
-        // name as a description so the applied filter is always visible.
-        if (subFilter) item.description = subFilter
-        item.tooltip = subFilter
-          ? `${title} filtered by "${subFilter}"\n${bucket.length} model(s) match in this group`
-          : `${bucket.length} model(s) with ${title} capability`
+        // A number + "filter" reads the state without relying on the icon:
+        // how many models match while filtered, or how many sub-capabilities
+        // are available to filter by when none is active.
+        if (subFilter) {
+          item.description = `filter: ${subFilter} (${matchCount})`
+          item.tooltip = `${title} filtered by "${subFilter}"\n${matchCount} of ${bucket.length} model(s) shown`
+        } else {
+          item.description = subCount > 0 ? `${subCount} filters` : undefined
+          item.tooltip = `${bucket.length} model(s) with ${title} capability`
+        }
         // Capability groups wear the matching colored SVG; "other" gets a dot.
         item.iconPath = getCapIcon(this.context.extensionUri, category)
         return item
