@@ -52,6 +52,8 @@ export class ModelManager {
     // `imageInput` in `lmcProvider.ts`).
     if (l === 'image' || l.includes('vision')) return 'image'
     if (l === '3d') return '3d'
+    // Audio generation (music/SFX) is distinct from text-to-speech.
+    if (l === 'audio-generation' || l === 'audio') return 'audio-generation'
     return undefined
   }
 

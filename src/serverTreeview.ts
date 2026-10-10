@@ -29,7 +29,9 @@ import type {
 
 
 /** Capability grouping order and display titles for the tree view. */
-const CAPABILITY_ORDER = ['llm', 'embedding', 'reranking', 'classification', 'transcription', 'tts', 'image', '3d']
+const CAPABILITY_ORDER = [
+  'llm', 'embedding', 'reranking', 'classification', 'transcription', 'tts', 'audio-generation', 'image', '3d'
+]
 
 const CAPABILITY_TITLES: Readonly<Record<string, string>> = {
   llm: 'LLM / Chat',
@@ -38,6 +40,7 @@ const CAPABILITY_TITLES: Readonly<Record<string, string>> = {
   classification: 'Classification',
   transcription: 'Transcription',
   tts: 'Text-to-Speech',
+  'audio-generation': 'Audio generation',
   image: 'Image',
   '3d': '3D',
   other: 'Other'
