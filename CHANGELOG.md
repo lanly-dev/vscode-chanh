@@ -3,13 +3,14 @@ All notable changes to the "Chanh" extension will be documented in this file.\
 Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how to structure this file.
 
 ## [TODO]
-- Agent benchmarking
 - Agent integration via URL only
 - Chat follow up
 - Explore and add functionality for different types of models, e.g. image
 - Focus on coding-related features
 - GPU stats
 - Token stats
+
+## [0.1.3]
 
 ## [0.1.2] - 2026-10-06
 - Token counting uses the server tokenizer (`POST /v1/tokenize`), memoised; char estimate is the fallback (`ee90799`)

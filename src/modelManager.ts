@@ -47,10 +47,7 @@ export class ModelManager {
     if (l === 'classification') return 'classification'
     if (l === 'transcription') return 'transcription'
     if (l === 'tts' || l.includes('speech')) return 'tts'
-    // `image` (generation) and `vision` (image input) share one tree group by
-    // design; the agent picker still distinguishes them (`vision` alone sets
-    // `imageInput` in `lmcProvider.ts`).
-    if (l === 'image' || l.includes('vision')) return 'image'
+    if (l === 'image') return 'image'
     if (l === '3d') return '3d'
     // Audio generation (music/SFX) is distinct from text-to-speech.
     if (l === 'audio-generation' || l === 'audio') return 'audio-generation'
