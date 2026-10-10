@@ -58,6 +58,9 @@ const GROUP_DOWNLOADABLE_MODELS_KEY = 'groupDownloadableModelsByCapability'
 /** Storage key for the show-hot-models-only toggle (downloadable section). */
 const SHOW_HOT_ONLY_KEY = 'showHotOnly'
 
+/** Storage key for active sub-capability filters, one per capability group. */
+const CAP_SUB_FILTERS_KEY = 'capSubFilters'
+
 /** Minimum gap (ms) between two repaints of the same download row. */
 const DOWNLOAD_ROW_REFRESH_MS = 250
 
@@ -122,6 +125,12 @@ export class ServerViewProvider implements TreeDataProvider<TreeItem>, Disposabl
   private _groupDowModels = false
   /** Whether the downloadable section shows only hot models. */
   private _showHotOnly = false
+  /**
+   * Active sub-capability filter per capability group, keyed by
+   * `${downloadable ? 'dl' : 'ins'}:${capability}`. When set, the group shows
+   * only models carrying that extra label (e.g. `tool-calling` inside LLM/Chat).
+   */
+  private _capSubFilters = new Map<string, string>()
 
   /**
    * Cached `/v1/system-info` report, used to list the server's backends. This
@@ -159,6 +168,11 @@ export class ServerViewProvider implements TreeDataProvider<TreeItem>, Disposabl
     this._groupInsModels = this.context.workspaceState.get<boolean>(GROUP_MODELS_KEY, false)
     this._groupDowModels = this.context.workspaceState.get<boolean>(GROUP_DOWNLOADABLE_MODELS_KEY, false)
     this._showHotOnly = this.context.workspaceState.get<boolean>(SHOW_HOT_ONLY_KEY, false)
+
+    // Restore any saved sub-capability filters so the tree reopens as the user
+    // left it. Entries are stored as [key, label] pairs.
+    const savedFilters = this.context.workspaceState.get<Array<[string, string]>>(CAP_SUB_FILTERS_KEY, [])
+    for (const [key, label] of savedFilters) this._capSubFilters.set(key, label)
   }
 
   /** Flip the group-models-by-capability toggle, persist it, and refresh. */
@@ -180,6 +194,74 @@ export class ServerViewProvider implements TreeDataProvider<TreeItem>, Disposabl
     this._showHotOnly = !this._showHotOnly
     void this.context.workspaceState.update(SHOW_HOT_ONLY_KEY, this._showHotOnly)
     this.refresh()
+  }
+
+  /** Storage key for one capability group's active sub-capability filter. */
+  private static subFilterKey(capability: string, downloadable: boolean): string {
+    return `${downloadable ? 'dl' : 'ins'}:${capability}`
+  }
+
+  /**
+   * Distinct sub-capability labels available within a capability group: every
+   * model `label` in that group that is not itself a primary capability and not
+   * the "hot" marker (which already has its own toggle). This keeps the quick
+   * pick free of hardcoded knowledge — it reflects whatever the catalog labels
+   * actually carry (e.g. `tool-calling`, `vision`, `coding` inside LLM/Chat).
+   */
+  private subCapabilitiesFor(capability: string, downloadable: boolean): string[] {
+    const server = this._activeServer
+    const source = downloadable ? server?.downloadableModels : server?.models
+    if (!source) return []
+    const subs = new Set<string>()
+    for (const model of source) {
+      const categories = ModelManager.getCapabilityCategories(model)
+      if (categories.length === 0 ? capability !== 'other' : !categories.includes(capability)) continue
+      for (const label of model.labels ?? []) {
+        const l = label.toLowerCase()
+        if (!l || l === 'hot') continue
+        // Skip labels that resolve to a primary capability; those are the groups
+        // themselves, not sub-capabilities within a group.
+        if (ModelManager.capabilityFor(l)) continue
+        subs.add(label)
+      }
+    }
+    return [...subs].sort((a, b) => a.localeCompare(b))
+  }
+
+  /**
+   * Open a quick pick of sub-capabilities for the chosen capability group and,
+   * when one is picked, apply it as the group's active filter.
+   */
+  async filterCapGroup(item: TreeItem & { capability: string, downloadable?: boolean }): Promise<void> {
+    const capability = item.capability
+    const downloadable = item.downloadable ?? false
+    const options = this.subCapabilitiesFor(capability, downloadable)
+    const title = CAPABILITY_TITLES[capability] ?? capability
+    if (options.length === 0) {
+      void window.showInformationMessage(`No sub-capabilities available for ${title}.`)
+      return
+    }
+    const picked = await window.showQuickPick(options, {
+      title: `Filter ${title} by`,
+      placeHolder: 'Choose a sub-capability',
+      matchOnDescription: true
+    })
+    if (!picked) return
+    this._capSubFilters.set(ServerViewProvider.subFilterKey(capability, downloadable), picked)
+    this.persistSubFilters()
+    this.refresh()
+  }
+
+  /** Clear the active sub-capability filter on the chosen capability group. */
+  clearCapFilter(item: TreeItem & { capability: string, downloadable?: boolean }): void {
+    this._capSubFilters.delete(ServerViewProvider.subFilterKey(item.capability, item.downloadable ?? false))
+    this.persistSubFilters()
+    this.refresh()
+  }
+
+  /** Persist the current sub-capability filter map to workspace state. */
+  private persistSubFilters(): void {
+    void this.context.workspaceState.update(CAP_SUB_FILTERS_KEY, [...this._capSubFilters])
   }
 
   /**
@@ -636,7 +718,9 @@ export class ServerViewProvider implements TreeDataProvider<TreeItem>, Disposabl
     if (element.contextValue === 'CHANH_PINNED_HEADER') return this.getPinnedModelChildren(element)
     if (element.contextValue === 'CHANH_INSTALLED_HEADER') return this.getInstalledChildren(element)
     if (element.contextValue === 'CHANH_DOWNLOADABLE_HEADER') return this.getDownloadableChildren()
-    if (element.contextValue === 'CHANH_CAP_GROUP') return this.getCapGroupChildren(element)
+    if (element.contextValue === 'CHANH_CAP_GROUP'
+      || element.contextValue === 'CHANH_CAP_GROUP_FILTERED'
+      || element.contextValue === 'CHANH_CAP_GROUP_NOSUB') return this.getCapGroupChildren(element)
     return []
   }
 
@@ -1022,11 +1106,19 @@ export class ServerViewProvider implements TreeDataProvider<TreeItem>, Disposabl
         const bucket = grouped.get(category) ?? []
         const title = CAPABILITY_TITLES[category] ?? category
         const item = new TreeItem(`${title} (${bucket.length})`, Collapsed)
-        item.contextValue = 'CHANH_CAP_GROUP'
+        const subFilter = this._capSubFilters.get(ServerViewProvider.subFilterKey(category, downloadable))
+        item.contextValue = subFilter
+          ? 'CHANH_CAP_GROUP_FILTERED'
+          : (this.subCapabilitiesFor(category, downloadable).length > 0 ? 'CHANH_CAP_GROUP' : 'CHANH_CAP_GROUP_NOSUB')
         // TODO: Consider adding additional context or actions for capability groups.
         ; (item as TreeItem & { capability: string }).capability = category
         ; (item as TreeItem & { downloadable: boolean }).downloadable = downloadable
-        item.tooltip = `${bucket.length} model(s) with ${title} capability`
+        // When a sub-capability filter is active, surface it next to the group
+        // name as a description so the applied filter is always visible.
+        if (subFilter) item.description = subFilter
+        item.tooltip = subFilter
+          ? `${title} filtered by "${subFilter}"\n${bucket.length} model(s) match in this group`
+          : `${bucket.length} model(s) with ${title} capability`
         // Capability groups wear the matching colored SVG; "other" gets a dot.
         item.iconPath = getCapIcon(this.context.extensionUri, category)
         return item
@@ -1036,7 +1128,7 @@ export class ServerViewProvider implements TreeDataProvider<TreeItem>, Disposabl
   /** Models (installed or downloadable) under one capability group header. */
   private getCapGroupChildren(element: TreeItem): TreeItem[] {
     const capability = (element as TreeItem & { capability?: string }).capability
-    const downloadable = (element as TreeItem & { downloadable?: boolean }).downloadable
+    const downloadable = (element as TreeItem & { downloadable?: boolean }).downloadable ?? false
     const server = this._activeServer
     if (!capability) return []
 
@@ -1050,11 +1142,18 @@ export class ServerViewProvider implements TreeDataProvider<TreeItem>, Disposabl
 
     // Multi-capability models live in every group they belong to, so the same
     // filter applies whether the source is downloaded or downloadable models.
-    const filtered = effectiveSource.filter((m) => {
+    let filtered = effectiveSource.filter((m) => {
       const categories = ModelManager.getCapabilityCategories(m)
       if (categories.length === 0) return capability === 'other'
       return categories.includes(capability)
     })
+
+    // Apply the active sub-capability filter, if any: keep only models that
+    // carry the selected extra label (e.g. `tool-calling` inside LLM/Chat).
+    const subFilter = this._capSubFilters.get(ServerViewProvider.subFilterKey(capability, downloadable))
+    if (subFilter) {
+      filtered = filtered.filter((m) => (m.labels ?? []).some((l) => l === subFilter))
+    }
 
     if (downloadable) return filtered.map((m) => this.toDowItem(m))
 

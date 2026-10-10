@@ -152,6 +152,16 @@
         "icon": "$(flame)"
       },
       {
+        "command": "chanh.filterCapGroup",
+        "title": "Filter by Sub-Capability",
+        "icon": "$(filter)"
+      },
+      {
+        "command": "chanh.clearCapFilter",
+        "title": "Clear Sub-Capability Filter",
+        "icon": "$(clear-all)"
+      },
+      {
         "command": "chanh.ncp.setModelContext",
         "title": "Set Context Size",
         "icon": "$(symbol-numeric)"
@@ -253,6 +263,16 @@
         {
           "command": "chanh.toggleDlModelGrouping",
           "when": "view == CHANH_TREEVIEW && viewItem == CHANH_DOWNLOADABLE_HEADER",
+          "group": "inline"
+        },
+        {
+          "command": "chanh.filterCapGroup",
+          "when": "view == CHANH_TREEVIEW && viewItem == CHANH_CAP_GROUP",
+          "group": "inline"
+        },
+        {
+          "command": "chanh.clearCapFilter",
+          "when": "view == CHANH_TREEVIEW && viewItem == CHANH_CAP_GROUP_FILTERED",
           "group": "inline"
         },
         {

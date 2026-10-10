@@ -17,6 +17,9 @@ type ModelTreeItem = TreeItem & { modelId: string }
 /** Backend tree items carry their recipe and backend name. */
 type BackendTreeItem = TreeItem & { recipe: string, backend: string }
 
+/** Capability group tree items carry their capability and source section. */
+type CapGroupTreeItem = TreeItem & { capability: string, downloadable?: boolean }
+
 export async function activate(context: ExtensionContext) {
   const rc = commands.registerCommand
 
@@ -60,13 +63,16 @@ export async function activate(context: ExtensionContext) {
   const d21 = rc('chanh.toggleDlModelGrouping', () => svProvider.toggleDlModelGrouping())
   const d22 = rc('chanh.toggleHotModels', () => svProvider.toggleHotModels())
 
+  const d30 = rc('chanh.filterCapGroup', (item: CapGroupTreeItem) => svProvider.filterCapGroup(item))
+  const d31 = rc('chanh.clearCapFilter', (item: CapGroupTreeItem) => svProvider.clearCapFilter(item))
+
   const d23 = listenConfigsChange(serverManager)
   const d24 = lmcProvider.register()
   const d25 = window.registerFileDecorationProvider(new ModelDecorationProvider())
 
   context.subscriptions.push(d1, d2, d3, d4, d5, d6, d7, d8, d9, d10, d11, d12, d13, d14, d15, d16,
-    d17, d18, d19, d20, d21, d22, d23, d24, d25, d26, d27, serverManager, chatParticipant, lmcProvider, svProvider,
-    Logger.toDisposable())
+    d17, d18, d19, d20, d21, d22, d23, d24, d25, d26, d27, d30, d31, serverManager, chatParticipant,
+    lmcProvider, svProvider, Logger.toDisposable())
   binaryManager.checkForUpdates()
 }
 
