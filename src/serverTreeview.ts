@@ -9,6 +9,7 @@ import {
   TreeItemCollapsibleState,
   window
 } from 'vscode'
+import type { QuickPickItem } from 'vscode'
 const { Collapsed, Expanded, None } = TreeItemCollapsibleState
 
 import { formatByteProgress, formatSize, getCapIcon, getServerStatusChar } from './utils'
@@ -60,6 +61,16 @@ const SHOW_HOT_ONLY_KEY = 'showHotOnly'
 
 /** Storage key for active sub-capability filters, one per capability group. */
 const CAP_SUB_FILTERS_KEY = 'capSubFilters'
+
+/**
+ * Sentinel sub-filter value selecting models that carry no sub-capability label
+ * (plain `chat`, `tts`, …). Reserved name — real catalog labels are
+ * lowercase-hyphenated (e.g. `tool-calling`), so `single_cap` never collides.
+ */
+const SINGLE_CAP = 'single_cap'
+
+/** Display name for the "no sub-capability" filter option. */
+const SINGLE_CAP_LABEL = 'No sub-capability'
 
 /** Minimum gap (ms) between two repaints of the same download row. */
 const DOWNLOAD_ROW_REFRESH_MS = 250
@@ -201,21 +212,37 @@ export class ServerViewProvider implements TreeDataProvider<TreeItem>, Disposabl
     return `${downloadable ? 'dl' : 'ins'}:${capability}`
   }
 
+  /** Whether a model carries any sub-capability label (a non-primary, non-hot label). */
+  private hasSubCapability(model: LemonadeModel): boolean {
+    return (model.labels ?? []).some((label) => {
+      const l = label.toLowerCase()
+      return !!l && l !== 'hot' && !ModelManager.capabilityFor(l)
+    })
+  }
+
+  /** Whether a model matches an active sub-capability filter value. */
+  private matchesSubFilter(model: LemonadeModel, subFilter: string): boolean {
+    // The sentinel selects the plain models that have no sub-capability label.
+    if (subFilter === SINGLE_CAP) return !this.hasSubCapability(model)
+    return (model.labels ?? []).includes(subFilter)
+  }
+
   /**
-   * Distinct sub-capability labels available within a capability group: every
-   * model `label` in that group that is not itself a primary capability and not
-   * the "hot" marker (which already has its own toggle). This keeps the quick
-   * pick free of hardcoded knowledge — it reflects whatever the catalog labels
-   * actually carry (e.g. `tool-calling`, `vision`, `coding` inside LLM/Chat).
+   * Sub-capability filter options for a capability group: the distinct sub-labels
+   * among its models, plus whether any model in the group has none (which makes
+   * a "General" option meaningful — e.g. a plain `tts` or `chat` model). Kept
+   * data-driven, so it reflects whatever the catalog labels actually carry.
    */
-  private subCapabilitiesFor(capability: string, downloadable: boolean): string[] {
+  private subFilterOptions(capability: string, downloadable: boolean): { labels: string[], hasGeneral: boolean } {
     const server = this._activeServer
     const source = downloadable ? server?.downloadableModels : server?.models
-    if (!source) return []
+    if (!source) return { labels: [], hasGeneral: false }
     const subs = new Set<string>()
+    let hasGeneral = false
     for (const model of source) {
       const categories = ModelManager.getCapabilityCategories(model)
       if (categories.length === 0 ? capability !== 'other' : !categories.includes(capability)) continue
+      let hadSub = false
       for (const label of model.labels ?? []) {
         const l = label.toLowerCase()
         if (!l || l === 'hot') continue
@@ -223,31 +250,45 @@ export class ServerViewProvider implements TreeDataProvider<TreeItem>, Disposabl
         // themselves, not sub-capabilities within a group.
         if (ModelManager.capabilityFor(l)) continue
         subs.add(label)
+        hadSub = true
       }
+      if (!hadSub) hasGeneral = true
     }
-    return [...subs].sort((a, b) => a.localeCompare(b))
+    return { labels: [...subs].sort((a, b) => a.localeCompare(b)), hasGeneral }
   }
 
   /**
    * Open a quick pick of sub-capabilities for the chosen capability group and,
-   * when one is picked, apply it as the group's active filter.
+   * when one is picked, apply it as the group's active filter. The list includes
+   * the real sub-labels plus — when the group has models without any sub-label —
+   * a "General" option that selects those plain models (e.g. a bare `tts`).
    */
   async filterCapGroup(item: TreeItem & { capability: string, downloadable?: boolean }): Promise<void> {
     const capability = item.capability
     const downloadable = item.downloadable ?? false
-    const options = this.subCapabilitiesFor(capability, downloadable)
+    const { labels, hasGeneral } = this.subFilterOptions(capability, downloadable)
     const title = CAPABILITY_TITLES[capability] ?? capability
-    if (options.length === 0) {
+    // A single option is not a real choice, so there is nothing to filter by.
+    if (labels.length + (hasGeneral ? 1 : 0) <= 1) {
       void window.showInformationMessage(`No sub-capabilities available for ${title}.`)
       return
     }
+
+    const options: Array<QuickPickItem & { value: string }> = [
+      // "General" leads so the plain (no sub-label) models are easy to reach.
+      ...(hasGeneral
+        ? [{ label: SINGLE_CAP_LABEL, value: SINGLE_CAP }]
+        : []),
+      ...labels.map((label) => ({ label, value: label }))
+    ]
+
     const picked = await window.showQuickPick(options, {
       title: `Filter ${title} by`,
       placeHolder: 'Choose a sub-capability',
       matchOnDescription: true
     })
     if (!picked) return
-    this._capSubFilters.set(ServerViewProvider.subFilterKey(capability, downloadable), picked)
+    this._capSubFilters.set(ServerViewProvider.subFilterKey(capability, downloadable), picked.value)
     this.persistSubFilters()
     this.refresh()
   }
@@ -1106,13 +1147,21 @@ export class ServerViewProvider implements TreeDataProvider<TreeItem>, Disposabl
         const bucket = grouped.get(category) ?? []
         const title = CAPABILITY_TITLES[category] ?? category
         const subFilter = this._capSubFilters.get(ServerViewProvider.subFilterKey(category, downloadable))
-        const subCount = this.subCapabilitiesFor(category, downloadable).length
+        const { labels: subLabels, hasGeneral } = this.subFilterOptions(category, downloadable)
+        // "General" counts as one filter option when the group has plain models.
+        // A lone option is not a real choice — there is nothing to filter between,
+        // so the inline Filter button only appears when there are 2+ options.
+        const totalOptions = subLabels.length + (hasGeneral ? 1 : 0)
+        const subCount = totalOptions > 1 ? totalOptions : 0
 
         // Number of models actually shown once the sub-capability filter is
         // applied, so the header count matches the (filtered) children below.
         const matchCount = subFilter
-          ? bucket.filter((m) => (m.labels ?? []).includes(subFilter)).length
+          ? bucket.filter((m) => this.matchesSubFilter(m, subFilter)).length
           : bucket.length
+
+        // The raw "General" value is a sentinel; show a friendly label instead.
+        const subFilterLabel = subFilter === SINGLE_CAP ? SINGLE_CAP_LABEL : subFilter
 
         const item = new TreeItem(`${title} (${matchCount})`, Collapsed)
         item.contextValue = subFilter
@@ -1124,8 +1173,8 @@ export class ServerViewProvider implements TreeDataProvider<TreeItem>, Disposabl
         // how many models match while filtered, or how many sub-capabilities
         // are available to filter by when none is active.
         if (subFilter) {
-          item.description = `filter: ${subFilter} (${matchCount})`
-          item.tooltip = `${title} filtered by "${subFilter}"\n${matchCount} of ${bucket.length} model(s) shown`
+          item.description = `filter: ${subFilterLabel} (${matchCount})`
+          item.tooltip = `${title} filtered by "${subFilterLabel}"\n${matchCount} of ${bucket.length} model(s) shown`
         } else {
           item.description = subCount > 0 ? `${subCount} filters` : undefined
           item.tooltip = `${bucket.length} model(s) with ${title} capability`
@@ -1160,10 +1209,11 @@ export class ServerViewProvider implements TreeDataProvider<TreeItem>, Disposabl
     })
 
     // Apply the active sub-capability filter, if any: keep only models that
-    // carry the selected extra label (e.g. `tool-calling` inside LLM/Chat).
+    // match the selected label, or the plain models with no sub-label when the
+    // "General" option is active.
     const subFilter = this._capSubFilters.get(ServerViewProvider.subFilterKey(capability, downloadable))
     if (subFilter) {
-      filtered = filtered.filter((m) => (m.labels ?? []).some((l) => l === subFilter))
+      filtered = filtered.filter((m) => this.matchesSubFilter(m, subFilter))
     }
 
     if (downloadable) return filtered.map((m) => this.toDowItem(m))

@@ -243,3 +243,4 @@ Re-checked against the running Lemonade 11.8.1 server on 2026-09-30. Each of the
 - [ ] `src/serverTreeview.ts:129` - decide how to surface backends the server has installed but `/v1/system-info` still reports as `installable`.
 - [ ] Add a test harness before the testing items above can be written: `package.json` defines no `test` script and the repository contains no test files. Any runner also needs a way to stand in for the `vscode` module, since `lmcProvider.ts`, `serverTreeview.ts`, and `modelManager.ts` all import it at module scope.
 - [ ] Need to check if memory leak, found many vscode processes
+- [ ] Description for capabilities just for reminder
