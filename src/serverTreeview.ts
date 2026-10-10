@@ -1164,6 +1164,11 @@ export class ServerViewProvider implements TreeDataProvider<TreeItem>, Disposabl
         const subFilterLabel = subFilter === SINGLE_CAP ? SINGLE_CAP_LABEL : subFilter
 
         const item = new TreeItem(`${title} (${matchCount})`, Collapsed)
+        // Stable id independent of label/count/filter so VS Code can match the
+        // group across refreshes and keep its expanded state (toggling the hot
+        // or sub-capability filter changes the label, which would otherwise
+        // reset the group to collapsed).
+        item.id = `chanh:capgroup:${downloadable ? 'dl' : 'ins'}:${category}`
         item.contextValue = subFilter
           ? 'CHANH_CAP_GROUP_FILTERED'
           : (subCount > 0 ? 'CHANH_CAP_GROUP' : 'CHANH_CAP_GROUP_NOSUB')
