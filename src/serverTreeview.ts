@@ -7,6 +7,8 @@ import {
   TreeDataProvider,
   TreeItem,
   TreeItemCollapsibleState,
+  TreeView,
+  TreeViewExpansionEvent,
   window
 } from 'vscode'
 import type { QuickPickItem } from 'vscode'
@@ -94,14 +96,82 @@ export class ServerViewProvider implements TreeDataProvider<TreeItem>, Disposabl
       showCollapseAll: true
     })
     context.subscriptions.push(treeView)
+    provider.setupExpandStatePersistence(context, treeView)
     refreshEvents.fire()
     return provider
+  }
+
+  /**
+   * Expand/collapse state is not persisted by the TreeView API across window
+   * reloads; it is only retained for the current session. Each collapsible
+   * model section is identified by a stable `id` (e.g. `chanh:installed`).
+   * Listen to the expand/collapse events and persist the state to
+   * `workspaceState` keyed by that `id`, so the sections reopen in the same
+   * state after a window reload.
+   */
+  private setupExpandStatePersistence(context: ExtensionContext, treeView: TreeView<TreeItem>): void {
+    const EXPANDED_SECTIONS_KEY = 'chanh.expandedSections'
+    const sectionIds = new Set<string>(['chanh:installed', 'chanh:downloadable'])
+
+    // Restore the previously persisted expand/collapse state, if any. Unknown
+    // ids and non-boolean values are ignored so a corrupt entry cannot break
+    // the view.
+    const stored = context.workspaceState.get<Record<string, boolean>>(EXPANDED_SECTIONS_KEY)
+    if (stored) {
+      for (const [id, open] of Object.entries(stored)) {
+        if (sectionIds.has(id) && typeof open === 'boolean') {
+          this._expandedSections.set(id, open)
+        }
+      }
+    }
+
+    const persist = (): void => {
+      const record: Record<string, boolean> = {}
+      for (const [id, open] of this._expandedSections) {
+        record[id] = open
+      }
+      void context.workspaceState.update(EXPANDED_SECTIONS_KEY, record)
+    }
+
+    const onExpand = (e: TreeViewExpansionEvent<TreeItem>): void => {
+      const id = e.element.id
+      if (id !== undefined && sectionIds.has(id)) {
+        this._expandedSections.set(id, true)
+        persist()
+      }
+    }
+
+    const onCollapse = (e: TreeViewExpansionEvent<TreeItem>): void => {
+      const id = e.element.id
+      if (id !== undefined && sectionIds.has(id)) {
+        this._expandedSections.set(id, false)
+        persist()
+      }
+    }
+
+    context.subscriptions.push(
+      treeView.onDidExpandElement(onExpand),
+      treeView.onDidCollapseElement(onCollapse)
+    )
+  }
+
+  /**
+   * Resolve the persisted initial state for a section header. Sections are
+   * expanded unless the user explicitly collapsed them (recorded as `false`);
+   * never-seen ids default to expanded, matching the pre-persistence behavior.
+   */
+  private sectionState(id: string): TreeItemCollapsibleState {
+    return this._expandedSections.get(id) === false ? Collapsed : Expanded
   }
 
   private _onDidChangeTreeData = new EventEmitter<TreeItem | undefined | void>()
   readonly onDidChangeTreeData = this._onDidChangeTreeData.event
 
   private _activeServer: ServerInstance | null = null
+
+  /** Track the expanded/collapsed state of collapsible sections, keyed by `TreeItem.id`. */
+  private _expandedSections = new Map<string, boolean>()
+
   /**
    * Whether the cached `_activeServer` snapshot is out of date. Set by
    * `refreshServer` when server-side state may have changed and cleared once a
@@ -509,6 +579,8 @@ export class ServerViewProvider implements TreeDataProvider<TreeItem>, Disposabl
     if (this._activeServer?.models && !this._hideModelSections) {
       const models = this._activeServer.models
       const modelsHeader = new TreeItem(`Installed Models (${models.length})`, Expanded)
+      modelsHeader.id = 'chanh:installed'
+      modelsHeader.collapsibleState = this.sectionState('chanh:installed')
       modelsHeader.iconPath = new ThemeIcon('list-tree')
       modelsHeader.contextValue = 'CHANH_INSTALLED_HEADER'
 
@@ -531,6 +603,8 @@ export class ServerViewProvider implements TreeDataProvider<TreeItem>, Disposabl
         ? dlModels.filter((m) => ModelManager.isHotModel(m)).length
         : dlModels.length
       const dlHeader = new TreeItem(`Downloadable Models (${dlCount})`, Expanded)
+      dlHeader.id = 'chanh:downloadable'
+      dlHeader.collapsibleState = this.sectionState('chanh:downloadable')
       dlHeader.iconPath = this._showHotOnly
         ? new ThemeIcon('flame', new ThemeColor('charts.yellow'))
         : new ThemeIcon('cloud-download')
