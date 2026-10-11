@@ -51,6 +51,12 @@ export interface ChatCompletionRequest {
    * does not read the key ignores it, and other recipes ignore the object.
    */
   chat_template_kwargs?: { enable_thinking?: boolean }
+  /**
+   * Ask streaming backends to include the `usage` block on the final chunk
+   * (required by e.g. vLLM; harmless elsewhere). The client sets this on
+   * every streamed request so per-turn token counts are available.
+   */
+  stream_options?: { include_usage?: boolean }
 }
 
 /** Non-streaming chat completion response. */
@@ -71,11 +77,19 @@ export interface ChatCompletionResponse {
  * What a stream actually carried, filled in by the client and read by the
  * caller afterwards. `reasoningChars` counts the chain-of-thought the host is
  * never shown, which is what tells a turn that answered apart from one that
- * spent its output budget thinking.
+ * spent its output budget thinking. The token fields mirror the server's
+ * authoritative `usage` block (sent on the final SSE chunk), and are left
+ * undefined when the backend doesn't report them.
  */
 export interface ChatStreamStats {
   /** Characters received in `delta.reasoning_content`, accumulated. */
   reasoningChars?: number
+  /** Tokens in the prompt, as counted by the server. */
+  promptTokens?: number
+  /** Tokens generated, as counted by the server. */
+  completionTokens?: number
+  /** Total tokens for the turn, as counted by the server. */
+  totalTokens?: number
 }
 
 /** A content part of a multimodal chat message (OpenAI format). */

@@ -1,6 +1,7 @@
 import * as vscode from 'vscode'
-import { refreshEvents } from './events'
+import { closeOpenMarkdownFence, formatTurnFooter, shouldShowTokenStats } from './utils'
 import { Logger } from './logger'
+import { refreshEvents } from './events'
 import { ServerStatus } from './interfaces'
 import { ModelManager } from './modelManager'
 import type { ChatCompletionRequest, ChatContentPart, ChatMessage, OpenAIMessageToolCall } from './interfaces'
@@ -375,7 +376,7 @@ class ChanhLmcProvider implements vscode.LanguageModelChatProvider, vscode.Dispo
       if (token.isCancellationRequested) return
       // Drop calls with unusable arguments, but track both halves of the
       // response: a turn whose only call is dropped must fail visibly.
-      await client.chatCompletionStream(
+      const fullResponse = await client.chatCompletionStream(
         {
           model: model.id,
           messages: base,
@@ -397,6 +398,13 @@ class ChanhLmcProvider implements vscode.LanguageModelChatProvider, vscode.Dispo
         stats
       )
       for (const tc of toolCalls) progress.report(new vscode.LanguageModelToolCallPart(tc.id, tc.name, tc.args))
+      const footer = formatTurnFooter(stats, fullResponse.length)
+      if (footer && shouldShowTokenStats()) {
+        const fenceClosure = closeOpenMarkdownFence(fullResponse)
+        if (fenceClosure) progress.report(new vscode.LanguageModelTextPart(fenceClosure))
+        progress.report(new vscode.LanguageModelTextPart(`\n\n---\n${footer}`))
+        Logger.info(`Agent token footer: ${footer}`)
+      }
       if (droppedCalls > 0 && toolCalls.length === 0 && !reportedText) {
         throw new Error(
           `The model returned ${droppedCalls} tool call(s) with arguments that could not be parsed ` +

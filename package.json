@@ -383,6 +383,11 @@
         "chanh.maxLoadedModels": {
           "type": "number",
           "description": "Maximum number of loaded models (for each type?), Use -1 for unlimited."
+        },
+        "chanh.showTokenStats": {
+          "type": "boolean",
+          "default": false,
+          "description": "Show per-turn token stats in the chat/agent footer (down from the model's `usage` block)."
         }
       }
     },

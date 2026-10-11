@@ -470,7 +470,13 @@ export class LemonadeClient {
         settled = true
         reject(error)
       }
-      const body = JSON.stringify({ ...request, stream: true })
+      const body = JSON.stringify({
+        ...request,
+        stream: true,
+        // Ask backends that gate it (e.g. vLLM) to include the final `usage`
+        // block so per-turn token counts are available.
+        stream_options: { include_usage: true }
+      })
       const headers: Record<string, string> = {
         'Content-Type': 'application/json',
         'Content-Length': Buffer.byteLength(body).toString(),
@@ -532,6 +538,15 @@ export class LemonadeClient {
                 const reasoning = choice?.delta?.reasoning_content
                 if (typeof reasoning === 'string') {
                   stats.reasoningChars = (stats.reasoningChars ?? 0) + reasoning.length
+                }
+                // The server reports authoritative token counts in the `usage`
+                // block on the final chunk; some backends (e.g. vLLM) only send
+                // it when asked via `stream_options: { include_usage: true }`.
+                const usage = parsed.usage
+                if (usage) {
+                  if (typeof usage.prompt_tokens === 'number') stats.promptTokens = usage.prompt_tokens
+                  if (typeof usage.completion_tokens === 'number') stats.completionTokens = usage.completion_tokens
+                  if (typeof usage.total_tokens === 'number') stats.totalTokens = usage.total_tokens
                 }
               }
               const content = choice?.delta?.content ?? choice?.message?.content

@@ -23,7 +23,8 @@ import { ModelManager } from './modelManager'
 import { ServerManager } from './serverManager'
 import { ServerStatus } from './interfaces'
 
-import type { ChatMessage } from './interfaces'
+import type { ChatMessage, ChatStreamStats } from './interfaces'
+import { closeOpenMarkdownFence, formatTurnFooter, shouldShowTokenStats } from './utils'
 
 // Handles VS Code chat requests by forwarding them to the Lemonade Server.
 export class ChatParticipant implements Disposable {
@@ -172,16 +173,24 @@ export class ChatParticipant implements Disposable {
     }
     refreshEvents.fire()
     try {
+      const stats: ChatStreamStats = {}
       const fullResponse = await this.client.chatCompletionStream(
         { model, messages },
         (tokenChunk) => {
           markBusy()
           response.markdown(tokenChunk)
         },
-        this.createAbortSignal(token)
+        this.createAbortSignal(token),
+        undefined,
+        stats
       )
 
       Logger.info(`Chat response complete (${fullResponse.length} chars)`)
+      const footer = formatTurnFooter(stats, fullResponse.length)
+      if (footer && shouldShowTokenStats()) {
+        response.markdown(`${closeOpenMarkdownFence(fullResponse)}\n\n---\n${footer}`)
+        Logger.info(`Token footer: ${footer}`)
+      }
       return {}
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err)

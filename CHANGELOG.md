@@ -8,9 +8,11 @@ Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how 
 - Explore and add functionality for different types of models, e.g. image
 - Focus on coding-related features
 - GPU stats
-- Token stats
+- Footer token counting config (`chanh.showTokenStats`, default false)
 
-## [0.1.3]
+## [0.1.4]
+- Per-turn token counts (`usage` from the final stream chunk) now optional; toggle
+  via `chanh.showTokenStats` (defaults to `false`)
 
 ## [0.1.2] - 2026-10-06
 - Token counting uses the server tokenizer (`POST /v1/tokenize`), memoised; char estimate is the fallback (`ee90799`)
