@@ -59,6 +59,9 @@ const GROUP_DOWNLOADABLE_MODELS_KEY = 'groupDownloadableModelsByCapability'
 /** Storage key for the show-hot-models-only toggle (downloadable section). */
 const SHOW_HOT_ONLY_KEY = 'showHotOnly'
 
+/** Storage key for the hide-Installed-and-Downloadable-sections toggle. */
+const HIDE_MODEL_SECTIONS_KEY = 'hideModelSections'
+
 /** Storage key for active sub-capability filters, one per capability group. */
 const CAP_SUB_FILTERS_KEY = 'capSubFilters'
 
@@ -136,6 +139,8 @@ export class ServerViewProvider implements TreeDataProvider<TreeItem>, Disposabl
   private _groupDowModels = false
   /** Whether the downloadable section shows only hot models. */
   private _showHotOnly = false
+  /** Whether the Installed and Downloadable model sections are hidden (nav toggle). */
+  private _hideModelSections = false
   /**
    * Active sub-capability filter per capability group, keyed by
    * `${downloadable ? 'dl' : 'ins'}:${capability}`. When set, the group shows
@@ -179,6 +184,7 @@ export class ServerViewProvider implements TreeDataProvider<TreeItem>, Disposabl
     this._groupInsModels = this.context.workspaceState.get<boolean>(GROUP_MODELS_KEY, false)
     this._groupDowModels = this.context.workspaceState.get<boolean>(GROUP_DOWNLOADABLE_MODELS_KEY, false)
     this._showHotOnly = this.context.workspaceState.get<boolean>(SHOW_HOT_ONLY_KEY, false)
+    this._hideModelSections = this.context.workspaceState.get<boolean>(HIDE_MODEL_SECTIONS_KEY, false)
 
     // Restore any saved sub-capability filters so the tree reopens as the user
     // left it. Entries are stored as [key, label] pairs.
@@ -204,6 +210,13 @@ export class ServerViewProvider implements TreeDataProvider<TreeItem>, Disposabl
   toggleHotModels(): void {
     this._showHotOnly = !this._showHotOnly
     void this.context.workspaceState.update(SHOW_HOT_ONLY_KEY, this._showHotOnly)
+    this.refresh()
+  }
+
+  /** Flip the Installed/Downloadable model sections visibility, persist, and refresh. */
+  toggleModelSections(): void {
+    this._hideModelSections = !this._hideModelSections
+    void this.context.workspaceState.update(HIDE_MODEL_SECTIONS_KEY, this._hideModelSections)
     this.refresh()
   }
 
@@ -493,7 +506,7 @@ export class ServerViewProvider implements TreeDataProvider<TreeItem>, Disposabl
 
 
     // Installed models section
-    if (this._activeServer?.models) {
+    if (this._activeServer?.models && !this._hideModelSections) {
       const models = this._activeServer.models
       const modelsHeader = new TreeItem(`Installed Models (${models.length})`, Expanded)
       modelsHeader.iconPath = new ThemeIcon('list-tree')
@@ -512,7 +525,7 @@ export class ServerViewProvider implements TreeDataProvider<TreeItem>, Disposabl
     }
 
     // Downloadable (not-yet-downloaded catalog) models section
-    if (this._activeServer?.downloadableModels) {
+    if (this._activeServer?.downloadableModels && !this._hideModelSections) {
       const dlModels = this._activeServer.downloadableModels
       const dlCount = this._showHotOnly
         ? dlModels.filter((m) => ModelManager.isHotModel(m)).length

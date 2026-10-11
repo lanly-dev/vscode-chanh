@@ -152,6 +152,11 @@
         "icon": "$(flame)"
       },
       {
+        "command": "chanh.toggleModelSections",
+        "title": "Toggle Installed & Downloadable Sections",
+        "icon": "$(eye-closed)"
+      },
+      {
         "command": "chanh.filterCapGroup",
         "title": "Filter by Sub-Capability",
         "icon": "$(filter)"
@@ -215,6 +220,11 @@
         },
         {
           "command": "chanh.openSettings",
+          "when": "view == CHANH_TREEVIEW",
+          "group": "navigation"
+        },
+        {
+          "command": "chanh.toggleModelSections",
           "when": "view == CHANH_TREEVIEW",
           "group": "navigation"
         }
