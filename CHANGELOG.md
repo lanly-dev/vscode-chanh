@@ -9,10 +9,14 @@ Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how 
 - Focus on coding-related features
 - GPU stats
 - Footer token counting config (`chanh.showTokenStats`, default false)
+- Custom models support
 
 ## [0.1.4]
 - Per-turn token counts (`usage` from the final stream chunk) now optional; toggle
   via `chanh.showTokenStats` (defaults to `false`)
+- New `omni` capability class (wizard-hat icon) for models that serve every
+  modality; listed first in the capability grouping and, like any
+  multi-capability model, also under LLM / Chat
 
 ## [0.1.2] - 2026-10-06
 - Token counting uses the server tokenizer (`POST /v1/tokenize`), memoised; char estimate is the fallback (`ee90799`)

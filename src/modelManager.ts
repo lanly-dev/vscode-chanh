@@ -39,19 +39,7 @@ export class ModelManager {
    * `lmcProvider.ts` reuses this to decide which models the agent picker lists.
    */
   static capabilityFor(raw: string): string | undefined {
-    const l = raw.toLowerCase()
-    if (l === 'chat' || l === 'llm') return 'llm'
-    // Lemonade labels embedding models with the plural "embeddings".
-    if (l === 'embeddings') return 'embedding'
-    if (l === 'reranking') return 'reranking'
-    if (l === 'classification') return 'classification'
-    if (l === 'transcription') return 'transcription'
-    if (l === 'tts' || l.includes('speech')) return 'tts'
-    if (l === 'image') return 'image'
-    if (l === '3d') return '3d'
-    // Audio generation (music/SFX) is distinct from text-to-speech.
-    if (l === 'audio-generation' || l === 'audio') return 'audio-generation'
-    return undefined
+    return raw.toLowerCase()
   }
 
   /** Whether the model carries the server's "hot" marker label. */

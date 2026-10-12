@@ -30,13 +30,13 @@ import type {
   SystemInfoResponse
 } from './interfaces'
 
-
 /** Capability grouping order and display titles for the tree view. */
 const CAPABILITY_ORDER = [
-  'llm', 'embedding', 'reranking', 'classification', 'transcription', 'tts', 'audio-generation', 'image', '3d'
+  'chat', 'transcription', 'image', 'embeddings', 'tts', 'audio-generation', 'classification', 'omni', 'reranking','3d'
 ]
 
 const CAPABILITY_TITLES: Readonly<Record<string, string>> = {
+  omni: 'Omni',
   llm: 'LLM / Chat',
   embedding: 'Embedding',
   reranking: 'Reranking',
