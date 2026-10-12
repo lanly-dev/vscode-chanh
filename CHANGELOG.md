@@ -20,7 +20,9 @@ Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how 
   adapters, with utilization only where `nvidia-smi` is available. Sampled
   every `chanh.systemSampleInterval` seconds (default 5); the GPU subprocesses
   only run while the group is on screen. A sample repaints only the rows whose
-  values actually changed.
+  values actually changed. The group only appears while the configured server
+  runs on this machine (LEMONADE, LEMOND, or a CUSTOM URL pointing at
+  localhost) — with a remote server the local numbers would mean nothing.
 - Per-turn token counts (`usage` from the final stream chunk) now optional; toggle
   via `chanh.showTokenStats` (defaults to `false`)
 - New `omni` capability class (wizard-hat icon) for models that serve every

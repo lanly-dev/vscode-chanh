@@ -596,12 +596,37 @@ export class ServerViewProvider implements TreeDataProvider<TreeItem>, Disposabl
   }
 
   /**
-   * Whether the GPU rows can currently be seen: the sidebar view is visible
-   * *and* the System section is expanded. Read live on every sample so a stale
-   * cached flag can never keep a subprocess running (or stop a needed one).
+   * Whether the System section is worth showing at all: the stats describe
+   * *this* machine, so they only mean something when the configured server is
+   * running on it. Decided from the target URL rather than `serverMode`,
+   * because CUSTOM may legitimately point back at localhost (the port editor
+   * even suggests it) — a mode check would hide the stats from that setup.
+   * An empty or unparseable URL counts as local: hiding on "unknown" would
+   * be worse than showing.
+   */
+  private systemStatsRelevant(): boolean {
+    const url = this.serverManager.url
+    if (!url) return true
+    try {
+      // `URL` keeps IPv6 brackets (`[::1]`), so strip them before comparing.
+      const hostname = new URL(url).hostname.replace(/^\[|\]$/g, '')
+      return hostname === 'localhost' || hostname === '::1' ||
+        hostname === '127.0.0.1' || hostname.startsWith('127.')
+    } catch {
+      return true
+    }
+  }
+
+  /**
+   * Whether the GPU rows can currently be seen: the sidebar view is visible,
+   * the System section is on screen *and* expanded. Read live on every sample
+   * so a stale cached flag can never keep a subprocess running (or stop a
+   * needed one).
    */
   private gpusOnScreen(): boolean {
-    return (this._treeView?.visible ?? false) && this.systemSectionOpen()
+    return (this._treeView?.visible ?? false) &&
+      this.systemStatsRelevant() &&
+      this.systemSectionOpen()
   }
 
   /**
@@ -623,6 +648,9 @@ export class ServerViewProvider implements TreeDataProvider<TreeItem>, Disposabl
     // VS Code can only refresh an element it already knows, so wait for the
     // first root render before signalling any repaint.
     if (!this._systemRendered) return
+    // The section is only rendered while the server runs locally; while it is
+    // hidden there is nothing to repaint.
+    if (!this.systemStatsRelevant()) return
     const { changedIds, structureChanged, headerChanged } = this.paintSystem(this._systemMonitor.snapshot)
     // Rows appeared or disappeared (e.g. the GPU probe finished): only a full
     // refresh re-creates the row set.
@@ -800,13 +828,17 @@ export class ServerViewProvider implements TreeDataProvider<TreeItem>, Disposabl
     }
     // Root level - fetch fresh data
     const items: TreeItem[] = []
-    // System section - live CPU / GPU / RAM stats for this machine. The header
-    // and its rows are stable instances, so each sample can repaint just the
-    // rows whose text changed; expand state rides the persisted section map.
-    this.paintSystem(this._systemMonitor.snapshot)
-    this._systemHeader.collapsibleState = this.sectionState('chanh:system')
-    this._systemRendered = true
-    items.push(this._systemHeader)
+    // System section - live CPU / GPU / RAM stats for this machine. Only shown
+    // while the configured server runs locally (see `systemStatsRelevant`),
+    // since these stats describe this machine and nothing else. The header and
+    // its rows are stable instances, so each sample can repaint just the rows
+    // whose text changed; expand state rides the persisted section map.
+    if (this.systemStatsRelevant()) {
+      this.paintSystem(this._systemMonitor.snapshot)
+      this._systemHeader.collapsibleState = this.sectionState('chanh:system')
+      this._systemRendered = true
+      items.push(this._systemHeader)
+    }
 
     await this.fetchServerData()
 
