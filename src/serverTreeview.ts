@@ -14,8 +14,9 @@ import {
 import type { QuickPickItem } from 'vscode'
 const { Collapsed, Expanded, None } = TreeItemCollapsibleState
 
-import { formatByteProgress, formatSize, getCapIcon, getServerStatusChar } from './utils'
+import { formatByteProgress, formatBytes, formatSize, getCapIcon, getServerStatusChar } from './utils'
 import { Logger } from './logger'
+import { GpuStats, SYSTEM_SAMPLE_INTERVAL_MS, SystemMonitor, SystemSnapshot } from './systemMonitor'
 import { ModelDecorationProvider } from './modelDecorations'
 import { ModelManager } from './modelManager'
 import { refreshEvents } from './events'
@@ -80,6 +81,11 @@ const SINGLE_CAP_LABEL = 'No sub-capability'
 /** Minimum gap (ms) between two repaints of the same download row. */
 const DOWNLOAD_ROW_REFRESH_MS = 250
 
+/** Wall-clock time for a sample timestamp, e.g. `14:03:22`. */
+function formatSampleTime(at: number): string {
+  return new Date(at).toLocaleTimeString()
+}
+
 /**
  * Tree data provider for the Servers view.
  * Shows both the Lemonade Server (System) and the lemond (Managed by Chanh) in a single tree.
@@ -97,6 +103,7 @@ export class ServerViewProvider implements TreeDataProvider<TreeItem>, Disposabl
     })
     context.subscriptions.push(treeView)
     provider.setupExpandStatePersistence(context, treeView)
+    provider.attachTreeView(context, treeView)
     refreshEvents.fire()
     return provider
   }
@@ -111,7 +118,7 @@ export class ServerViewProvider implements TreeDataProvider<TreeItem>, Disposabl
    */
   private setupExpandStatePersistence(context: ExtensionContext, treeView: TreeView<TreeItem>): void {
     const EXPANDED_SECTIONS_KEY = 'chanh.expandedSections'
-    const sectionIds = new Set<string>(['chanh:installed', 'chanh:downloadable'])
+    const sectionIds = new Set<string>(['chanh:installed', 'chanh:downloadable', 'chanh:system'])
 
     // Restore the previously persisted expand/collapse state, if any. Unknown
     // ids and non-boolean values are ignored so a corrupt entry cannot break
@@ -138,6 +145,9 @@ export class ServerViewProvider implements TreeDataProvider<TreeItem>, Disposabl
       if (id !== undefined && sectionIds.has(id)) {
         this._expandedSections.set(id, true)
         persist()
+        // The GPU rows only exist while expanded, so sample them right away
+        // instead of waiting up to one interval for the next tick.
+        if (id === 'chanh:system') this._systemMonitor.refreshNow()
       }
     }
 
@@ -153,6 +163,19 @@ export class ServerViewProvider implements TreeDataProvider<TreeItem>, Disposabl
       treeView.onDidExpandElement(onExpand),
       treeView.onDidCollapseElement(onCollapse)
     )
+  }
+
+  /**
+   * Keep the TreeView handle so the sampler can check visibility live (the GPU
+   * subprocess only runs while the view is on screen), and take a fresh sample
+   * as soon as the view comes back — GPU samples taken while hidden were
+   * skipped, and CPU/RAM values were last painted before the view was closed.
+   */
+  private attachTreeView(context: ExtensionContext, treeView: TreeView<TreeItem>): void {
+    this._treeView = treeView
+    context.subscriptions.push(treeView.onDidChangeVisibility((e) => {
+      if (e.visible) this._systemMonitor.refreshNow()
+    }))
   }
 
   /**
@@ -203,6 +226,19 @@ export class ServerViewProvider implements TreeDataProvider<TreeItem>, Disposabl
    */
   private readonly _downloadsHeader = new TreeItem('Downloading Models', Expanded)
 
+  /**
+   * Stable tree node for the "System" section: live CPU / GPU / RAM stats for
+   * this machine. Reused across repaints (like `_downloadsHeader`) so each
+   * sample can be scoped to it by object identity.
+   */
+  private readonly _systemHeader = new TreeItem('System', Expanded)
+  /** Samples the local machine on a timer; created in the constructor. */
+  private readonly _systemMonitor: SystemMonitor
+  /** The TreeView, kept for live visibility checks; attached after creation. */
+  private _treeView: TreeView<TreeItem> | undefined
+  /** Whether the System section has rendered at least once (gates targeted repaints). */
+  private _systemRendered = false
+
   /** Whether installed models are grouped by capability. */
   private _groupInsModels = false
   /** Whether downloadable catalog models are grouped by capability. */
@@ -236,12 +272,25 @@ export class ServerViewProvider implements TreeDataProvider<TreeItem>, Disposabl
     this._downloadsHeader.iconPath = new ThemeIcon('cloud-download', new ThemeColor('charts.blue'))
     this._downloadsHeader.contextValue = 'CHANH_DOWNLOADING_HEADER'
 
+    // System section: stable identity up front; live samples arrive on the
+    // timer. The GPU subprocess is gated behind "the rows are on screen".
+    this._systemHeader.id = 'chanh:system'
+    this._systemHeader.iconPath = new ThemeIcon('dashboard')
+    this._systemHeader.contextValue = 'CHANH_SYSTEM_HEADER'
+
+    this._systemMonitor = new SystemMonitor(
+      () => this.onSystemSample(),
+      () => this.gpusOnScreen()
+    )
+    this._systemMonitor.start()
+
     // Server-level events are rare and can change server-side state, so re-query
     // before repainting. Per-percent download ticks instead use the cached
     // snapshot, so they never hit the server.
     this._subscriptions.push(
       refreshEvents.onDidRequestRefresh(() => this.refreshServer()),
-      serverManager.onStatusChange(() => this.refreshServer())
+      serverManager.onStatusChange(() => this.refreshServer()),
+      this._systemMonitor
     )
 
     // Restore any incomplete downloads saved from a previous session.
@@ -522,6 +571,139 @@ export class ServerViewProvider implements TreeDataProvider<TreeItem>, Disposabl
     await this.context.workspaceState.update(PARTIALS_STORAGE_KEY, entries)
   }
 
+  /**
+   * Whether the GPU rows can currently be seen: the sidebar view is visible
+   * *and* the System section is expanded. Read live on every sample so a stale
+   * cached flag can never keep a subprocess running (or stop a needed one).
+   */
+  private gpusOnScreen(): boolean {
+    return (this._treeView?.visible ?? false) && this.systemSectionOpen()
+  }
+
+  /**
+   * Whether the System section is (or will be) expanded, resolved from the
+   * persisted section map; never-seen defaults to expanded, matching
+   * `sectionState()`.
+   */
+  private systemSectionOpen(): boolean {
+    return this._expandedSections.get('chanh:system') !== false
+  }
+
+  /** A fresh sample arrived: repaint the System subtree in place. */
+  private onSystemSample(): void {
+    this.applySystemHeader(this._systemMonitor.snapshot)
+    // VS Code can only refresh an element it already knows, so wait for the
+    // first root render before signalling a repaint for the header.
+    if (this._systemRendered) this._onDidChangeTreeData.fire(this._systemHeader)
+  }
+
+  /** Keep the stable System header's subtext and tooltip on the latest sample. */
+  private applySystemHeader(snap: SystemSnapshot): void {
+    const parts = [
+      snap.cpu.usage === undefined ? 'cpu --%' : `cpu ${snap.cpu.usage}%`,
+      `ram ${snap.memory.usage}%`
+    ]
+    if (snap.gpus.length > 0) {
+      const usages = snap.gpus.map((gpu) => gpu.usage).filter((u): u is number => u !== undefined)
+      const avg = usages.length > 0 ? Math.round(usages.reduce((sum, u) => sum + u, 0) / usages.length) : undefined
+      parts.push(avg === undefined ? 'gpu n/a' : `gpu ${avg}%`)
+    }
+    this._systemHeader.description = parts.join(' · ')
+    this._systemHeader.tooltip = [
+      'Live CPU, GPU and RAM stats for this machine',
+      snap.cpu.model
+        ? `CPU: ${snap.cpu.model} (${snap.cpu.cores} logical cores)`
+        : `CPU: ${snap.cpu.cores} logical cores`,
+      `Memory: ${formatBytes(snap.memory.total)} total`,
+      snap.gpus.length > 0
+        ? `GPUs: ${snap.gpus.length}${snap.gpuLive ? ' (live utilization)' : ' (utilization unavailable)'}`
+        : 'GPUs: none detected',
+      `Sampled every ${SYSTEM_SAMPLE_INTERVAL_MS / 1000}s · updated ${formatSampleTime(snap.updatedAt)}`
+    ].join('\n')
+  }
+
+  /** CPU, memory and per-GPU rows for the System section, from the latest sample. */
+  private getSystemChildren(): TreeItem[] {
+    const snap = this._systemMonitor.snapshot
+    const items: TreeItem[] = [this.toCpuRow(snap), this.toMemoryRow(snap)]
+    if (snap.gpus.length === 0) {
+      // While the first probe is still running say so, instead of claiming
+      // there is no GPU; an empty list after the probe is the real answer.
+      const pending = !this._systemMonitor.gpusProbed
+      const none = new TreeItem(pending ? 'Detecting GPUs…' : 'No GPUs detected', None)
+      none.id = 'chanh:sys:gpus'
+      none.iconPath = new ThemeIcon('circle-slash', new ThemeColor('charts.gray'))
+      none.tooltip = pending
+        ? 'Reading the GPU list…'
+        : 'No GPU could be read on this machine (NVIDIA adapters are listed through nvidia-smi).'
+      items.push(none)
+      return items
+    }
+    snap.gpus.forEach((gpu, index) => items.push(this.toGpuRow(gpu, snap, index)))
+    return items
+  }
+
+  /** One leaf row for the CPU: model, core count and live utilization. */
+  private toCpuRow(snap: SystemSnapshot): TreeItem {
+    const { cpu } = snap
+    const item = new TreeItem('CPU', None)
+    item.id = 'chanh:sys:cpu'
+    item.iconPath = new ThemeIcon('pulse')
+    item.description = cpu.usage === undefined ? '--%' : `${cpu.usage}%`
+    item.tooltip = [
+      cpu.model || 'CPU',
+      `Logical cores: ${cpu.cores}`,
+      cpu.speed ? `Clock: ${cpu.speed} MHz` : '',
+      `Utilization: ${cpu.usage === undefined ? 'n/a' : `${cpu.usage}%`}`,
+      `Updated: ${formatSampleTime(snap.updatedAt)}`
+    ].filter((line) => line !== '').join('\n')
+    return item
+  }
+
+  /** One leaf row for RAM: used / total plus live utilization. */
+  private toMemoryRow(snap: SystemSnapshot): TreeItem {
+    const { memory } = snap
+    const item = new TreeItem('Memory', None)
+    item.id = 'chanh:sys:memory'
+    item.iconPath = new ThemeIcon('database')
+    item.description = `${formatBytes(memory.used)} / ${formatBytes(memory.total)} (${memory.usage}%)`
+    item.tooltip = [
+      `Total: ${formatBytes(memory.total)}`,
+      `Used: ${formatBytes(memory.used)}`,
+      `Free: ${formatBytes(memory.free)}`,
+      `Utilization: ${memory.usage}%`,
+      `Updated: ${formatSampleTime(snap.updatedAt)}`
+    ].join('\n')
+    return item
+  }
+
+  /** One leaf row per GPU: utilization, VRAM and temperature when reported. */
+  private toGpuRow(gpu: GpuStats, snap: SystemSnapshot, index: number): TreeItem {
+    const item = new TreeItem(gpu.name, None)
+    item.id = `chanh:sys:gpu:${index}`
+    item.iconPath = new ThemeIcon('chip')
+    const parts: string[] = []
+    if (gpu.usage !== undefined) parts.push(`${gpu.usage}%`)
+    if (gpu.memoryUsed !== undefined && gpu.memoryTotal !== undefined) {
+      parts.push(`${formatBytes(gpu.memoryUsed)} / ${formatBytes(gpu.memoryTotal)}`)
+    } else if (gpu.memoryUsed !== undefined) parts.push(formatBytes(gpu.memoryUsed))
+    if (gpu.temperature !== undefined) parts.push(`${gpu.temperature}°C`)
+    // A static OS listing carries names only; say so rather than showing nothing.
+    item.description = parts.length > 0 ? parts.join(' · ') : 'n/a'
+    const lines = [
+      gpu.name,
+      `Utilization: ${gpu.usage === undefined ? 'not available' : `${gpu.usage}%`}`
+    ]
+    if (gpu.memoryUsed !== undefined && gpu.memoryTotal !== undefined) {
+      lines.push(`VRAM: ${formatBytes(gpu.memoryUsed)} / ${formatBytes(gpu.memoryTotal)}`)
+    }
+    if (gpu.temperature !== undefined) lines.push(`Temperature: ${gpu.temperature}°C`)
+    if (!snap.gpuLive) lines.push('Live utilization needs an NVIDIA GPU with a driver (nvidia-smi).')
+    lines.push(`Updated: ${formatSampleTime(snap.updatedAt)}`)
+    item.tooltip = lines.join('\n')
+    return item
+  }
+
   getTreeItem(element: TreeItem): TreeItem {
     return element
   }
@@ -536,6 +718,13 @@ export class ServerViewProvider implements TreeDataProvider<TreeItem>, Disposabl
     }
     // Root level - fetch fresh data
     const items: TreeItem[] = []
+    // System section - live CPU / GPU / RAM stats for this machine. The header
+    // is one stable instance so each sample can repaint just this subtree, and
+    // its expand state rides the same persisted map as the other sections.
+    this.applySystemHeader(this._systemMonitor.snapshot)
+    this._systemHeader.collapsibleState = this.sectionState('chanh:system')
+    this._systemRendered = true
+    items.push(this._systemHeader)
 
     await this.fetchServerData()
 
@@ -841,6 +1030,7 @@ export class ServerViewProvider implements TreeDataProvider<TreeItem>, Disposabl
       return (element as TreeItem & { backendRows: TreeItem[] }).backendRows
     }
     if (element.contextValue === 'CHANH_SERVER_HEADER') return this.getServerChildren(this._activeServer)
+    if (element.contextValue === 'CHANH_SYSTEM_HEADER') return this.getSystemChildren()
     if (element.contextValue === 'CHANH_LOADED_HEADER') return this.getLoadedModelChildren(element)
     if (element.contextValue === 'CHANH_DOWNLOADING_HEADER') return this.getDownloadingChildren()
     if (element.contextValue === 'CHANH_PINNED_HEADER') return this.getPinnedModelChildren(element)
@@ -981,12 +1171,12 @@ export class ServerViewProvider implements TreeDataProvider<TreeItem>, Disposabl
         // Commands (e.g. the inline cancel button) receive this item as the
         // argument, so it must carry the model id.
         item.modelId = download.modelId
-        // Inline cancel button so the user can abort the pull from the row.
-        // (Cast needed: the trimmed @types/vscode here omits TreeItem.buttons,
-        // but the runtime API supports it.)
-        ; (item as TreeItem & { buttons?: Array<{ command: string, tooltip?: string }> }).buttons = [
-          { command: 'chanh.cancelDownload', tooltip: 'Cancel download' }
-        ]
+          // Inline cancel button so the user can abort the pull from the row.
+          // (Cast needed: the trimmed @types/vscode here omits TreeItem.buttons,
+          // but the runtime API supports it.)
+          ; (item as TreeItem & { buttons?: Array<{ command: string, tooltip?: string }> }).buttons = [
+            { command: 'chanh.cancelDownload', tooltip: 'Cancel download' }
+          ]
         this._downloadRows.set(download.modelId, item)
       }
       this.applyDownloadProgress(item, download)
@@ -1259,8 +1449,8 @@ export class ServerViewProvider implements TreeDataProvider<TreeItem>, Disposabl
         item.contextValue = subFilter
           ? 'CHANH_CAP_GROUP_FILTERED'
           : (subCount > 0 ? 'CHANH_CAP_GROUP' : 'CHANH_CAP_GROUP_NOSUB')
-        ; (item as TreeItem & { capability: string }).capability = category
-        ; (item as TreeItem & { downloadable: boolean }).downloadable = downloadable
+          ; (item as TreeItem & { capability: string }).capability = category
+          ; (item as TreeItem & { downloadable: boolean }).downloadable = downloadable
         // A number + "filter" reads the state without relying on the icon:
         // how many models match while filtered, or how many sub-capabilities
         // are available to filter by when none is active.

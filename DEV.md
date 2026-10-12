@@ -9,6 +9,7 @@ Verified against the current TypeScript source on 2026-09-30. Treat this file as
 - `src/lemonadeClient.ts`: HTTP client and wire-format translation for Lemonade endpoints.
 - `src/modelManager.ts`: model lifecycle, download, context configuration, and model-info operations.
 - `src/serverTreeview.ts`: server/model tree state, persisted view preferences, and partial-download rows.
+- `src/systemMonitor.ts`: local CPU / GPU / RAM sampling behind the tree's `System` group (2 s interval; GPU through `nvidia-smi` with a static OS listing as fallback, gated on the group being on screen).
 - `src/lmcProvider.ts`: VS Code language-model provider for native agent mode.
 - `src/chatParticipant.ts`: the separate `@chanh` chat participant.
 

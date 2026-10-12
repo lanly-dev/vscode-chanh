@@ -12,17 +12,28 @@
   "js/ts.tsc.autoDetect": "off",
   "cSpell.words": [
     "chanh",
+    "cim",
+    "cpus",
     "cuda",
     "efix",
     "esbuild",
+    "freemem",
+    "gpus",
     "lanly",
     "lemond",
     "llamacpp",
+    "lspci",
+    "nvidia",
+    "nounits",
     "pids",
     "pullable",
     "reranking",
+    "smi",
+    "totalmem",
     "Treeview",
-    "vsixmanifest"
+    "vsixmanifest",
+    "vram",
+    "win32"
   ],
   "editor.rulers": [
     120

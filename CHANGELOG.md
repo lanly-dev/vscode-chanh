@@ -7,11 +7,14 @@ Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how 
 - Chat follow up
 - Explore and add functionality for different types of models, e.g. image
 - Focus on coding-related features
-- GPU stats
 - Footer token counting config (`chanh.showTokenStats`, default false)
 - Custom models support
 
 ## [0.1.4]
+- New `System` tree group: live CPU, GPU and RAM utilization for the local
+  machine, sampled every 2 s (CPU/RAM in-process; GPU through `nvidia-smi` when
+  an NVIDIA driver is present, otherwise adapters are listed without
+  utilization). The GPU subprocess only runs while the group is on screen.
 - Per-turn token counts (`usage` from the final stream chunk) now optional; toggle
   via `chanh.showTokenStats` (defaults to `false`)
 - New `omni` capability class (wizard-hat icon) for models that serve every
