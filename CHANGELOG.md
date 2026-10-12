@@ -12,9 +12,15 @@ Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how 
 
 ## [0.1.4]
 - New `System` tree group: live CPU, GPU and RAM utilization for the local
-  machine, sampled every 2 s (CPU/RAM in-process; GPU through `nvidia-smi` when
-  an NVIDIA driver is present, otherwise adapters are listed without
-  utilization). The GPU subprocess only runs while the group is on screen.
+  machine (CPU/RAM in-process). On Windows every PCI adapter is listed and
+  each one is read from whichever source can see it - `nvidia-smi` for NVIDIA
+  cards (utilization, VRAM, temperature) and the WDDM performance counters for
+  integrated / non-NVIDIA adapters (utilization, dedicated memory); USB display
+  adapters such as DisplayLink are filtered out. On Linux `lspci` lists
+  adapters, with utilization only where `nvidia-smi` is available. Sampled
+  every `chanh.systemSampleInterval` seconds (default 5); the GPU subprocesses
+  only run while the group is on screen. A sample repaints only the rows whose
+  values actually changed.
 - Per-turn token counts (`usage` from the final stream chunk) now optional; toggle
   via `chanh.showTokenStats` (defaults to `false`)
 - New `omni` capability class (wizard-hat icon) for models that serve every

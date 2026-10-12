@@ -9,14 +9,15 @@ import {
   TreeItemCollapsibleState,
   TreeView,
   TreeViewExpansionEvent,
-  window
+  window,
+  workspace
 } from 'vscode'
 import type { QuickPickItem } from 'vscode'
 const { Collapsed, Expanded, None } = TreeItemCollapsibleState
 
 import { formatByteProgress, formatBytes, formatSize, getCapIcon, getServerStatusChar } from './utils'
 import { Logger } from './logger'
-import { GpuStats, SYSTEM_SAMPLE_INTERVAL_MS, SystemMonitor, SystemSnapshot } from './systemMonitor'
+import { SystemMonitor, SystemSnapshot } from './systemMonitor'
 import { ModelDecorationProvider } from './modelDecorations'
 import { ModelManager } from './modelManager'
 import { refreshEvents } from './events'
@@ -81,11 +82,6 @@ const SINGLE_CAP_LABEL = 'No sub-capability'
 /** Minimum gap (ms) between two repaints of the same download row. */
 const DOWNLOAD_ROW_REFRESH_MS = 250
 
-/** Wall-clock time for a sample timestamp, e.g. `14:03:22`. */
-function formatSampleTime(at: number): string {
-  return new Date(at).toLocaleTimeString()
-}
-
 /**
  * Tree data provider for the Servers view.
  * Shows both the Lemonade Server (System) and the lemond (Managed by Chanh) in a single tree.
@@ -145,9 +141,14 @@ export class ServerViewProvider implements TreeDataProvider<TreeItem>, Disposabl
       if (id !== undefined && sectionIds.has(id)) {
         this._expandedSections.set(id, true)
         persist()
-        // The GPU rows only exist while expanded, so sample them right away
-        // instead of waiting up to one interval for the next tick.
-        if (id === 'chanh:system') this._systemMonitor.refreshNow()
+        if (id === 'chanh:system') {
+          // The GPU rows only exist while expanded, so sample them right away
+          // instead of waiting up to one interval for the next tick.
+          this._systemMonitor.refreshNow()
+          // The header's description switches from live stats (collapsed) to
+          // the static summary (expanded); repaint that one row.
+          this.refreshSystemHeaderRow()
+        }
       }
     }
 
@@ -156,6 +157,8 @@ export class ServerViewProvider implements TreeDataProvider<TreeItem>, Disposabl
       if (id !== undefined && sectionIds.has(id)) {
         this._expandedSections.set(id, false)
         persist()
+        // The collapsed header is where live stats show; repaint it.
+        if (id === 'chanh:system') this.refreshSystemHeaderRow()
       }
     }
 
@@ -187,7 +190,7 @@ export class ServerViewProvider implements TreeDataProvider<TreeItem>, Disposabl
     return this._expandedSections.get(id) === false ? Collapsed : Expanded
   }
 
-  private _onDidChangeTreeData = new EventEmitter<TreeItem | undefined | void>()
+  private _onDidChangeTreeData = new EventEmitter<TreeItem | TreeItem[] | undefined | void>()
   readonly onDidChangeTreeData = this._onDidChangeTreeData.event
 
   private _activeServer: ServerInstance | null = null
@@ -238,6 +241,17 @@ export class ServerViewProvider implements TreeDataProvider<TreeItem>, Disposabl
   private _treeView: TreeView<TreeItem> | undefined
   /** Whether the System section has rendered at least once (gates targeted repaints). */
   private _systemRendered = false
+  /**
+   * Stable leaf rows of the System section, keyed by `TreeItem.id`. Like
+   * `_systemHeader`, the instances are reused and mutated in place: VS Code
+   * resolves a fired element by object identity, so a sample can refresh
+   * exactly the rows whose text changed — and only repaint the rows it must.
+   */
+  private readonly _systemRows = new Map<string, TreeItem>()
+  /** Last-painted visible text per System row id (`label\0description`). */
+  private readonly _systemRowText = new Map<string, string>()
+  /** Last-painted System header description, for no-op detection. */
+  private _systemHeaderDesc: string | undefined
 
   /** Whether installed models are grouped by capability. */
   private _groupInsModels = false
@@ -283,6 +297,7 @@ export class ServerViewProvider implements TreeDataProvider<TreeItem>, Disposabl
       () => this.gpusOnScreen()
     )
     this._systemMonitor.start()
+    this.applySystemSampleInterval()
 
     // Server-level events are rare and can change server-side state, so re-query
     // before repainting. Per-percent download ticks instead use the cached
@@ -290,6 +305,9 @@ export class ServerViewProvider implements TreeDataProvider<TreeItem>, Disposabl
     this._subscriptions.push(
       refreshEvents.onDidRequestRefresh(() => this.refreshServer()),
       serverManager.onStatusChange(() => this.refreshServer()),
+      workspace.onDidChangeConfiguration((e) => {
+        if (e.affectsConfiguration('chanh.systemSampleInterval')) this.applySystemSampleInterval()
+      }),
       this._systemMonitor
     )
 
@@ -337,6 +355,12 @@ export class ServerViewProvider implements TreeDataProvider<TreeItem>, Disposabl
     this._hideModelSections = !this._hideModelSections
     void this.context.workspaceState.update(HIDE_MODEL_SECTIONS_KEY, this._hideModelSections)
     this.refresh()
+  }
+
+  /** Re-read `chanh.systemSampleInterval` (seconds) into the running sampler. */
+  private applySystemSampleInterval(): void {
+    const seconds = workspace.getConfiguration('chanh').get<number>('systemSampleInterval', 5)
+    this._systemMonitor.setIntervalMs(Math.min(Math.max(seconds, 1), 600) * 1000)
   }
 
   /** Storage key for one capability group's active sub-capability filter. */
@@ -589,16 +613,47 @@ export class ServerViewProvider implements TreeDataProvider<TreeItem>, Disposabl
     return this._expandedSections.get('chanh:system') !== false
   }
 
-  /** A fresh sample arrived: repaint the System subtree in place. */
+  /**
+   * A fresh sample arrived. Compare it with what is painted on screen and
+   * refresh only what changed: VS Code resolves a fired element by object
+   * identity, so firing a row repaints just that row — and firing nothing at
+   * all (a sample whose text is identical) repaints nothing.
+   */
   private onSystemSample(): void {
-    this.applySystemHeader(this._systemMonitor.snapshot)
     // VS Code can only refresh an element it already knows, so wait for the
-    // first root render before signalling a repaint for the header.
-    if (this._systemRendered) this._onDidChangeTreeData.fire(this._systemHeader)
+    // first root render before signalling any repaint.
+    if (!this._systemRendered) return
+    const { changedIds, structureChanged, headerChanged } = this.paintSystem(this._systemMonitor.snapshot)
+    // Rows appeared or disappeared (e.g. the GPU probe finished): only a full
+    // refresh re-creates the row set.
+    if (structureChanged) {
+      this.refresh()
+      return
+    }
+    const toRefresh: TreeItem[] = []
+    if (headerChanged) toRefresh.push(this._systemHeader)
+    // While the section is collapsed only the header row is rendered, so leaf
+    // rows are refreshed only while it is open.
+    if (this.systemSectionOpen()) {
+      for (const id of changedIds) {
+        const row = this._systemRows.get(id)
+        if (row) toRefresh.push(row)
+      }
+    }
+    if (toRefresh.length > 0) this._onDidChangeTreeData.fire(toRefresh)
   }
 
-  /** Keep the stable System header's subtext and tooltip on the latest sample. */
-  private applySystemHeader(snap: SystemSnapshot): void {
+  /**
+   * The System header's visible text for the current state. Collapsed, the
+   * header is the only place live stats show, so it carries the percentages.
+   * Expanded, the rows carry them and a header whose text changed every tick
+   * would repaint the whole subtree, so it shows a static hardware summary
+   * instead.
+   */
+  private systemHeaderDescription(snap: SystemSnapshot): string {
+    if (this.systemSectionOpen()) {
+      return `${snap.cpu.cores} threads · ${formatBytes(snap.memory.total)} RAM`
+    }
     const parts = [
       snap.cpu.usage === undefined ? 'cpu --%' : `cpu ${snap.cpu.usage}%`,
       `ram ${snap.memory.usage}%`
@@ -608,99 +663,126 @@ export class ServerViewProvider implements TreeDataProvider<TreeItem>, Disposabl
       const avg = usages.length > 0 ? Math.round(usages.reduce((sum, u) => sum + u, 0) / usages.length) : undefined
       parts.push(avg === undefined ? 'gpu n/a' : `gpu ${avg}%`)
     }
-    this._systemHeader.description = parts.join(' · ')
-    this._systemHeader.tooltip = [
-      'Live CPU, GPU and RAM stats for this machine',
-      snap.cpu.model
-        ? `CPU: ${snap.cpu.model} (${snap.cpu.cores} logical cores)`
-        : `CPU: ${snap.cpu.cores} logical cores`,
-      `Memory: ${formatBytes(snap.memory.total)} total`,
-      snap.gpus.length > 0
-        ? `GPUs: ${snap.gpus.length}${snap.gpuLive ? ' (live utilization)' : ' (utilization unavailable)'}`
-        : 'GPUs: none detected',
-      `Sampled every ${SYSTEM_SAMPLE_INTERVAL_MS / 1000}s · updated ${formatSampleTime(snap.updatedAt)}`
-    ].join('\n')
+    return parts.join(' · ')
+  }
+
+  /**
+   * Repaint just the System header row after its state changed (expand /
+   * collapse switches its description mode). Fresh samples go through
+   * `onSystemSample` instead.
+   */
+  private refreshSystemHeaderRow(): void {
+    const desc = this.systemHeaderDescription(this._systemMonitor.snapshot)
+    if (desc === this._systemHeaderDesc) return
+    this._systemHeader.description = desc
+    this._systemHeaderDesc = desc
+    this._onDidChangeTreeData.fire(this._systemHeader)
+  }
+
+  /**
+   * Paint one sample onto the stable System header and rows, recording what
+   * was painted. Returns the rows themselves (in display order) plus what
+   * changed since the previous paint: the ids of rows whose visible text
+   * differs, whether the set of rows itself changed, and whether the header's
+   * text differs — enough for a caller to fire refreshes for only those.
+   */
+  private paintSystem(snap: SystemSnapshot): {
+    items: TreeItem[]
+    changedIds: string[]
+    structureChanged: boolean
+    headerChanged: boolean
+  } {
+    const previous = new Map(this._systemRowText)
+    this._systemRowText.clear()
+    const items = this.systemRowItems(snap)
+    for (const item of items) {
+      this._systemRowText.set(item.id ?? '', `${item.label ?? ''}\u0000${item.description ?? ''}`)
+    }
+    // Drop cached instances whose row no longer exists, so a row that comes
+    // back gets a fresh identity (re-registered on the next full render).
+    for (const id of [...this._systemRows.keys()]) {
+      if (!this._systemRowText.has(id)) this._systemRows.delete(id)
+    }
+
+    const changedIds: string[] = []
+    let structureChanged = false
+    for (const [id, text] of this._systemRowText) {
+      const before = previous.get(id)
+      if (before === undefined) structureChanged = true
+      else if (before !== text) changedIds.push(id)
+    }
+    for (const id of previous.keys()) {
+      if (!this._systemRowText.has(id)) structureChanged = true
+    }
+
+    const desc = this.systemHeaderDescription(snap)
+    const headerChanged = desc !== this._systemHeaderDesc
+    this._systemHeader.description = desc
+    this._systemHeaderDesc = desc
+    return { items, changedIds, structureChanged, headerChanged }
   }
 
   /** CPU, memory and per-GPU rows for the System section, from the latest sample. */
   private getSystemChildren(): TreeItem[] {
-    const snap = this._systemMonitor.snapshot
-    const items: TreeItem[] = [this.toCpuRow(snap), this.toMemoryRow(snap)]
+    // Painting here keeps the stable instances and the change-detection text
+    // map in sync with whatever the tree is about to render.
+    return this.paintSystem(this._systemMonitor.snapshot).items
+  }
+
+  /**
+   * Build (and paint) the System's leaf rows for one sample: CPU, RAM, then
+   * one row per GPU — or a single placeholder while the GPU list is unknown.
+   * Rows carry no tooltips: any repaint of a row dismisses its hover, so the
+   * values live in the label/description where a repaint is expected anyway.
+   */
+  private systemRowItems(snap: SystemSnapshot): TreeItem[] {
+    const items: TreeItem[] = []
+    const cpuDesc = snap.cpu.usage === undefined ? '--%' : `${snap.cpu.usage}%`
+    items.push(this.systemRow('chanh:sys:cpu', 'CPU', cpuDesc, new ThemeIcon('pulse')))
+
+    const { memory } = snap
+    const ramDesc = `${formatBytes(memory.used)} / ${formatBytes(memory.total)} (${memory.usage}%)`
+    items.push(this.systemRow('chanh:sys:memory', 'Memory', ramDesc, new ThemeIcon('database')))
+
     if (snap.gpus.length === 0) {
       // While the first probe is still running say so, instead of claiming
       // there is no GPU; an empty list after the probe is the real answer.
       const pending = !this._systemMonitor.gpusProbed
-      const none = new TreeItem(pending ? 'Detecting GPUs…' : 'No GPUs detected', None)
-      none.id = 'chanh:sys:gpus'
-      none.iconPath = new ThemeIcon('circle-slash', new ThemeColor('charts.gray'))
-      none.tooltip = pending
-        ? 'Reading the GPU list…'
-        : 'No GPU could be read on this machine (NVIDIA adapters are listed through nvidia-smi).'
-      items.push(none)
+      const label = pending ? 'Detecting GPUs…' : 'No GPUs detected'
+      const icon = new ThemeIcon('circle-slash', new ThemeColor('charts.gray'))
+      items.push(this.systemRow('chanh:sys:gpus', label, '', icon))
       return items
     }
-    snap.gpus.forEach((gpu, index) => items.push(this.toGpuRow(gpu, snap, index)))
+    snap.gpus.forEach((gpu, index) => {
+      // A static OS listing carries names only; say so rather than nothing.
+      const parts: string[] = []
+      if (gpu.usage !== undefined) parts.push(`${gpu.usage}%`)
+      if (gpu.memoryUsed !== undefined && gpu.memoryTotal !== undefined) {
+        parts.push(`${formatBytes(gpu.memoryUsed)} / ${formatBytes(gpu.memoryTotal)}`)
+      } else if (gpu.memoryUsed !== undefined) parts.push(formatBytes(gpu.memoryUsed))
+      if (gpu.temperature !== undefined) parts.push(`${gpu.temperature}°C`)
+      const desc = parts.length > 0 ? parts.join(' · ') : 'n/a'
+      items.push(this.systemRow(`chanh:sys:gpu:${index}`, gpu.name, desc, new ThemeIcon('chip')))
+    })
     return items
   }
 
-  /** One leaf row for the CPU: model, core count and live utilization. */
-  private toCpuRow(snap: SystemSnapshot): TreeItem {
-    const { cpu } = snap
-    const item = new TreeItem('CPU', None)
-    item.id = 'chanh:sys:cpu'
-    item.iconPath = new ThemeIcon('pulse')
-    item.description = cpu.usage === undefined ? '--%' : `${cpu.usage}%`
-    item.tooltip = [
-      cpu.model || 'CPU',
-      `Logical cores: ${cpu.cores}`,
-      cpu.speed ? `Clock: ${cpu.speed} MHz` : '',
-      `Utilization: ${cpu.usage === undefined ? 'n/a' : `${cpu.usage}%`}`,
-      `Updated: ${formatSampleTime(snap.updatedAt)}`
-    ].filter((line) => line !== '').join('\n')
-    return item
-  }
-
-  /** One leaf row for RAM: used / total plus live utilization. */
-  private toMemoryRow(snap: SystemSnapshot): TreeItem {
-    const { memory } = snap
-    const item = new TreeItem('Memory', None)
-    item.id = 'chanh:sys:memory'
-    item.iconPath = new ThemeIcon('database')
-    item.description = `${formatBytes(memory.used)} / ${formatBytes(memory.total)} (${memory.usage}%)`
-    item.tooltip = [
-      `Total: ${formatBytes(memory.total)}`,
-      `Used: ${formatBytes(memory.used)}`,
-      `Free: ${formatBytes(memory.free)}`,
-      `Utilization: ${memory.usage}%`,
-      `Updated: ${formatSampleTime(snap.updatedAt)}`
-    ].join('\n')
-    return item
-  }
-
-  /** One leaf row per GPU: utilization, VRAM and temperature when reported. */
-  private toGpuRow(gpu: GpuStats, snap: SystemSnapshot, index: number): TreeItem {
-    const item = new TreeItem(gpu.name, None)
-    item.id = `chanh:sys:gpu:${index}`
-    item.iconPath = new ThemeIcon('chip')
-    const parts: string[] = []
-    if (gpu.usage !== undefined) parts.push(`${gpu.usage}%`)
-    if (gpu.memoryUsed !== undefined && gpu.memoryTotal !== undefined) {
-      parts.push(`${formatBytes(gpu.memoryUsed)} / ${formatBytes(gpu.memoryTotal)}`)
-    } else if (gpu.memoryUsed !== undefined) parts.push(formatBytes(gpu.memoryUsed))
-    if (gpu.temperature !== undefined) parts.push(`${gpu.temperature}°C`)
-    // A static OS listing carries names only; say so rather than showing nothing.
-    item.description = parts.length > 0 ? parts.join(' · ') : 'n/a'
-    const lines = [
-      gpu.name,
-      `Utilization: ${gpu.usage === undefined ? 'not available' : `${gpu.usage}%`}`
-    ]
-    if (gpu.memoryUsed !== undefined && gpu.memoryTotal !== undefined) {
-      lines.push(`VRAM: ${formatBytes(gpu.memoryUsed)} / ${formatBytes(gpu.memoryTotal)}`)
+  /**
+   * Get-or-create the stable leaf row for `id` and paint the given text and
+   * icon onto it. Reusing the instance (rather than building a fresh TreeItem
+   * per render) is what lets a sample target a single row: VS Code resolves a
+   * fired element by object identity.
+   */
+  private systemRow(id: string, label: string, description: string, iconPath: ThemeIcon): TreeItem {
+    let item = this._systemRows.get(id)
+    if (!item) {
+      item = new TreeItem(label, None)
+      item.id = id
+      this._systemRows.set(id, item)
     }
-    if (gpu.temperature !== undefined) lines.push(`Temperature: ${gpu.temperature}°C`)
-    if (!snap.gpuLive) lines.push('Live utilization needs an NVIDIA GPU with a driver (nvidia-smi).')
-    lines.push(`Updated: ${formatSampleTime(snap.updatedAt)}`)
-    item.tooltip = lines.join('\n')
+    item.label = label
+    item.description = description
+    item.iconPath = iconPath
     return item
   }
 
@@ -719,9 +801,9 @@ export class ServerViewProvider implements TreeDataProvider<TreeItem>, Disposabl
     // Root level - fetch fresh data
     const items: TreeItem[] = []
     // System section - live CPU / GPU / RAM stats for this machine. The header
-    // is one stable instance so each sample can repaint just this subtree, and
-    // its expand state rides the same persisted map as the other sections.
-    this.applySystemHeader(this._systemMonitor.snapshot)
+    // and its rows are stable instances, so each sample can repaint just the
+    // rows whose text changed; expand state rides the persisted section map.
+    this.paintSystem(this._systemMonitor.snapshot)
     this._systemHeader.collapsibleState = this.sectionState('chanh:system')
     this._systemRendered = true
     items.push(this._systemHeader)
@@ -1171,12 +1253,12 @@ export class ServerViewProvider implements TreeDataProvider<TreeItem>, Disposabl
         // Commands (e.g. the inline cancel button) receive this item as the
         // argument, so it must carry the model id.
         item.modelId = download.modelId
-          // Inline cancel button so the user can abort the pull from the row.
-          // (Cast needed: the trimmed @types/vscode here omits TreeItem.buttons,
-          // but the runtime API supports it.)
-          ; (item as TreeItem & { buttons?: Array<{ command: string, tooltip?: string }> }).buttons = [
-            { command: 'chanh.cancelDownload', tooltip: 'Cancel download' }
-          ]
+        // Inline cancel button so the user can abort the pull from the row.
+        // (Cast needed: the trimmed @types/vscode here omits TreeItem.buttons,
+        // but the runtime API supports it.)
+        ; (item as TreeItem & { buttons?: Array<{ command: string, tooltip?: string }> }).buttons = [
+          { command: 'chanh.cancelDownload', tooltip: 'Cancel download' }
+        ]
         this._downloadRows.set(download.modelId, item)
       }
       this.applyDownloadProgress(item, download)
@@ -1449,8 +1531,8 @@ export class ServerViewProvider implements TreeDataProvider<TreeItem>, Disposabl
         item.contextValue = subFilter
           ? 'CHANH_CAP_GROUP_FILTERED'
           : (subCount > 0 ? 'CHANH_CAP_GROUP' : 'CHANH_CAP_GROUP_NOSUB')
-          ; (item as TreeItem & { capability: string }).capability = category
-          ; (item as TreeItem & { downloadable: boolean }).downloadable = downloadable
+        ; (item as TreeItem & { capability: string }).capability = category
+        ; (item as TreeItem & { downloadable: boolean }).downloadable = downloadable
         // A number + "filter" reads the state without relying on the icon:
         // how many models match while filtered, or how many sub-capabilities
         // are available to filter by when none is active.

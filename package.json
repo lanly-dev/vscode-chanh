@@ -398,6 +398,13 @@
           "type": "boolean",
           "default": false,
           "description": "Show per-turn token stats in the chat/agent footer (down from the model's `usage` block)."
+        },
+        "chanh.systemSampleInterval": {
+          "type": "number",
+          "default": 5,
+          "minimum": 1,
+          "maximum": 600,
+          "description": "How often (in seconds) the System group samples CPU/GPU/RAM utilization. GPU sampling only runs while the System group is visible and expanded."
         }
       }
     },
