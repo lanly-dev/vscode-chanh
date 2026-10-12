@@ -196,8 +196,7 @@ export function normalizeGpuName(name: string): string {
 
 /** Vendor words that one source prefixes a card with and another omits. */
 const GPU_VENDOR_PREFIXES = [
-  'nvidiacorporation', 'nvidia', 'advancedmicrodevicesinc', 'amdati',
-  'intelcorporation', 'intel'
+  'nvidiacorporation', 'nvidia', 'advancedmicrodevicesinc', 'amdati', 'intelcorporation', 'intel'
 ]
 
 /**

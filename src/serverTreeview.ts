@@ -828,17 +828,6 @@ export class ServerViewProvider implements TreeDataProvider<TreeItem>, Disposabl
     }
     // Root level - fetch fresh data
     const items: TreeItem[] = []
-    // System section - live CPU / GPU / RAM stats for this machine. Only shown
-    // while the configured server runs locally (see `systemStatsRelevant`),
-    // since these stats describe this machine and nothing else. The header and
-    // its rows are stable instances, so each sample can repaint just the rows
-    // whose text changed; expand state rides the persisted section map.
-    if (this.systemStatsRelevant()) {
-      this.paintSystem(this._systemMonitor.snapshot)
-      this._systemHeader.collapsibleState = this.sectionState('chanh:system')
-      this._systemRendered = true
-      items.push(this._systemHeader)
-    }
 
     await this.fetchServerData()
 
@@ -853,6 +842,18 @@ export class ServerViewProvider implements TreeDataProvider<TreeItem>, Disposabl
     serverHeader.contextValue = 'CHANH_SERVER_HEADER'
     serverHeader.tooltip = `Active server: ${displayName}\nURL: ${displayUrl}`
     items.push(serverHeader)
+
+    // System section - live CPU / GPU / RAM stats for this machine. Only shown
+    // while the configured server runs locally (see `systemStatsRelevant`),
+    // since these stats describe this machine and nothing else. The header and
+    // its rows are stable instances, so each sample can repaint just the rows
+    // whose text changed; expand state rides the persisted section map.
+    if (this.systemStatsRelevant()) {
+      this.paintSystem(this._systemMonitor.snapshot)
+      this._systemHeader.collapsibleState = this.sectionState('chanh:system')
+      this._systemRendered = true
+      items.push(this._systemHeader)
+    }
 
     // Loaded models section
     if (this._activeServer?.status === ServerStatus.RUNNING) {
