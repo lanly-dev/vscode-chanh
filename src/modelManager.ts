@@ -34,14 +34,6 @@ export class ModelManager {
     return model.type
   }
 
-  /**
-   * Canonical capability category for a raw model label/type, when recognized.
-   * `lmcProvider.ts` reuses this to decide which models the agent picker lists.
-   */
-  static capabilityFor(raw: string): string | undefined {
-    return raw.toLowerCase()
-  }
-
   /** Whether the model carries the server's "hot" marker label. */
   static isHotModel(model: Pick<LemonadeModel, 'labels'>): boolean {
     return (model.labels ?? []).some((l) => l.toLowerCase() === 'hot')
@@ -55,7 +47,7 @@ export class ModelManager {
   static getCapabilityCategories(model: Pick<LemonadeModel, 'labels' | 'type'>): string[] {
     const categories: string[] = []
     for (const label of [...(model.labels ?? []), model.type ?? '']) {
-      const category = ModelManager.capabilityFor(label)
+      const category = label.toLowerCase()
       if (category && !categories.includes(category)) categories.push(category)
     }
     return categories

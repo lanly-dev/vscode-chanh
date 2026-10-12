@@ -32,13 +32,13 @@ import type {
 
 /** Capability grouping order and display titles for the tree view. */
 const CAPABILITY_ORDER = [
-  'chat', 'transcription', 'image', 'embeddings', 'tts', 'audio-generation', 'classification', 'omni', 'reranking','3d'
+  'chat', 'image', 'transcription', 'embeddings', 'tts', 'audio-generation', 'classification', 'omni', 'reranking', '3d'
 ]
 
 const CAPABILITY_TITLES: Readonly<Record<string, string>> = {
   omni: 'Omni',
-  llm: 'LLM / Chat',
-  embedding: 'Embedding',
+  chat: 'Chat',
+  embeddings: 'Embedding',
   reranking: 'Reranking',
   classification: 'Classification',
   transcription: 'Transcription',
@@ -299,7 +299,7 @@ export class ServerViewProvider implements TreeDataProvider<TreeItem>, Disposabl
   private hasSubCapability(model: LemonadeModel): boolean {
     return (model.labels ?? []).some((label) => {
       const l = label.toLowerCase()
-      return !!l && l !== 'hot' && !ModelManager.capabilityFor(l)
+      return !!l && l !== 'hot' && !CAPABILITY_ORDER.includes(l)
     })
   }
 
@@ -331,7 +331,7 @@ export class ServerViewProvider implements TreeDataProvider<TreeItem>, Disposabl
         if (!l || l === 'hot') continue
         // Skip labels that resolve to a primary capability; those are the groups
         // themselves, not sub-capabilities within a group.
-        if (ModelManager.capabilityFor(l)) continue
+        if (CAPABILITY_ORDER.includes(l)) continue
         subs.add(label)
         hadSub = true
       }

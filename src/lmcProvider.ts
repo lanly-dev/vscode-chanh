@@ -58,7 +58,7 @@ function toolChoiceFor(required: boolean, tools: ToolDefinition[]): ToolChoice {
  */
 function isToolCallingChatModel(labels: string[] | undefined): boolean {
   const ls = labels ?? []
-  const isChat = ls.some((l) => ModelManager.capabilityFor(l) === 'llm')
+  const isChat = ls.some((l) => l.toLowerCase() === 'chat')
   return isChat && ls.some((l) => l.toLowerCase() === 'tool-calling')
 }
 
