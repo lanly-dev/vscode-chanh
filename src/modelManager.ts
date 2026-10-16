@@ -1,4 +1,4 @@
-import { commands, ConfigurationTarget, Disposable, ProgressLocation, QuickPickItem, Uri, ViewColumn } from 'vscode'
+import { ConfigurationTarget, Disposable, ProgressLocation, QuickPickItem, Uri, ViewColumn } from 'vscode'
 import { window, workspace } from 'vscode'
 import * as fs from 'fs'
 import * as path from 'path'
@@ -158,6 +158,8 @@ export class ModelManager {
       const chanhIndex = existing.findIndex((e) => (e as Record<string, unknown>).vendor === 'customendpoint')
       const modelsKey = 'models'
       const newModels = [endpointModel]
+      let wasReplaced = false
+      let alreadyIdentical = false
 
       if (chanhIndex >= 0) {
         // Endpoint already exists: merge the model entry.
@@ -165,10 +167,20 @@ export class ModelManager {
         let endpointModels: Array<Record<string, unknown>> = Array.isArray(endpoint[modelsKey])
           ? (endpoint[modelsKey] as Array<Record<string, unknown>>)
           : []
-        // Replace the model if it already exists (updated context size etc.), else append.
+        // Check if the model entry is already identical.
         const modelIndex = endpointModels.findIndex((m) => (m as Record<string, unknown>).id === loaded.model_name)
-        if (modelIndex >= 0) endpointModels[modelIndex] = endpointModel as Record<string, unknown>
-        else endpointModels.push(endpointModel as Record<string, unknown>)
+        if (modelIndex >= 0) {
+          const existingModel = JSON.stringify(endpointModels[modelIndex])
+          const newModelJson = JSON.stringify(endpointModel)
+          if (existingModel === newModelJson) {
+            alreadyIdentical = true
+          } else {
+            wasReplaced = true
+            endpointModels[modelIndex] = endpointModel as Record<string, unknown>
+          }
+        } else {
+          endpointModels.push(endpointModel as Record<string, unknown>)
+        }
         endpoint[modelsKey] = endpointModels
       } else {
         // No chanh endpoint yet: create one.
@@ -180,15 +192,22 @@ export class ModelManager {
         })
       }
 
+      if (alreadyIdentical) {
+        await showInformationMessage(
+          `VS Code native endpoint for '${loaded.model_name}' is already configured. Nothing changed.`,
+          { modal: true }
+        )
+        return true
+      }
+
       fs.writeFileSync(endpointsPath, JSON.stringify(existing, null, 2), 'utf8')
 
-      const reload = await showInformationMessage(
-        `VS Code native endpoint configured for '${loaded.model_name}'. ` +
+      const action = wasReplaced ? 'replaced' : 'added'
+      await showInformationMessage(
+        `VS Code native endpoint ${action} for '${loaded.model_name}'. ` +
         'Reload the window for the agent to pick it up.',
-        { modal: true },
-        'Reload Window'
+        { modal: true }
       )
-      if (reload === 'Reload Window') void commands.executeCommand('workbench.action.reloadWindow')
       return true
     } catch (err) {
       Logger.error('Failed to write VS Code native endpoint config', err)
