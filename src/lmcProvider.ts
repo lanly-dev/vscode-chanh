@@ -222,7 +222,11 @@ class ChanhLmcProvider implements vscode.LanguageModelChatProvider, vscode.Dispo
    * after the first token as well as at the end.
    */
   private syncRuntimeStatus(): void {
-    if (!this.disposed) refreshEvents.fire()
+    // Repaint the tree view only. Do NOT invalidate the cached server
+    // snapshot (`_serverDataStale`) — otherwise every busy/idle flip
+    // re-queries /v1/health, /v1/models?show_all=true, /v1/system-info
+    // and /internal/config (~12 round-trips per turn to flip one row).
+    if (!this.disposed) this.modelManager?.refreshTreeView()
   }
 
   register(): vscode.Disposable {
@@ -275,7 +279,7 @@ class ChanhLmcProvider implements vscode.LanguageModelChatProvider, vscode.Dispo
     progress: vscode.Progress<vscode.LanguageModelResponsePart>,
     token: vscode.CancellationToken
   ): Promise<void> {
-    await this.serverManager.ensureRunning()
+    if (!await this.serverManager.ensureRunning()) return
     const client = this.serverManager.client
     try {
       // Avoid a `/v1/load` round-trip per agent loop iteration: skip when the
@@ -293,9 +297,10 @@ class ChanhLmcProvider implements vscode.LanguageModelChatProvider, vscode.Dispo
       }
       if (!alreadyLoaded) {
         await client.loadModel(model.id)
-        // Agent mode loaded the model on demand, so the tree view's loaded
-        // state is stale: ask it to re-query before repainting.
-        refreshEvents.fire()
+        // Agent mode loaded the model on demand. Paint the loaded row
+        // without invalidating the server snapshot (no re-query of
+        // /v1/health, /v1/models, /v1/system-info or /internal/config).
+        this.modelManager?.refreshTreeView()
       } else Logger.info(`Model already loaded, skipping load: ${model.id}`)
       // Counts taken before this request were tokenized by whatever model was
       // loaded then, so they do not apply to the one being served now.
@@ -367,6 +372,25 @@ class ChanhLmcProvider implements vscode.LanguageModelChatProvider, vscode.Dispo
       this.syncRuntimeStatus()
     }
     this.syncRuntimeStatus()
+
+    // Poll /v1/health during the stream so the tree view's busy/idle indicator
+    // stays real-time. /v1/health is a lightweight localhost call returning
+    // in-memory state (~1-5ms), so a once-per-second poll adds negligible
+    // overhead — and it does not invalidate the full server snapshot (~12
+    // round-trips) that fetchServerData would otherwise re-run.
+    let healthPoller: NodeJS.Timeout | undefined
+    const startHealthPoller = () => {
+      healthPoller = setInterval(async () => {
+        try {
+          const health = await client.getHealth()
+          this.modelManager?.updateServerHealth(health)
+          this.modelManager?.refreshTreeView()
+        } catch {
+          // Server may be mid-request or briefly unreachable; keep last state.
+        }
+      }, 1000)
+    }
+    startHealthPoller()
     // What the stream actually carried, so the turn can be judged once it has
     // settled — including when it throws.
     const stats: ChatStreamStats = {}
@@ -434,6 +458,8 @@ class ChanhLmcProvider implements vscode.LanguageModelChatProvider, vscode.Dispo
       await this.modelManager?.offerContextIncrease(model.id, err)
       throw err
     } finally {
+      // Stop the health poller so we don't keep hitting /v1/health after the stream ends.
+      if (healthPoller) clearInterval(healthPoller)
       // A cancelled turn is the user's own doing, not evidence about a model.
       if (!abort.signal.aborted) {
         this.noteThinkingWaste(model.id, stats, reportedText || toolCalls.length > 0)

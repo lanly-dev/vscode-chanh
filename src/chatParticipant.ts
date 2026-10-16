@@ -29,6 +29,7 @@ import { closeOpenMarkdownFence, formatTurnFooter, shouldShowTokenStats } from '
 // Handles VS Code chat requests by forwarding them to the Lemonade Server.
 export class ChatParticipant implements Disposable {
   private readonly _subscriptions: Disposable[] = []
+  private readonly _cancellationDisposables: Disposable[] = []
 
   private client: LemonadeClient
   private participant: VSCodeChatParticipant
@@ -81,7 +82,7 @@ export class ChatParticipant implements Disposable {
     try {
       // No chat model configured -> let the user pick which model to chat with.
       const allModels = await this.client.listModels()
-      const chatModels = allModels.filter((m) => m.labels?.includes('chat') ?? false)
+      const chatModels = allModels.filter((m) => ModelManager.capabilityFor(m, 'chat'))
       const msg = 'No chat-capable models found. Please download a chat model first.'
       if (!allModels.length || !chatModels.length) {
         window.showWarningMessage(msg)
@@ -100,7 +101,7 @@ export class ChatParticipant implements Disposable {
         // Load the model if not already loaded
         await this.client.loadModel(selected.label)
         // Keep the tree view's loaded rows in sync with this implicit load.
-        refreshEvents.fire()
+        this.modelManager?.refreshTreeView()
         return selected.label
       }
     } catch (err) {
@@ -169,9 +170,9 @@ export class ChatParticipant implements Disposable {
     const markBusy = () => {
       if (paintedBusy) return
       paintedBusy = true
-      refreshEvents.fire()
+      this.modelManager?.refreshTreeView()
     }
-    refreshEvents.fire()
+    this.modelManager?.refreshTreeView()
     try {
       const stats: ChatStreamStats = {}
       const fullResponse = await this.client.chatCompletionStream(
@@ -200,7 +201,11 @@ export class ChatParticipant implements Disposable {
       response.markdown(`\n\n**Error:** ${message}`)
       return { errorDetails: { message } }
     } finally {
-      refreshEvents.fire()
+      // Dispose cancellation listeners so they cannot fire after the request
+      // settles (avoiding double abort / stale controller handling).
+      for (const disposable of this._cancellationDisposables) disposable.dispose()
+      this._cancellationDisposables.length = 0
+      this.modelManager?.refreshTreeView()
     }
   }
 
@@ -230,25 +235,39 @@ export class ChatParticipant implements Disposable {
     return history
   }
 
-  /** Get the active editor's content as context. */
+  /** Get the active editor's content as context, capped at 8192 chars with a
+   *  truncation note, labelled with the filename and language id. */
   private getEditorContext(): string | undefined {
     const editor = window.activeTextEditor
     if (!editor) return undefined
 
-    const selection = editor.selection
-    if (selection && !selection.isEmpty) return editor.document.getText(selection)
+    const document = editor.document
+    const fileName = document.fileName.split(/[\\/]/).pop() ?? document.fileName
+    const languageId = document.languageId
+    const content = editor.selection.isEmpty
+      ? document.getText()
+      : document.getText(editor.selection)
 
-    // Use entire document if no selection
-    return editor.document.getText()
+    const maxLength = 8192
+    const isTruncated = content.length > maxLength
+    const visible = isTruncated ? content.slice(0, maxLength) : content
+    const note = isTruncated
+      ? `\n\n[Note: the open file was truncated to ${maxLength} chars for context.]`
+      : ''
+
+    return `The user has the following file open in their editor:\n\n` +
+      `File: ${fileName} | Language: ${languageId}\n\n` +
+      `\`\`\`\n${visible}\n\`\`\`${note}`
   }
 
   /** Create an AbortSignal from a VS Code CancellationToken. */
   private createAbortSignal(token: CancellationToken): AbortSignal {
     const controller = new AbortController()
-    token.onCancellationRequested(() => {
+    const cancellationDisposable = token.onCancellationRequested(() => {
       Logger.info('Chat request cancelled by user')
       controller.abort()
     })
+    this._cancellationDisposables.push(cancellationDisposable)
     return controller.signal
   }
 

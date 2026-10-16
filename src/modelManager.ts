@@ -1,8 +1,8 @@
-import { ConfigurationTarget, ProgressLocation, QuickPickItem, ViewColumn } from 'vscode'
+import { ConfigurationTarget, Disposable, ProgressLocation, QuickPickItem, ViewColumn } from 'vscode'
 import { window, workspace } from 'vscode'
 
 import { formatSize } from './utils'
-import { LemonadeModel, ServerStatus, SystemInfoResponse } from './interfaces'
+import { HealthResponse, LemonadeModel, ServerStatus, SystemInfoResponse } from './interfaces'
 import { Logger } from './logger'
 import { ServerManager } from './serverManager'
 
@@ -53,11 +53,28 @@ export class ModelManager {
     return categories
   }
 
+  /** Whether the model carries the given capability label, matched case-insensitively. */
+  static capabilityFor(model: Pick<LemonadeModel, 'labels' | 'type'>, capability: string): boolean {
+    return this.getCapabilityCategories(model).includes(capability.toLowerCase())
+  }
+
   constructor(
     private serverManager: ServerManager,
     private treeViewProvider: ServerViewProvider,
     private lmcProvider?: ChanhLmcProvider
   ) { }
+
+  /** Repaint the tree view without invalidating the server snapshot. */
+  refreshTreeView(): void {
+    this.treeViewProvider.refresh()
+  }
+
+  /** Update only the cached health snapshot (per-model busy/streaming) without
+   * invalidating the full server snapshot. Safe to call during an active stream
+   * to keep the tree view's busy/idle indicator real-time. */
+  updateServerHealth(health: HealthResponse): void {
+    this.treeViewProvider.updateHealth(health)
+  }
 
   /** Preset context sizes offered in the Set Context Size quick pick. */
   private static readonly QUICK_CTX_SIZES = [
@@ -803,7 +820,7 @@ export class ModelManager {
     if (!await this.serverManager.ensureRunning()) return undefined
     const selected = await this.promptForModel(
       'Select active model for chat',
-      (m) => m.labels?.includes('chat') ?? false,
+      (m) => ModelManager.capabilityFor(m, 'chat'),
       'No chat models available. Download a chat model first.'
     )
     if (!selected) return
@@ -897,7 +914,8 @@ export class ModelManager {
       },
       async (progress, token) => {
         // Cancel the underlying HTTP request when the user dismisses the popup.
-        token.onCancellationRequested(() => abortController.abort())
+        const cancellationDisposable = token.onCancellationRequested(() => abortController.abort())
+        this._activeCancellations.add(cancellationDisposable)
         let lastReportedPct = 0
         // Diagnostics: how often the server actually reports progress, and
         // whether it sends byte counts (which the tree row can display).
@@ -974,10 +992,18 @@ export class ModelManager {
       }
     )
     // The download has ended (success, cancel, stall, or error) either way.
+    // Dispose the `withProgress` cancellation listeners now that the
+    // request/stream has settled.
+    for (const disposable of this._activeCancellations) disposable.dispose()
+    this._activeCancellations.clear()
     this._activeAborts.delete(modelId)
   }
 
   private _activeAborts = new Map<string, AbortController>()
+
+  /** Cancellation listeners registered on the `withProgress` token for each
+   *  in-flight download, so they are disposed when the download settles. */
+  private readonly _activeCancellations = new Set<Disposable>()
 
   /**
    * Cancel an in-progress download (inline tree button). Aborts the pull

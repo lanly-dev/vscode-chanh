@@ -599,17 +599,24 @@ export class ServerManager {
     const binaryPath = this.binaryManager.binaryPath
     const workingDir = this.binaryManager.binaryDir
 
-    // Write config.json with the lemond port so lemond uses it.
-    // Use default cache directory to avoid Windows permission issues.
+    // Read-merge-write: load the existing config.json if present so that
+    // unrelated keys the user or lemond stored there are preserved.
     try {
       const configPath = path.join(workingDir, 'config.json')
-      const config = workspace.getConfiguration('chanh')
-      const maxLoadedModels = config.get<number>('maxLoadedModels', 1)
-      const configData = {
-        port: this._lemondPort,
-        max_loaded_models: maxLoadedModels
+      let existing: Record<string, unknown> | undefined
+      if (fs.existsSync(configPath)) {
+        existing = JSON.parse(fs.readFileSync(configPath, 'utf8')) as Record<string, unknown>
       }
-      fs.writeFileSync(configPath, JSON.stringify(configData, null, 2), 'utf8')
+      const maxLoadedModels = workspace.getConfiguration('chanh').get<number>('maxLoadedModels', 1)
+      if (existing === undefined) {
+        const configData = JSON.stringify({ port: this._lemondPort, max_loaded_models: maxLoadedModels }, null, 2)
+        fs.writeFileSync(configPath, configData, 'utf8')
+      } else {
+        existing.port = this._lemondPort
+        existing.max_loaded_models = maxLoadedModels
+        const configData = JSON.stringify(existing, null, 2)
+        fs.writeFileSync(configPath, configData, 'utf8')
+      }
       Logger.info(`Wrote config.json with port ${this._lemondPort} and max_loaded_models ${maxLoadedModels}`)
     } catch (err) {
       Logger.error('Failed to write config.json', err)

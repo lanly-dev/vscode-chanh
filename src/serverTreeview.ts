@@ -26,6 +26,7 @@ import { ServerMode, ServerStatus } from './interfaces'
 
 import type {
   DownloadProgress,
+  HealthResponse,
   LemonadeModel,
   ServerInstance,
   SystemInfoBackend,
@@ -1418,20 +1419,6 @@ export class ServerViewProvider implements TreeDataProvider<TreeItem>, Disposabl
     if (model.type) lines.push(`Type: ${model.type}`)
     if (model.owned_by) lines.push(`Owned By: ${model.owned_by}`)
 
-    // if (typeof model.created === 'number' && model.created > 0)
-    //   lines.push(`Added: ${new Date(model.created * 1000).toISOString().slice(0, 10)}`)
-
-    // if (opts.isLoaded) {
-    //   const status = ['loaded']
-    //   if (opts.busy) status.push('busy')
-    //   if (opts.streaming) status.push('streaming')
-    //   lines.push(`Status: ${status.join(', ')}`)
-    // } else if (opts.isDownloadable)
-    //   lines.push('Status: not downloaded — pull to install')
-    // else
-    //   lines.push('Status: downloaded — load to use')
-
-
     // Backend: the accelerator the recipe resolves to (from system-info), plus
     // the per-model runtime endpoint once the model is loaded.
     if (opts.effectiveBackend) lines.push(`Backend: ${opts.effectiveBackend}`)
@@ -1636,5 +1623,12 @@ export class ServerViewProvider implements TreeDataProvider<TreeItem>, Disposabl
       await this.fetchSystemInfo()
       await this.fetchPinnedBackends()
     }
+  }
+
+  /** Update only the cached health snapshot (per-model busy/streaming) without
+   * invalidating the full server snapshot. Safe to call during an active stream
+   * to keep the tree view's busy/idle indicator real-time. */
+  updateHealth(health: HealthResponse): void {
+    if (this._activeServer) this._activeServer.health = health
   }
 }

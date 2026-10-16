@@ -129,11 +129,7 @@ export class LemonadeClient {
     )
     if (status !== 200) {
       let message = `Failed to load model: ${status} ${data}`
-
-      // TODO: Not sure if these error exist
-      if (/model_load_error/.test(data)) {
-        message = 'The model files are incomplete or invalid. Remove the model and download it again.'
-      } else if (status === 409 && /slots_pinned_error/.test(data)) {
+      if (status === 409 && /slots_pinned_error/.test(data)) {
         message = 'A model of this type is already loaded. Unload it first via "Chanh: Unload Model".'
       }
       throw new Error(message)

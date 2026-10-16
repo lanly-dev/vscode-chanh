@@ -51,8 +51,9 @@ export class BinaryManager {
     return null
   }
 
-  /** Detect the platform-specific asset name. */
-  private getAssetName(version: string): string {
+  /** Detect the platform-specific asset name. Returns undefined when this
+   *  platform has no published release asset (e.g. Intel Macs). */
+  private getAssetName(version: string): string | undefined {
     const platform = process.platform
     const arch = process.arch
 
@@ -66,7 +67,7 @@ export class BinaryManager {
 
     if (platform === 'darwin' && arch === 'arm64') return `${prefix}-macos-arm64.tar.gz`
 
-    throw new Error(`Unsupported platform: ${platform}-${arch}`)
+    return undefined
   }
 
   /** Fetch the latest release info from GitHub. */
@@ -83,7 +84,7 @@ export class BinaryManager {
           Accept: 'application/vnd.github+json'
         }
       }
-      https.get(url, options, (res) => {
+      const req = https.get(url, options, (res) => {
         if (res.statusCode === 301 || res.statusCode === 302) {
           const location = res.headers.location
           if (location) return this.fetchJson(location).then(resolve).catch(reject)
@@ -91,7 +92,7 @@ export class BinaryManager {
         }
         if (res.statusCode !== 200) {
           let body = ''
-          res.on('data', (chunk) =>  body += chunk)
+          res.on('data', (chunk) => body += chunk)
           res.on('end', () => reject(new Error(`GitHub API returned ${res.statusCode}: ${body}`)))
           return
         }
@@ -104,27 +105,44 @@ export class BinaryManager {
             reject(new Error(`Failed to parse GitHub API response: ${err}`))
           }
         })
-      }).on('error', reject)
+      })
+      // Inactivity guard: a hung api.github.com must not leave the
+      // fire-and-forget checkForUpdates() promise dangling at startup.
+      req.setTimeout(15000, () => req.destroy(new Error('GitHub API request timed out after 15s')))
+      req.on('error', reject)
     })
   }
 
-  /** Download a file with progress reporting. */
-  private downloadFile(url: string, dest: string, progress?: (percent: number) => void): Promise<void> {
+  /** Download a file with progress reporting. An inactivity watchdog (10s)
+   *  rejects if no data arrives, and an optional token cancels the request. */
+  private downloadFile(
+    url: string,
+    dest: string,
+    progress?: (percent: number) => void,
+    token?: vscode.CancellationToken
+  ): Promise<void> {
     return new Promise((resolve, reject) => {
       const file = fs.createWriteStream(dest)
-      https.get(url, (res) => {
+      let stallTimer: NodeJS.Timeout | undefined
+      const resetStallTimer = () => {
+        if (stallTimer !== undefined) clearTimeout(stallTimer)
+        stallTimer = undefined
+      }
+      const urlRequest = https.get(url, (res) => {
         if (res.statusCode === 301 || res.statusCode === 302) {
           const location = res.headers.location
           if (location) {
             file.close()
             fs.unlinkSync(dest)
-            return this.downloadFile(location, dest, progress).then(resolve).catch(reject)
+            resetStallTimer()
+            return this.downloadFile(location, dest, progress, token).then(resolve).catch(reject)
           }
           return reject(new Error('Redirect without location header'))
         }
         if (res.statusCode !== 200) {
           file.close()
           fs.unlinkSync(dest)
+          resetStallTimer()
           return reject(new Error(`Download failed with status ${res.statusCode}`))
         }
 
@@ -144,20 +162,49 @@ export class BinaryManager {
         })
 
         res.pipe(file)
+        // Inactivity watchdog: a hung server must not block the download
+        // forever. Model pulls already enforce this with their 10s stall
+        // timer; the initial binary download gets the same treatment.
+        if (token?.isCancellationRequested) {
+          file.close()
+          fs.unlinkSync(dest)
+          resetStallTimer()
+          reject(new Error('Download cancelled'))
+          return
+        }
+        stallTimer = setTimeout(() => {
+          file.close()
+          fs.unlinkSync(dest)
+          resetStallTimer()
+          reject(new Error('Download stalled: no data received for 10s'))
+        }, 10000)
+
         file.on('finish', () => {
+          resetStallTimer()
           file.close()
           resolve()
         })
         file.on('error', (err) => {
+          resetStallTimer()
           fs.unlinkSync(dest)
           reject(err)
         })
-      }).on('error', (err) => {
+      })
+
+      urlRequest.on('error', (err) => {
+        resetStallTimer()
         file.close()
         // Remove the partially downloaded file if it exists
         if (fs.existsSync(dest)) fs.unlinkSync(dest)
         reject(err)
       })
+
+      // Abort the request if the caller dismisses the progress popup.
+      if (token) {
+        token.onCancellationRequested(() => {
+          urlRequest.destroy(new Error('Download cancelled by user'))
+        })
+      }
     })
   }
 
@@ -187,6 +234,12 @@ export class BinaryManager {
     Logger.info(`Latest release: ${release.tag_name}`)
 
     const assetName = this.getAssetName(version)
+    if (assetName === undefined) {
+      const msg = 'This platform is not supported. Lemonade Server cannot be installed.'
+      Logger.info(msg)
+      vscode.window.showErrorMessage(msg)
+      return
+    }
     const asset = release.assets.find((a) => a.name === assetName)
 
     if (!asset) {
@@ -207,9 +260,9 @@ export class BinaryManager {
       {
         location: vscode.ProgressLocation.Notification,
         title: `Downloading Lemonade Server v${version}`,
-        cancellable: false
+        cancellable: true
       },
-      async (progress) => {
+      async (progress, token) => {
         let lastReported = 0
         await this.downloadFile(asset.browser_download_url, archivePath, (percent) => {
           const increment = percent - lastReported
@@ -217,34 +270,42 @@ export class BinaryManager {
             progress.report({ increment, message: `${percent}% downloaded` })
             lastReported = percent
           }
-        })
+        }, token)
       }
     )
 
     Logger.info('Download complete. Extracting...')
-    vscode.window.showInformationMessage('Lemonade Server binary downloaded successfully')
 
-    // Extract the archive
-    if (assetName.endsWith('.zip')) await this.extractZip(archivePath, this.binaryDir)
-    else await this.extractTarGz(archivePath, this.binaryDir)
+    try {
+      // Extract the archive
+      if (assetName.endsWith('.zip')) await this.extractZip(archivePath, this.binaryDir)
+      else await this.extractTarGz(archivePath, this.binaryDir)
 
-    // Clean up the archive
-    fs.unlinkSync(archivePath)
+      // Clean up the archive now that extraction has succeeded
+      fs.unlinkSync(archivePath)
 
-    // The archive may extract into a subdirectory. Find the binary.
-    this.locateBinaryFiles()
+      // The archive may extract into a subdirectory. Find the binary.
+      this.locateBinaryFiles()
 
-    // Make the binary executable on Unix
-    if (process.platform !== 'win32') {
-      fs.chmodSync(this.binaryPath, 0o755)
-      if (fs.existsSync(this.cliPath)) fs.chmodSync(this.cliPath, 0o755)
+      // Make the binary executable on Unix
+      if (process.platform !== 'win32') {
+        fs.chmodSync(this.binaryPath, 0o755)
+        if (fs.existsSync(this.cliPath)) fs.chmodSync(this.cliPath, 0o755)
+      }
+
+      // Save the version
+      const versionFile = path.join(this.binaryDir, '.version')
+      fs.writeFileSync(versionFile, version, 'utf8')
+
+      Logger.info(`Lemonade Server v${version} installed successfully`)
+      vscode.window.showInformationMessage('Lemonade Server binary downloaded successfully')
+    } catch (err: unknown) {
+      Logger.error('Failed to install Lemonade Server', err)
+      // Remove the archive on extraction/relocation failure so the user
+      // never sees "success" while the archive is left on disk.
+      if (fs.existsSync(archivePath)) fs.unlinkSync(archivePath)
+      vscode.window.showErrorMessage('Failed to install Lemonade Server after download.')
     }
-
-    // Save the version
-    const versionFile = path.join(this.binaryDir, '.version')
-    fs.writeFileSync(versionFile, version, 'utf8')
-
-    Logger.info(`Lemonade Server v${version} installed successfully`)
   }
 
   /**
