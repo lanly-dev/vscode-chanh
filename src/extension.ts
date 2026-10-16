@@ -61,10 +61,7 @@ export async function activate(context: ExtensionContext) {
   const d20 = rc('chanh.setMaxLoadedModels', () => modelManager.setMaxLoadedModels())
   const d21 = rc('chanh.editServerPort', () => serverManager.editServerPort())
 
-  const d22 = rc(
-    'chanh.configureVsCodeNativeEndpoint',
-    (item: ModelTreeItem) => modelManager.configureVsCodeNativeEndpoint(item.modelId)
-  )
+  const d22 = rc('chanh.configLmEndpoint', (item: ModelTreeItem) => modelManager.configLmEndpoint(item.modelId))
   const d23 = rc('chanh.openLmConfigsFile', () => modelManager.openLmConfigsFile())
 
   const d24 = rc('chanh.toggleModelGrouping', () => svProvider.toggleModelGrouping())

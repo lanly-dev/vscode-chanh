@@ -211,9 +211,9 @@
         "title": "Chanh: Select Chat Model"
       },
       {
-        "command": "chanh.configureVsCodeNativeEndpoint",
-        "title": "Chanh: Configure VS Code Native Endpoint",
-        "icon": "$(link-external)"
+        "command": "chanh.configLmEndpoint",
+        "title": "Chanh: add entry to VS Code's chat.customEndpoints",
+        "icon": "$(wrench)"
       },
       {
         "command": "chanh.openLmConfigsFile",
@@ -316,18 +316,18 @@
           "group": "inline@1"
         },
         {
+          "command": "chanh.configLmEndpoint",
+          "when": "view == CHANH_TREEVIEW && viewItem == CHANH_LOADED_MODEL",
+          "group": "inline@2"
+        },
+        {
           "command": "chanh.ncp.loadModel",
           "when": "view == CHANH_TREEVIEW && viewItem =~ /CHANH_MODEL_INSTALLED/",
-          "group": "inline@2"
+          "group": "inline@3"
         },
         {
           "command": "chanh.ncp.unloadModel",
           "when": "view == CHANH_TREEVIEW && (viewItem =~ /CHANH_MODEL_LOADED/ || viewItem == CHANH_LOADED_MODEL)",
-          "group": "inline@2"
-        },
-        {
-          "command": "chanh.configureVsCodeNativeEndpoint",
-          "when": "view == CHANH_TREEVIEW && viewItem == CHANH_LOADED_MODEL",
           "group": "inline@3"
         },
         {

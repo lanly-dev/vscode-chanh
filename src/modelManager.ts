@@ -80,7 +80,7 @@ export class ModelManager {
 
   /** Build a VS Code `chat.customEndpoints` entry from a single loaded model
    * on the active server, for the VS Code native agent endpoint. */
-  async configureVsCodeNativeEndpoint(modelId: string): Promise<boolean> {
+  async configLmEndpoint(modelId: string): Promise<boolean> {
     const server = await this.serverManager.getActiveServer()
     if (!server) {
       showWarningMessage('No active server.')
