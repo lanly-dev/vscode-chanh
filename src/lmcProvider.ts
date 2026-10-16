@@ -1,7 +1,6 @@
 import * as vscode from 'vscode'
 import { closeOpenMarkdownFence, formatTurnFooter, shouldShowTokenStats } from './utils'
 import { Logger } from './logger'
-import { refreshEvents } from './events'
 import { ServerStatus } from './interfaces'
 import { ModelManager } from './modelManager'
 import type { ChatCompletionRequest, ChatContentPart, ChatMessage, OpenAIMessageToolCall } from './interfaces'

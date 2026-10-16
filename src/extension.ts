@@ -1,4 +1,4 @@
-import { commands, ConfigurationTarget, ExtensionContext, TreeItem, window, workspace } from 'vscode'
+import { commands, ExtensionContext, TreeItem, window } from 'vscode'
 
 import { BinaryManager } from './binaryManager'
 import { ChanhLmcProvider } from './lmcProvider'
@@ -7,7 +7,7 @@ import { listenConfigsChange, ServerManager } from './serverManager'
 import { Logger } from './logger'
 import { ModelDecorationProvider } from './modelDecorations'
 import { ModelManager } from './modelManager'
-import { openSetting, openUrl, revealBinaryDir } from './utils'
+import { openLmConfigsFile, openSetting, openUrl, revealBinaryDir } from './utils'
 import { refreshEvents } from './events'
 import { ServerViewProvider } from './serverTreeview'
 
@@ -40,7 +40,7 @@ export async function activate(context: ExtensionContext) {
   const d2 = rc('chanh.ncp.cancelDownload', (item: ModelTreeItem) => modelManager.cancelDownload(item.modelId))
   const d3 = rc('chanh.ncp.loadModel', (item: ModelTreeItem) => modelManager.loadModel(item.modelId))
   const d4 = rc('chanh.ncp.unloadModel', (item: ModelTreeItem) => modelManager.unloadModel(item.modelId))
-  const d5= rc('chanh.ncp.removeModel', (item: ModelTreeItem) => modelManager.deleteModel(item.modelId))
+  const d5 = rc('chanh.ncp.removeModel', (item: ModelTreeItem) => modelManager.deleteModel(item.modelId))
 
   const d6 = rc('chanh.ncp.setModelContext', (item: ModelTreeItem) => modelManager.setModelContext(item))
   const d7 = rc('chanh.ncp.resetModelContext', (item: ModelTreeItem) => modelManager.resetModelContext(item))
@@ -62,7 +62,7 @@ export async function activate(context: ExtensionContext) {
   const d21 = rc('chanh.editServerPort', () => serverManager.editServerPort())
 
   const d22 = rc('chanh.configLmEndpoint', (item: ModelTreeItem) => modelManager.configLmEndpoint(item.modelId))
-  const d23 = rc('chanh.openLmConfigsFile', () => modelManager.openLmConfigsFile())
+  const d23 = rc('chanh.openLmConfigsFile', () => openLmConfigsFile())
 
   const d24 = rc('chanh.toggleModelGrouping', () => svProvider.toggleModelGrouping())
   const d25 = rc('chanh.toggleDlModelGrouping', () => svProvider.toggleDlModelGrouping())
@@ -78,7 +78,8 @@ export async function activate(context: ExtensionContext) {
 
   context.subscriptions.push(d1, d2, d3, d4, d5, d6, d7, d8, d9, d10, d11, d12, d13, d14, d15, d16, d17, d18, d19, d20,
     d21, d22, d23, d24, d25, d26, d27, d28, d29, d30, d31, d32, serverManager, chatParticipant, lmcProvider, svProvider,
-    Logger.toDisposable())
+    Logger
+  )
   binaryManager.checkForUpdates()
 }
 

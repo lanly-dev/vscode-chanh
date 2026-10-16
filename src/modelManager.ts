@@ -1,9 +1,8 @@
-import { ConfigurationTarget, Disposable, ProgressLocation, QuickPickItem, Uri, ViewColumn } from 'vscode'
+import { ConfigurationTarget, Disposable, ProgressLocation, QuickPickItem, ViewColumn } from 'vscode'
 import { window, workspace } from 'vscode'
 import * as fs from 'fs'
-import * as path from 'path'
 
-import { formatSize } from './utils'
+import { formatSize, getCustomEndpointsPath } from './utils'
 import { HealthResponse, LemonadeModel, ServerStatus, SystemInfoResponse } from './interfaces'
 import { Logger } from './logger'
 import { ServerManager } from './serverManager'
@@ -140,7 +139,7 @@ export class ModelManager {
       // chat.customEndpoints is a VS Code built-in setting not contributed by
       // this extension, so config.update() rejects it. Write chatLanguageModels.json
       // directly instead — that's where VS Code persists custom language model endpoints.
-      const endpointsPath = this.getCustomEndpointsPath()
+      const endpointsPath = getCustomEndpointsPath()
       let existing: Array<Record<string, unknown>> = []
       if (fs.existsSync(endpointsPath)) {
         try {
@@ -156,16 +155,14 @@ export class ModelManager {
 
       // Find or create the chanh vendor endpoint.
       const chanhIndex = existing.findIndex((e) => (e as Record<string, unknown>).vendor === 'customendpoint')
-      const modelsKey = 'models'
-      const newModels = [endpointModel]
       let wasReplaced = false
       let alreadyIdentical = false
 
       if (chanhIndex >= 0) {
         // Endpoint already exists: merge the model entry.
         const endpoint = existing[chanhIndex] as Record<string, unknown>
-        let endpointModels: Array<Record<string, unknown>> = Array.isArray(endpoint[modelsKey])
-          ? (endpoint[modelsKey] as Array<Record<string, unknown>>)
+        let endpointModels: Array<Record<string, unknown>> = Array.isArray(endpoint.models)
+          ? (endpoint.models as Array<Record<string, unknown>>)
           : []
         // Check if the model entry is already identical.
         const modelIndex = endpointModels.findIndex((m) => (m as Record<string, unknown>).id === loaded.model_name)
@@ -178,14 +175,14 @@ export class ModelManager {
             endpointModels[modelIndex] = endpointModel as Record<string, unknown>
           }
         } else endpointModels.push(endpointModel as Record<string, unknown>)
-        endpoint[modelsKey] = endpointModels
+        endpoint.models = endpointModels
       } else {
         // No chanh endpoint yet: create one.
         existing.push({
           name: `Chanh 🍋‍🟩`,
           vendor: 'customendpoint', // Has to be "customendpoint" for VS Code to recognize it as a custom endpoint.
           apiType: 'chat-completions',
-          models: newModels
+          models: [endpointModel]
         })
       }
 
@@ -196,59 +193,13 @@ export class ModelManager {
       fs.writeFileSync(endpointsPath, JSON.stringify(existing, null, 2), 'utf8')
 
       const action = wasReplaced ? 'replaced' : 'added'
-      await showInformationMessage( `${action} entry for '${loaded.model_name}' in chatLanguageModel.json.` )
+      await showInformationMessage(`${action} entry for '${loaded.model_name}' in chatLanguageModels.json.`)
       return true
     } catch (err) {
-      Logger.error('Failed to configure entry in chatLanguageModel.json', err)
+      Logger.error('Failed to configure entry in chatLanguageModels.json', err)
       showErrorMessage(`Failed to configure native endpoint: ${err}`)
       return false
     }
-  }
-
-  /** Return the path to VS Code's chatLanguageModels.json based on platform. */
-  private getCustomEndpointsPath(): string {
-    if (process.platform === 'win32') {
-      return path.join(process.env.APPDATA ?? '', 'Code', 'User', 'chatLanguageModels.json')
-    }
-    if (process.platform === 'darwin') {
-      return path.join(
-        process.env.HOME ?? '',
-        'Library',
-        'Application Support',
-        'Code',
-        'User',
-        'chatLanguageModels.json'
-      )
-    }
-    return path.join(process.env.HOME ?? '', '.config', 'Code', 'User', 'chatLanguageModels.json')
-  }
-
-  /** Open VS Code's chatLanguageModels.json in the editor so the user can
-   * inspect or manually edit custom language model endpoints. */
-  async openLmConfigsFile(): Promise<void> {
-    const endpointsPath = this.getCustomEndpointsPath()
-    const uri = Uri.file(endpointsPath)
-
-    // If the file is already open and focused, tell the user instead of re-opening it.
-    const alreadyOpen = window.visibleTextEditors.some(
-      (editor) => editor.document.uri.fsPath === uri.fsPath && editor === window.activeTextEditor
-    )
-    if (alreadyOpen) {
-      void showInformationMessage(`VS Code's custom endpoints file is already open.`)
-      return
-    }
-
-    // Create the file with an empty array if it doesn't exist yet, so the
-    // editor opens something sensible rather than a "file not found" error.
-    if (!fs.existsSync(endpointsPath)) {
-      try {
-        fs.mkdirSync(path.dirname(endpointsPath), { recursive: true })
-        fs.writeFileSync(endpointsPath, '[]\n', 'utf8')
-      } catch {
-        // If we can't create it, still try to open it — VS Code may prompt to create it.
-      }
-    }
-    await window.showTextDocument(uri)
   }
 
   /** Preset context sizes offered in the Set Context Size quick pick. */
@@ -547,21 +498,20 @@ export class ModelManager {
 
   async unloadModel(modelName: string): Promise<void> {
     if (!await this.serverManager.ensureRunning()) return
-    const name = modelName
 
     try {
       await window.withProgress(
         {
           location: ProgressLocation.Notification,
-          title: `Unloading model: ${name}`,
+          title: `Unloading model: ${modelName}`,
           cancellable: false
         },
         async (progress) => {
           progress.report({ message: 'Unloading...' })
-          await this.client.unloadModel(name)
+          await this.client.unloadModel(modelName)
         }
       )
-      showInformationMessage(`Model '${name}' unloaded successfully`)
+      showInformationMessage(`Model '${modelName}' unloaded successfully`)
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : `Failed to unload model: ${String(err)}`
       Logger.error(message, err)
@@ -987,12 +937,11 @@ export class ModelManager {
   }
 
   /**
-   * Select an active model for chat.
-   * Prompts the user to pick a model from the available ones.
-   * Resolves to the selected model name, or undefined if cancelled/error.
+   * Select an active model for chat: prompt for a chat-capable model, load it,
+   * and hand it to the chat participant.
    */
   async selectChatModel(chatParticipant: ChatParticipant): Promise<void> {
-    if (!await this.serverManager.ensureRunning()) return undefined
+    if (!await this.serverManager.ensureRunning()) return
     const selected = await this.promptForModel(
       'Select active model for chat',
       (m) => ModelManager.capabilityFor(m, 'chat'),
@@ -1107,8 +1056,8 @@ export class ModelManager {
               resetStallTimer()
               // console.log(`Received progress update for model ${modelId}:`, p)
               progressEvents++
-              if (typeof p.written === 'number' && typeof p.total === 'number') sawByteCounts = true
               const hasBytes = typeof p.written === 'number' && typeof p.total === 'number'
+              if (hasBytes) sawByteCounts = true
               if (p.pct >= 0) {
                 // Calculate increment for the progress bar
                 const increment = p.pct - lastReportedPct

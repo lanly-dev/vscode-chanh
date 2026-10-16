@@ -235,13 +235,6 @@ export interface SystemInfoResponse {
   unavailable_recipes?: string[]
 }
 
-export interface ModelTreeItem {
-  id: string
-  label: string
-  loaded: boolean
-  description?: string
-}
-
 /** Number of pinned models per category, as reported by `/v1/health`. */
 export interface PinnedModels {
   classification?: number

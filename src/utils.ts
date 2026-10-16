@@ -1,6 +1,11 @@
 import * as vscode from 'vscode'
+import * as fs from 'fs'
+import * as path from 'path'
 import { Logger } from './logger'
 import { ServerInstance, ServerStatus, ChatStreamStats } from './interfaces'
+
+/** Unit ladder shared by the byte formatters below. */
+const BYTE_UNITS = ['B', 'KB', 'MB', 'GB', 'TB']
 
 export function getServerStatusChar(status: ServerInstance['status']): { color: string, icon: string, text: string } {
   switch (status) {
@@ -80,14 +85,13 @@ export function shouldShowTokenStats(): boolean {
 
 /** Format a byte count as a human-readable size (e.g. 1.2 GB). */
 export function formatBytes(value: number): string {
-  const units = ['B', 'KB', 'MB', 'GB', 'TB']
   let n = value
   let unit = 0
-  while (n >= 1024 && unit < units.length - 1) {
+  while (n >= 1024 && unit < BYTE_UNITS.length - 1) {
     n /= 1024
     unit++
   }
-  return `${n.toFixed(unit === 0 ? 0 : 1)} ${units[unit]}`
+  return `${n.toFixed(unit === 0 ? 0 : 1)} ${BYTE_UNITS[unit]}`
 }
 
 /** Format a model size given in GB as a human-readable string (e.g. "4.00 GB" or "2.0 TB"). */
@@ -103,18 +107,17 @@ export function formatSize(sizeGb: number | undefined): string {
  * which makes the row look frozen between updates.
  */
 export function formatByteProgress(written: number, total: number): string {
-  const units = ['B', 'KB', 'MB', 'GB', 'TB']
   let unit = 0
   let divisor = 1
   // Pick the unit from the total so both numbers are shown at the same scale.
-  while (total / divisor >= 1024 && unit < units.length - 1) {
+  while (total / divisor >= 1024 && unit < BYTE_UNITS.length - 1) {
     divisor *= 1024
     unit++
   }
   // Bytes/KB need no decimals; MB and above use two so the value advances in
   // fine increments (for GB that is ~10 MB per step) instead of 100 MB ones.
   const digits = unit <= 1 ? 0 : 2
-  return `${(written / divisor).toFixed(digits)} / ${(total / divisor).toFixed(digits)} ${units[unit]}`
+  return `${(written / divisor).toFixed(digits)} / ${(total / divisor).toFixed(digits)} ${BYTE_UNITS[unit]}`
 }
 
 export function openSetting(): void {
@@ -149,4 +152,50 @@ export function openUrl(item: vscode.TreeItem): void {
 export function revealBinaryDir(binaryDir: string): void {
   const uri = vscode.Uri.file(binaryDir)
   vscode.commands.executeCommand('revealFileInOS', uri)
+}
+
+/** Return the path to VS Code's chatLanguageModels.json based on platform. */
+export function getCustomEndpointsPath(): string {
+  if (process.platform === 'win32') {
+    return path.join(process.env.APPDATA ?? '', 'Code', 'User', 'chatLanguageModels.json')
+  }
+  if (process.platform === 'darwin') {
+    return path.join(
+      process.env.HOME ?? '',
+      'Library',
+      'Application Support',
+      'Code',
+      'User',
+      'chatLanguageModels.json'
+    )
+  }
+  return path.join(process.env.HOME ?? '', '.config', 'Code', 'User', 'chatLanguageModels.json')
+}
+
+/** Open VS Code's chatLanguageModels.json in the editor so the user can
+ * inspect or manually edit custom language model endpoints. */
+export async function openLmConfigsFile(): Promise<void> {
+  const endpointsPath = getCustomEndpointsPath()
+  const uri = vscode.Uri.file(endpointsPath)
+
+  // If the file is already open and focused, tell the user instead of re-opening it.
+  const alreadyOpen = vscode.window.visibleTextEditors.some(
+    (editor) => editor.document.uri.fsPath === uri.fsPath && editor === vscode.window.activeTextEditor
+  )
+  if (alreadyOpen) {
+    void vscode.window.showInformationMessage(`VS Code's custom endpoints file is already open.`)
+    return
+  }
+
+  // Create the file with an empty array if it doesn't exist yet, so the
+  // editor opens something sensible rather than a "file not found" error.
+  if (!fs.existsSync(endpointsPath)) {
+    try {
+      fs.mkdirSync(path.dirname(endpointsPath), { recursive: true })
+      fs.writeFileSync(endpointsPath, '[]\n', 'utf8')
+    } catch {
+      // If we can't create it, still try to open it — VS Code may prompt to create it.
+    }
+  }
+  await vscode.window.showTextDocument(uri)
 }

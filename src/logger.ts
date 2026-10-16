@@ -30,19 +30,9 @@ export class Logger {
     } else Logger.channel!.appendLine(`[ERROR ${timestamp}] ${message}`)
   }
 
-  static show(): void {
-    Logger.init()
-    Logger.channel!.show()
-  }
-
   /** Dispose the output channel on extension deactivation. */
   static dispose(): void {
     Logger.channel?.dispose()
     Logger.channel = undefined
-  }
-
-  /** Adapter so the static logger can ride `context.subscriptions` like other disposables. */
-  static toDisposable(): vscode.Disposable {
-    return new vscode.Disposable(() => Logger.dispose())
   }
 }

@@ -1147,10 +1147,10 @@ export class ServerViewProvider implements TreeDataProvider<TreeItem>, Disposabl
     }
     if (element.contextValue === 'CHANH_SERVER_HEADER') return this.getServerChildren(this._activeServer)
     if (element.contextValue === 'CHANH_SYSTEM_HEADER') return this.getSystemChildren()
-    if (element.contextValue === 'CHANH_LOADED_HEADER') return this.getLoadedModelChildren(element)
+    if (element.contextValue === 'CHANH_LOADED_HEADER') return this.getLoadedModelChildren()
     if (element.contextValue === 'CHANH_DOWNLOADING_HEADER') return this.getDownloadingChildren()
-    if (element.contextValue === 'CHANH_PINNED_HEADER') return this.getPinnedModelChildren(element)
-    if (element.contextValue === 'CHANH_INSTALLED_HEADER') return this.getInstalledChildren(element)
+    if (element.contextValue === 'CHANH_PINNED_HEADER') return this.getPinnedModelChildren()
+    if (element.contextValue === 'CHANH_INSTALLED_HEADER') return this.getInstalledChildren()
     if (element.contextValue === 'CHANH_DOWNLOADABLE_HEADER') return this.getDownloadableChildren()
     if (element.contextValue === 'CHANH_CAP_GROUP'
       || element.contextValue === 'CHANH_CAP_GROUP_FILTERED'
@@ -1230,7 +1230,7 @@ export class ServerViewProvider implements TreeDataProvider<TreeItem>, Disposabl
     return items
   }
 
-  private getLoadedModelChildren(element: TreeItem): TreeItem[] {
+  private getLoadedModelChildren(): TreeItem[] {
     const server = this._activeServer
     if (!server?.health) return []
     const loadedModels = server.health.all_models_loaded
@@ -1332,7 +1332,7 @@ export class ServerViewProvider implements TreeDataProvider<TreeItem>, Disposabl
     return items
   }
 
-  private getPinnedModelChildren(element: TreeItem): TreeItem[] {
+  private getPinnedModelChildren(): TreeItem[] {
     const server = this._activeServer
     const pinned = server?.health?.pinned_models
     if (!pinned) return []
@@ -1355,7 +1355,7 @@ export class ServerViewProvider implements TreeDataProvider<TreeItem>, Disposabl
     })
   }
 
-  private getInstalledChildren(element: TreeItem): TreeItem[] {
+  private getInstalledChildren(): TreeItem[] {
     const server = this._activeServer
     if (!server?.models) return []
 

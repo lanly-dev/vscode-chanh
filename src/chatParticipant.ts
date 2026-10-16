@@ -15,9 +15,7 @@ import {
   ThemeIcon
 } from 'vscode'
 
-
 import { LemonadeClient } from './lemonadeClient'
-import { refreshEvents } from './events'
 import { Logger } from './logger'
 import { ModelManager } from './modelManager'
 import { ServerManager } from './serverManager'
