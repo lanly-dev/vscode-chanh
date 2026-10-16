@@ -109,9 +109,7 @@ export class ModelManager {
 
     const catalogModel = catalog.find((m) => m.id === loaded.model_name)
     if (!catalogModel) {
-      showWarningMessage(
-        `Model '${loaded.model_name}' not found in server catalog.`
-      )
+      showWarningMessage(`Model '${loaded.model_name}' not found in server catalog.`)
       return false
     }
     const contextLength = catalogModel.context_length ?? catalogModel.max_context_window ?? 8192
@@ -147,9 +145,8 @@ export class ModelManager {
       if (fs.existsSync(endpointsPath)) {
         try {
           const raw = JSON.parse(fs.readFileSync(endpointsPath, 'utf8'))
-          if (Array.isArray(raw)) {
-            existing = raw as Array<Record<string, unknown>>
-          } else if (raw && Array.isArray((raw as Record<string, unknown>).providers)) {
+          if (Array.isArray(raw)) existing = raw as Array<Record<string, unknown>>
+          else if (raw && Array.isArray((raw as Record<string, unknown>).providers)) {
             existing = (raw as Record<string, unknown>).providers as Array<Record<string, unknown>>
           }
         } catch {
@@ -170,11 +167,8 @@ export class ModelManager {
           : []
         // Replace the model if it already exists (updated context size etc.), else append.
         const modelIndex = endpointModels.findIndex((m) => (m as Record<string, unknown>).id === loaded.model_name)
-        if (modelIndex >= 0) {
-          endpointModels[modelIndex] = endpointModel as Record<string, unknown>
-        } else {
-          endpointModels.push(endpointModel as Record<string, unknown>)
-        }
+        if (modelIndex >= 0) endpointModels[modelIndex] = endpointModel as Record<string, unknown>
+        else endpointModels.push(endpointModel as Record<string, unknown>)
         endpoint[modelsKey] = endpointModels
       } else {
         // No chanh endpoint yet: create one.
@@ -194,9 +188,7 @@ export class ModelManager {
         { modal: true },
         'Reload Window'
       )
-      if (reload === 'Reload Window') {
-        void commands.executeCommand('workbench.action.reloadWindow')
-      }
+      if (reload === 'Reload Window') void commands.executeCommand('workbench.action.reloadWindow')
       return true
     } catch (err) {
       Logger.error('Failed to write VS Code native endpoint config', err)
@@ -245,15 +237,10 @@ export class ModelManager {
         fs.mkdirSync(path.dirname(endpointsPath), { recursive: true })
         fs.writeFileSync(endpointsPath, '[]\n', 'utf8')
       } catch {
-        // If we can't create it, still try to open it — VS Code may prompt
-        // to create it.
+        // If we can't create it, still try to open it — VS Code may prompt to create it.
       }
     }
-
-    // Open beside the current editor so the user can see the endpoint config
-    // alongside the server tree view — VS Code's closest equivalent to a
-    // floating modal for inspecting/editing custom language model endpoints.
-    await window.showTextDocument(uri, { preview: false, viewColumn: ViewColumn.Beside, preserveFocus: false })
+    await window.showTextDocument(uri)
   }
 
   /** Preset context sizes offered in the Set Context Size quick pick. */
