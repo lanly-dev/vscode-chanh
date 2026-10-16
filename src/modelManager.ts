@@ -225,7 +225,7 @@ export class ModelManager {
 
   /** Open VS Code's chatLanguageModels.json in the editor so the user can
    * inspect or manually edit custom language model endpoints. */
-  async openCustomEndpointsFile(): Promise<void> {
+  async openLmConfigsFile(): Promise<void> {
     const endpointsPath = this.getCustomEndpointsPath()
     const uri = Uri.file(endpointsPath)
 

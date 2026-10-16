@@ -65,7 +65,7 @@ export async function activate(context: ExtensionContext) {
     'chanh.configureVsCodeNativeEndpoint',
     (item: ModelTreeItem) => modelManager.configureVsCodeNativeEndpoint(item.modelId)
   )
-  const d23 = rc('chanh.openCustomEndpointsFile', () => modelManager.openCustomEndpointsFile())
+  const d23 = rc('chanh.openLmConfigsFile', () => modelManager.openLmConfigsFile())
 
   const d24 = rc('chanh.toggleModelGrouping', () => svProvider.toggleModelGrouping())
   const d25 = rc('chanh.toggleDlModelGrouping', () => svProvider.toggleDlModelGrouping())

@@ -216,8 +216,8 @@
         "icon": "$(link-external)"
       },
       {
-        "command": "chanh.openCustomEndpointsFile",
-        "title": "Chanh: Open Custom Endpoints File",
+        "command": "chanh.openLmConfigsFile",
+        "title": "Chanh: Open chatLanguageModels.json",
         "icon": "$(file-text)"
       }
     ],
@@ -331,7 +331,7 @@
           "group": "inline@3"
         },
         {
-          "command": "chanh.openCustomEndpointsFile",
+          "command": "chanh.openLmConfigsFile",
           "when": "view == CHANH_TREEVIEW && viewItem == CHANH_LOADED_HEADER",
           "group": "inline"
         },
@@ -507,11 +507,4 @@
   },
   "license": "MIT"
 }
-
-
-
-
-
-
-
 
