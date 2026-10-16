@@ -120,7 +120,7 @@ export class ModelManager {
     if (!ModelManager.capabilityFor(catalogModel, 'chat')) {
       showWarningMessage(
         `Model '${loaded.model_name}' is not chat-capable. ` +
-        'Only chat models can be configured for the VS Code native endpoint.'
+        'Only chat models can be configured in VS Code\'s native agent endpoint.'
       )
       return false
     }
@@ -172,15 +172,12 @@ export class ModelManager {
         if (modelIndex >= 0) {
           const existingModel = JSON.stringify(endpointModels[modelIndex])
           const newModelJson = JSON.stringify(endpointModel)
-          if (existingModel === newModelJson) {
-            alreadyIdentical = true
-          } else {
+          if (existingModel === newModelJson) alreadyIdentical = true
+          else {
             wasReplaced = true
             endpointModels[modelIndex] = endpointModel as Record<string, unknown>
           }
-        } else {
-          endpointModels.push(endpointModel as Record<string, unknown>)
-        }
+        } else endpointModels.push(endpointModel as Record<string, unknown>)
         endpoint[modelsKey] = endpointModels
       } else {
         // No chanh endpoint yet: create one.
@@ -193,24 +190,16 @@ export class ModelManager {
       }
 
       if (alreadyIdentical) {
-        await showInformationMessage(
-          `VS Code native endpoint for '${loaded.model_name}' is already configured. Nothing changed.`,
-          { modal: true }
-        )
+        await showInformationMessage(`Entry for '${loaded.model_name}' is already configured. Nothing changed.`)
         return true
       }
-
       fs.writeFileSync(endpointsPath, JSON.stringify(existing, null, 2), 'utf8')
 
       const action = wasReplaced ? 'replaced' : 'added'
-      await showInformationMessage(
-        `VS Code native endpoint ${action} for '${loaded.model_name}'. ` +
-        'Reload the window for the agent to pick it up.',
-        { modal: true }
-      )
+      await showInformationMessage( `${action} entry for '${loaded.model_name}' in chatLanguageModel.json.` )
       return true
     } catch (err) {
-      Logger.error('Failed to write VS Code native endpoint config', err)
+      Logger.error('Failed to configure entry in chatLanguageModel.json', err)
       showErrorMessage(`Failed to configure native endpoint: ${err}`)
       return false
     }
