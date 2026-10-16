@@ -1,5 +1,7 @@
-import { ConfigurationTarget, Disposable, ProgressLocation, QuickPickItem, ViewColumn } from 'vscode'
+import { commands, ConfigurationTarget, Disposable, ProgressLocation, QuickPickItem, Uri, ViewColumn } from 'vscode'
 import { window, workspace } from 'vscode'
+import * as fs from 'fs'
+import * as path from 'path'
 
 import { formatSize } from './utils'
 import { HealthResponse, LemonadeModel, ServerStatus, SystemInfoResponse } from './interfaces'
@@ -74,6 +76,170 @@ export class ModelManager {
    * to keep the tree view's busy/idle indicator real-time. */
   updateServerHealth(health: HealthResponse): void {
     this.treeViewProvider.updateHealth(health)
+  }
+
+  /** Build a VS Code `chat.customEndpoints` entry from a single loaded model
+   * on the active server, for the VS Code native agent endpoint. */
+  async configureVsCodeNativeEndpoint(modelId: string): Promise<boolean> {
+    const server = await this.serverManager.getActiveServer()
+    if (!server) {
+      showWarningMessage('No active server.')
+      return false
+    }
+    if (!server.health?.all_models_loaded?.length) {
+      showWarningMessage('No models are currently loaded on the server.')
+      return false
+    }
+
+    const loaded = server.health.all_models_loaded.find((m) => m.model_name === modelId)
+    if (!loaded) {
+      showWarningMessage(`Model '${modelId}' is not loaded on the server.`)
+      return false
+    }
+
+    // Capture API errors individually so one failure doesn't hide another.
+    let catalog: LemonadeModel[]
+    try {
+      catalog = await this.client.listModels()
+    } catch (err) {
+      Logger.error('Failed to list models from server', err)
+      showErrorMessage(`Failed to list models from server: ${err}`)
+      return false
+    }
+
+    const catalogModel = catalog.find((m) => m.id === loaded.model_name)
+    if (!catalogModel) {
+      showWarningMessage(
+        `Model '${loaded.model_name}' not found in server catalog.`
+      )
+      return false
+    }
+    const contextLength = catalogModel.context_length ?? catalogModel.max_context_window ?? 8192
+    const maxOutput = Math.min(Math.max(Math.floor(contextLength / 2), 256), 4096)
+    const labels = catalogModel.labels ?? []
+
+    // Only chat-capable models can be configured as VS Code native endpoints.
+    if (!ModelManager.capabilityFor(catalogModel, 'chat')) {
+      showWarningMessage(
+        `Model '${loaded.model_name}' is not chat-capable. ` +
+        'Only chat models can be configured for the VS Code native endpoint.'
+      )
+      return false
+    }
+
+    const endpointModel = {
+      id: loaded.model_name,
+      name: loaded.model_name,
+      url: server.url,
+      agent: true,
+      toolCalling: labels.some((l) => l.toLowerCase() === 'tool-calling' || l.toLowerCase() === 'chat'),
+      vision: labels.some((l) => l.toLowerCase() === 'vision'),
+      maxInputTokens: contextLength,
+      maxOutputTokens: maxOutput
+    }
+
+    try {
+      // chat.customEndpoints is a VS Code built-in setting not contributed by
+      // this extension, so config.update() rejects it. Write chatLanguageModels.json
+      // directly instead — that's where VS Code persists custom language model endpoints.
+      const endpointsPath = this.getCustomEndpointsPath()
+      let existing: Array<Record<string, unknown>> = []
+      if (fs.existsSync(endpointsPath)) {
+        try {
+          const raw = JSON.parse(fs.readFileSync(endpointsPath, 'utf8'))
+          if (Array.isArray(raw)) {
+            existing = raw as Array<Record<string, unknown>>
+          } else if (raw && Array.isArray((raw as Record<string, unknown>).providers)) {
+            existing = (raw as Record<string, unknown>).providers as Array<Record<string, unknown>>
+          }
+        } catch {
+          existing = []
+        }
+      }
+
+      // Find or create the chanh vendor endpoint.
+      const chanhIndex = existing.findIndex((e) => (e as Record<string, unknown>).vendor === 'customendpoint')
+      const modelsKey = 'models'
+      const newModels = [endpointModel]
+
+      if (chanhIndex >= 0) {
+        // Endpoint already exists: merge the model entry.
+        const endpoint = existing[chanhIndex] as Record<string, unknown>
+        let endpointModels: Array<Record<string, unknown>> = Array.isArray(endpoint[modelsKey])
+          ? (endpoint[modelsKey] as Array<Record<string, unknown>>)
+          : []
+        // Replace the model if it already exists (updated context size etc.), else append.
+        const modelIndex = endpointModels.findIndex((m) => (m as Record<string, unknown>).id === loaded.model_name)
+        if (modelIndex >= 0) {
+          endpointModels[modelIndex] = endpointModel as Record<string, unknown>
+        } else {
+          endpointModels.push(endpointModel as Record<string, unknown>)
+        }
+        endpoint[modelsKey] = endpointModels
+      } else {
+        // No chanh endpoint yet: create one.
+        existing.push({
+          name: `Chanh 🍋‍🟩`,
+          vendor: 'customendpoint', // Has to be "customendpoint" for VS Code to recognize it as a custom endpoint.
+          apiType: 'chat-completions',
+          models: newModels
+        })
+      }
+
+      fs.writeFileSync(endpointsPath, JSON.stringify(existing, null, 2), 'utf8')
+
+      const reload = await showInformationMessage(
+        `VS Code native endpoint configured for '${loaded.model_name}'. ` +
+        'Reload the window for the agent to pick it up.',
+        { modal: true },
+        'Reload Window'
+      )
+      if (reload === 'Reload Window') {
+        void commands.executeCommand('workbench.action.reloadWindow')
+      }
+      return true
+    } catch (err) {
+      Logger.error('Failed to write VS Code native endpoint config', err)
+      showErrorMessage(`Failed to configure native endpoint: ${err}`)
+      return false
+    }
+  }
+
+  /** Return the path to VS Code's chatLanguageModels.json based on platform. */
+  private getCustomEndpointsPath(): string {
+    if (process.platform === 'win32') {
+      return path.join(process.env.APPDATA ?? '', 'Code', 'User', 'chatLanguageModels.json')
+    }
+    if (process.platform === 'darwin') {
+      return path.join(
+        process.env.HOME ?? '',
+        'Library',
+        'Application Support',
+        'Code',
+        'User',
+        'chatLanguageModels.json'
+      )
+    }
+    return path.join(process.env.HOME ?? '', '.config', 'Code', 'User', 'chatLanguageModels.json')
+  }
+
+  /** Open VS Code's chatLanguageModels.json in the editor so the user can
+   * inspect or manually edit custom language model endpoints. */
+  async openCustomEndpointsFile(): Promise<void> {
+    const endpointsPath = this.getCustomEndpointsPath()
+    // Create the file with an empty array if it doesn't exist yet, so the
+    // editor opens something sensible rather than a "file not found" error.
+    if (!fs.existsSync(endpointsPath)) {
+      try {
+        fs.mkdirSync(path.dirname(endpointsPath), { recursive: true })
+        fs.writeFileSync(endpointsPath, '[]\n', 'utf8')
+      } catch {
+        // If we can't create it, still try to open it — VS Code may prompt
+        // to create it.
+      }
+    }
+    const uri = Uri.file(endpointsPath)
+    await window.showTextDocument(uri, { preview: false })
   }
 
   /** Preset context sizes offered in the Set Context Size quick pick. */

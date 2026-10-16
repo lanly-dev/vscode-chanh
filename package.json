@@ -209,6 +209,16 @@
       {
         "command": "chanh.selectChatModel",
         "title": "Chanh: Select Chat Model"
+      },
+      {
+        "command": "chanh.configureVsCodeNativeEndpoint",
+        "title": "Chanh: Configure VS Code Native Endpoint",
+        "icon": "$(link-external)"
+      },
+      {
+        "command": "chanh.openCustomEndpointsFile",
+        "title": "Chanh: Open Custom Endpoints File",
+        "icon": "$(file-text)"
       }
     ],
     "menus": {
@@ -314,6 +324,16 @@
           "command": "chanh.ncp.unloadModel",
           "when": "view == CHANH_TREEVIEW && (viewItem =~ /CHANH_MODEL_LOADED/ || viewItem == CHANH_LOADED_MODEL)",
           "group": "inline@2"
+        },
+        {
+          "command": "chanh.configureVsCodeNativeEndpoint",
+          "when": "view == CHANH_TREEVIEW && viewItem == CHANH_LOADED_MODEL",
+          "group": "inline@3"
+        },
+        {
+          "command": "chanh.openCustomEndpointsFile",
+          "when": "view == CHANH_TREEVIEW && viewItem == CHANH_LOADED_HEADER",
+          "group": "inline"
         },
         {
           "command": "chanh.ncp.removeModel",
@@ -487,3 +507,11 @@
   },
   "license": "MIT"
 }
+
+
+
+
+
+
+
+

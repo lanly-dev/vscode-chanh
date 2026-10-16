@@ -15,6 +15,7 @@
     "cim",
     "cpus",
     "cuda",
+    "customendpoint",
     "DXGI",
     "efix",
     "esbuild",
