@@ -357,6 +357,8 @@ export class ModelManager {
     // `auto` restores the server's own default selection.
     try {
       await this.client.updateConfig({ [recipe]: { backend: picked.backend } })
+      // The pin set changed, so the cached `/internal/config` read is stale.
+      this.serverManager.invalidatePinnedBackends(this.serverManager.activeServerUrl)
     } catch (err: unknown) {
       Logger.error('Failed to set backend', err)
       showErrorMessage(`Failed to set backend '${picked.backend}': ${err}`)
@@ -492,6 +494,8 @@ export class ModelManager {
     }
 
     // The pinned backend may now be gone, so re-read config and backends.
+    this.serverManager.invalidateCatalog(this.serverManager.activeServerUrl)
+    this.serverManager.invalidatePinnedBackends(this.serverManager.activeServerUrl)
     this.treeViewProvider.refreshServer()
     showInformationMessage(`Uninstalled ${recipe}:${backend}`)
   }
@@ -884,6 +888,7 @@ export class ModelManager {
       )
       this.treeViewProvider.clearPartial(modelName)
       // The model moved off disk, so re-query the server before repainting.
+      this.serverManager.invalidateCatalog(this.serverManager.activeServerUrl)
       this.treeViewProvider.refreshServer()
       showInformationMessage(`Model '${modelName}' deleted successfully`)
     } catch (err: unknown) {
@@ -1084,6 +1089,7 @@ export class ModelManager {
           this.treeViewProvider.endDownload(modelId)
           // The model is now downloaded, so re-query the server so it shows up
           // under Installed Models and leaves the Downloadable list.
+          this.serverManager.invalidateCatalog(this.serverManager.activeServerUrl)
           this.treeViewProvider.refreshServer()
           const seconds = (Date.now() - startedAt) / 1000
           const rate = seconds > 0 ? (progressEvents / seconds).toFixed(1) : '?'

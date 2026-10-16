@@ -473,7 +473,9 @@ export class ServerViewProvider implements TreeDataProvider<TreeItem>, Disposabl
   /**
    * Invalidate the cached server snapshot and repaint. Call this after any
    * action that changes server-side state (load/unload/delete/pull/config) so
-   * the next `getChildren` re-queries `/v1/health` and `/v1/models`.
+   * the next `getChildren` re-queries `/v1/health` and `/v1/models`. The full
+   * `?show_all=true` catalog stays cached unless one of the mutation actions
+   * invalidated it via `ServerManager.invalidateCatalog()`.
    */
   refreshServer(): void {
     this._serverDataStale = true
@@ -953,25 +955,30 @@ export class ServerViewProvider implements TreeDataProvider<TreeItem>, Disposabl
   }
 
   /**
-   * Backend values pinned via `/internal/config`, read once per session. The
-   * tree view cannot await on repaint, so this is filled in by
-   * `fetchPinnedBackends()` alongside the model snapshot.
+   * Backend values pinned via `/internal/config`. The tree view cannot await
+   * on repaint, so this is a display copy: it is synced from
+   * `ServerManager.fetchPinnedBackends()` (which owns the per-server cache)
+   * alongside the model snapshot.
    */
-  private readonly _pinnedBackends = new Map<string, string>()
+  private _pinnedBackends = new Map<string, string>()
 
-  /** Read `recipe.backend` for every recipe that has one pinned off `auto`. */
+  /**
+   * Sync the display copy of the pinned-backend map from the server manager,
+   * which caches the `/internal/config` read per server. Pins only change via
+   * the select-backend / uninstall-backend actions (each invalidates the
+   * manager's cache), so routine refreshes reuse the cached map. Older
+   * servers may not expose the endpoint; tooltips then fall back to the auto
+   * default.
+   */
   private async fetchPinnedBackends(): Promise<void> {
-    this._pinnedBackends.clear()
+    const server = this._activeServer
+    if (!server || server.status !== ServerStatus.RUNNING || !server.url) {
+      this._pinnedBackends.clear()
+      return
+    }
     try {
-      const config = await this.serverManager.client.getConfig()
-      for (const [recipe, section] of Object.entries(config)) {
-        if (!section || typeof section !== 'object') continue
-        const backend = (section as Record<string, unknown>).backend
-        if (typeof backend === 'string' && backend !== 'auto') this._pinnedBackends.set(recipe, backend)
-      }
+      this._pinnedBackends = await this.serverManager.fetchPinnedBackends(server.url, this.serverManager.client)
     } catch (err) {
-      // Older servers may not expose /internal/config; tooltips then fall back
-      // to the auto default.
       Logger.warn(`Could not read pinned backends: ${err}`)
     }
   }

@@ -38,6 +38,19 @@ export class ServerManager {
   private activeServerChangeCallbacks: Array<() => void> = []
   private statusChangeCallbacks: Array<(status: ServerStatus) => void> = []
 
+  /**
+   * Per-URL cache of the expensive `?show_all=true` full catalog, split into
+   * downloaded vs downloadable models. The catalog only changes when a model
+   * is pulled or deleted, so routine refreshes (load, unload, manual refresh,
+   * mode switch) reuse it and only re-fetch the cheap installed-models list
+   * plus health. Invalidated by `invalidateCatalog()` (pull/delete/uninstall),
+   * on a server or mode switch, and when the health probe reports the server
+   * is down — a dead server must not keep serving a stale catalog.
+   */
+  private _catalogCache = new Map<string, { models: LemonadeModel[], downloadableModels: LemonadeModel[] }>()
+  /** Same keying as the catalog cache: the pinned backend set is per server. */
+  private _pinnedBackendsCache = new Map<string, Map<string, string>>()
+
   constructor(private binaryManager: BinaryManager) {
     void this.applyConfiguredServerMode()
   }
@@ -175,14 +188,17 @@ export class ServerManager {
   /** Fetch the Lemonade server status. */
   private async fetchLemonadeServer(config: WorkspaceConfiguration): Promise<ServerInstance | null> {
     const lemonadePort = config.get<number>('lemonadePort', 13305)
-    const client = new LemonadeClient(`http://localhost:${lemonadePort}`)
+    const lemonadeUrl = `http://localhost:${lemonadePort}`
+    const client = new LemonadeClient(lemonadeUrl)
     try {
-      const health = await client.getHealth()
-      const { models, downloadableModels } = await this.fetchAllCatalogModels(client)
+      const [health, { models, downloadableModels }] = await Promise.all([
+        client.getHealth(),
+        this.fetchAllCatalogModels(lemonadeUrl, client)
+      ])
       return {
         id: ServerMode.LEMONADE,
         name: 'Lemonade Server (System)',
-        url: `http://localhost:${lemonadePort}`,
+        url: lemonadeUrl,
         status: ServerStatus.RUNNING,
         health,
         models,
@@ -217,8 +233,10 @@ export class ServerManager {
     }
     const client = new LemonadeClient(customUrl)
     try {
-      const health = await client.getHealth()
-      const { models, downloadableModels } = await this.fetchAllCatalogModels(client)
+      const [health, { models, downloadableModels }] = await Promise.all([
+        client.getHealth(),
+        this.fetchAllCatalogModels(customUrl, client)
+      ])
       return {
         id: ServerMode.CUSTOM,
         name: 'Custom Server',
@@ -242,14 +260,71 @@ export class ServerManager {
 
   /**
    * Split the full catalog into downloaded vs downloadable models.
+   * Results are cached per server URL: the catalog only changes when a model
+   * is pulled or deleted, and `?show_all=true` is the biggest payload in the
+   * refresh path, so routine refreshes reuse it instead of re-fetching.
    */
-  private async fetchAllCatalogModels(client: LemonadeClient):
+  private async fetchAllCatalogModels(serverUrl: string, client: LemonadeClient):
     Promise<{ models: LemonadeModel[], downloadableModels: LemonadeModel[] }> {
+    const cached = this._catalogCache.get(serverUrl)
+    if (cached) return cached
     const all = await client.listModels(true)
-    return {
+    const split = {
       models: all.filter((m) => m.downloaded !== false),
       downloadableModels: all.filter((m) => m.downloaded === false)
     }
+    this._catalogCache.set(serverUrl, split)
+    return split
+  }
+
+  /**
+   * Drop the cached downloadable catalog so the next refresh re-fetches
+   * `?show_all=true`. Call after anything that changes which models exist on
+   * a server: a successful pull, a model delete, or a backend uninstall.
+   * When `serverUrl` is omitted, all servers' catalog caches are dropped (used
+   * on a server or mode switch, where the next refresh must start clean).
+   */
+  invalidateCatalog(serverUrl?: string): void {
+    if (serverUrl) this._catalogCache.delete(serverUrl)
+    else this._catalogCache.clear()
+  }
+
+  /**
+   * Pinned `recipe.backend` values from `/internal/config`, cached per server
+   * URL. Pins only change through the select-backend / uninstall-backend
+   * actions, so routine refreshes reuse the map instead of re-reading config.
+   * Returns a copy so callers cannot mutate the cached map in place.
+   */
+  async fetchPinnedBackends(serverUrl: string, client: LemonadeClient): Promise<Map<string, string>> {
+    const cached = this._pinnedBackendsCache.get(serverUrl)
+    if (cached) return new Map(cached)
+    const pinned = new Map<string, string>()
+    try {
+      const config = await client.getConfig()
+      for (const [recipe, section] of Object.entries(config)) {
+        if (!section || typeof section !== 'object') continue
+        const backend = (section as Record<string, unknown>).backend
+        if (typeof backend === 'string' && backend !== 'auto') pinned.set(recipe, backend)
+      }
+    } catch (err) {
+      // Older servers may not expose /internal/config; callers then fall back
+      // to the auto default. Failures are not cached so a later refresh can
+      // succeed once the endpoint becomes available.
+      Logger.warn(`Could not read pinned backends: ${err}`)
+      return pinned
+    }
+    this._pinnedBackendsCache.set(serverUrl, pinned)
+    return new Map(pinned)
+  }
+
+  /**
+   * Drop the cached pinned-backend map so the next refresh re-reads
+   * `/internal/config`. Call after the select-backend and uninstall-backend
+   * actions; the tree view then picks up the new pin instead of the stale one.
+   */
+  invalidatePinnedBackends(serverUrl?: string): void {
+    if (serverUrl) this._pinnedBackendsCache.delete(serverUrl)
+    else this._pinnedBackendsCache.clear()
   }
 
   /** Fetch the lemond server status. */
@@ -276,8 +351,10 @@ export class ServerManager {
     // 500 from /v1/models), report the server's own message on the status row
     // instead of letting the tree render with no data and no explanation.
     try {
-      const health = await lemondClient.getHealth()
-      const { models, downloadableModels } = await this.fetchAllCatalogModels(lemondClient)
+      const [health, { models, downloadableModels }] = await Promise.all([
+        lemondClient.getHealth(),
+        this.fetchAllCatalogModels(this.lemondUrl, lemondClient)
+      ])
       let maxLoadedModels = config.get<number>('maxLoadedModels', 1)
 
       // If the server reports its max_loaded_models, keep the extension config in sync
@@ -329,6 +406,12 @@ export class ServerManager {
 
   /** Set the active server for chat and notify listeners (e.g. the chat participant). */
   setActiveServer(url: string, name: string): void {
+    if (this._serverUrl !== url) {
+      // Switching servers: the next refresh must start clean rather than
+      // reuse the previous server's cached catalog and pinned backends.
+      this.invalidateCatalog()
+      this.invalidatePinnedBackends()
+    }
     this._serverUrl = url
     this._serverName = name
     Logger.info(`Active server: ${name} (${url})`)

@@ -223,8 +223,9 @@ class ChanhLmcProvider implements vscode.LanguageModelChatProvider, vscode.Dispo
   private syncRuntimeStatus(): void {
     // Repaint the tree view only. Do NOT invalidate the cached server
     // snapshot (`_serverDataStale`) — otherwise every busy/idle flip
-    // re-queries /v1/health, /v1/models?show_all=true, /v1/system-info
-    // and /internal/config (~12 round-trips per turn to flip one row).
+    // re-queries /v1/health plus the routine-refresh model payload
+    // (and /v1/system-info + /internal/config, ~12 round-trips per turn
+    // to flip one row).
     if (!this.disposed) this.modelManager?.refreshTreeView()
   }
 
@@ -375,8 +376,9 @@ class ChanhLmcProvider implements vscode.LanguageModelChatProvider, vscode.Dispo
     // Poll /v1/health during the stream so the tree view's busy/idle indicator
     // stays real-time. /v1/health is a lightweight localhost call returning
     // in-memory state (~1-5ms), so a once-per-second poll adds negligible
-    // overhead — and it does not invalidate the full server snapshot (~12
-    // round-trips) that fetchServerData would otherwise re-run.
+    // overhead — and it does not invalidate the full server snapshot (which
+    // fetchServerData would otherwise re-run) that refreshes health, the
+    // installed-models list, and reuses the cached full catalog.
     let healthPoller: NodeJS.Timeout | undefined
     const startHealthPoller = () => {
       healthPoller = setInterval(async () => {
