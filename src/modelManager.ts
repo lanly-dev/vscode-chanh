@@ -227,6 +227,17 @@ export class ModelManager {
    * inspect or manually edit custom language model endpoints. */
   async openCustomEndpointsFile(): Promise<void> {
     const endpointsPath = this.getCustomEndpointsPath()
+    const uri = Uri.file(endpointsPath)
+
+    // If the file is already open and focused, tell the user instead of re-opening it.
+    const alreadyOpen = window.visibleTextEditors.some(
+      (editor) => editor.document.uri.fsPath === uri.fsPath && editor === window.activeTextEditor
+    )
+    if (alreadyOpen) {
+      void showInformationMessage(`VS Code's custom endpoints file is already open.`)
+      return
+    }
+
     // Create the file with an empty array if it doesn't exist yet, so the
     // editor opens something sensible rather than a "file not found" error.
     if (!fs.existsSync(endpointsPath)) {
@@ -238,8 +249,11 @@ export class ModelManager {
         // to create it.
       }
     }
-    const uri = Uri.file(endpointsPath)
-    await window.showTextDocument(uri, { preview: false })
+
+    // Open beside the current editor so the user can see the endpoint config
+    // alongside the server tree view — VS Code's closest equivalent to a
+    // floating modal for inspecting/editing custom language model endpoints.
+    await window.showTextDocument(uri, { preview: false, viewColumn: ViewColumn.Beside, preserveFocus: false })
   }
 
   /** Preset context sizes offered in the Set Context Size quick pick. */
