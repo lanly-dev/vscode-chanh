@@ -43,6 +43,12 @@ Plain chat models (no `tool-calling` label) remain available through the `@chanh
 | `chanh.maxLoadedModels` | (unset) | Maximum number of loaded models. Use `-1` for unlimited. |
 
 ## Release Notes
+### 0.1.3
+- Add Sub-capabilities filter
+- Add System utilization monitoring
+- Add token count footer option
+- Add custom endpoint option - Chanh 🍋‍🟩
+
 ### 0.1.2
 - Bugfixes and improve agent integration
 

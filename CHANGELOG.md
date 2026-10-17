@@ -3,14 +3,12 @@ All notable changes to the "Chanh" extension will be documented in this file.\
 Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how to structure this file.
 
 ## [TODO]
-- Agent integration via URL only
 - Chat follow up
 - Explore and add functionality for different types of models, e.g. image
 - Focus on coding-related features
-- Footer token counting config (`chanh.showTokenStats`, default false)
 - Custom models support
 
-## [0.1.4]
+## [0.1.3]
 - New `System` tree group: live CPU, GPU and RAM utilization for the local
   machine (CPU/RAM in-process). On Windows every PCI adapter is listed and
   each one is read from whichever source can see it - `nvidia-smi` for NVIDIA
@@ -28,6 +26,16 @@ Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how 
 - New `omni` capability class (wizard-hat icon) for models that serve every
   modality; listed first in the capability grouping and, like any
   multi-capability model, also under LLM / Chat
+- Optimized server fetch: health + full catalog now run concurrently instead of
+  sequentially.
+- Cached the expensive `?show_all=true` full model catalog and the pinned
+  `recipe.backend` map per server URL, so routine refresh and chat cycles reuse
+  them instead of re-pulling the heavy catalog or re-reading /internal/config.
+- Caches invalidated only on real state changes - model pull, model delete,
+  backend pin/uninstall, server switch, or server down - via
+  `invalidateCatalog()` / `invalidatePinnedBackends()`, so transient fetch
+  errors do not wipe the cache.
+
 
 ## [0.1.2] - 2026-10-06
 - Token counting uses the server tokenizer (`POST /v1/tokenize`), memoised; char estimate is the fallback (`ee90799`)

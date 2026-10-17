@@ -44,8 +44,9 @@ export class ServerManager {
    * is pulled or deleted, so routine refreshes (load, unload, manual refresh,
    * mode switch) reuse it and only re-fetch the cheap installed-models list
    * plus health. Invalidated by `invalidateCatalog()` (pull/delete/uninstall),
-   * on a server or mode switch, and when the health probe reports the server
-   * is down — a dead server must not keep serving a stale catalog.
+   * server or mode switch. Note: a failure to re-query the catalog
+   * (e.g. a transient health-probe blip) does NOT invalidate — the last
+   * known catalog is kept rather than re-fetching on every hiccup.
    */
   private _catalogCache = new Map<string, { models: LemonadeModel[], downloadableModels: LemonadeModel[] }>()
   /** Same keying as the catalog cache: the pinned backend set is per server. */
