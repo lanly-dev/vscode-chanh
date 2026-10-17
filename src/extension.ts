@@ -67,18 +67,19 @@ export async function activate(context: ExtensionContext) {
   const d24 = rc('chanh.toggleModelGrouping', () => svProvider.toggleModelGrouping())
   const d25 = rc('chanh.toggleDlModelGrouping', () => svProvider.toggleDlModelGrouping())
   const d26 = rc('chanh.toggleHotModels', () => svProvider.toggleHotModels())
-  const d27 = rc('chanh.toggleModelSections', () => svProvider.toggleModelSections())
+  const d27 = rc('chanh.toggleModelSectionsHide', () => svProvider.toggleModelSections())
+  const d28 = rc('chanh.toggleModelSectionsShow', () => svProvider.toggleModelSections())
 
-  const d28 = rc('chanh.filterCapGroup', (item: CapGroupTreeItem) => svProvider.filterCapGroup(item))
-  const d29 = rc('chanh.clearCapFilter', (item: CapGroupTreeItem) => svProvider.clearCapFilter(item))
+  const d29 = rc('chanh.filterCapGroup', (item: CapGroupTreeItem) => svProvider.filterCapGroup(item))
+  const d30 = rc('chanh.clearCapFilter', (item: CapGroupTreeItem) => svProvider.clearCapFilter(item))
 
-  const d30 = listenConfigsChange(serverManager)
-  const d31 = lmcProvider.register()
-  const d32 = window.registerFileDecorationProvider(new ModelDecorationProvider())
+  const d31 = listenConfigsChange(serverManager)
+  const d32 = lmcProvider.register()
+  const d33 = window.registerFileDecorationProvider(new ModelDecorationProvider())
 
   context.subscriptions.push(d1, d2, d3, d4, d5, d6, d7, d8, d9, d10, d11, d12, d13, d14, d15, d16, d17, d18, d19, d20,
-    d21, d22, d23, d24, d25, d26, d27, d28, d29, d30, d31, d32, serverManager, chatParticipant, lmcProvider, svProvider,
-    Logger
+    d21, d22, d23, d24, d25, d26, d27, d28, d29, d30, d31, d32, d33, serverManager, chatParticipant, lmcProvider,
+    svProvider, Logger
   )
   binaryManager.checkForUpdates()
 }

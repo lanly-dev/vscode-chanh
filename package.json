@@ -152,9 +152,14 @@
         "icon": "$(flame)"
       },
       {
-        "command": "chanh.toggleModelSections",
+        "command": "chanh.toggleModelSectionsHide",
         "title": "Toggle Installed & Downloadable Sections",
         "icon": "$(eye-closed)"
+      },
+      {
+        "command": "chanh.toggleModelSectionsShow",
+        "title": "Toggle Installed & Downloadable Sections",
+        "icon": "$(eye)"
       },
       {
         "command": "chanh.filterCapGroup",
@@ -212,7 +217,7 @@
       },
       {
         "command": "chanh.configLmEndpoint",
-        "title": "Chanh: add entry to VS Code's chat.customEndpoints",
+        "title": "Chanh: add entry to VS Code's chat custom endpoints",
         "icon": "$(wrench)"
       },
       {
@@ -234,8 +239,13 @@
           "group": "navigation"
         },
         {
-          "command": "chanh.toggleModelSections",
-          "when": "view == CHANH_TREEVIEW",
+          "command": "chanh.toggleModelSectionsHide",
+          "when": "view == CHANH_TREEVIEW && !chanh.modelSectionsHidden",
+          "group": "navigation"
+        },
+        {
+          "command": "chanh.toggleModelSectionsShow",
+          "when": "view == CHANH_TREEVIEW && chanh.modelSectionsHidden",
           "group": "navigation"
         }
       ],

@@ -45,17 +45,18 @@ export class ModelManager {
    * deduped in match order. Category names double as the SVG filenames under
    * media/capabilities/. Returns an empty array when nothing matches.
    */
-  static getCapabilityCategories(model: Pick<LemonadeModel, 'labels' | 'type'>): string[] {
+  static getCapabilityCategories(model: LemonadeModel): string[] {
     const categories: string[] = []
     for (const label of [...(model.labels ?? []), model.type ?? '']) {
       const category = label.toLowerCase()
       if (category && !categories.includes(category)) categories.push(category)
     }
+    if (model.id.toLocaleLowerCase().includes('omni')) categories.push('omni')
     return categories
   }
 
   /** Whether the model carries the given capability label, matched case-insensitively. */
-  static capabilityFor(model: Pick<LemonadeModel, 'labels' | 'type'>, capability: string): boolean {
+  static capabilityFor(model: LemonadeModel, capability: string): boolean {
     return this.getCapabilityCategories(model).includes(capability.toLowerCase())
   }
 

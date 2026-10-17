@@ -9,6 +9,7 @@ import {
   TreeItemCollapsibleState,
   TreeView,
   TreeViewExpansionEvent,
+  commands,
   window,
   workspace
 } from 'vscode'
@@ -323,6 +324,10 @@ export class ServerViewProvider implements TreeDataProvider<TreeItem>, Disposabl
     this._groupDowModels = this.context.workspaceState.get<boolean>(GROUP_DOWNLOADABLE_MODELS_KEY, false)
     this._showHotOnly = this.context.workspaceState.get<boolean>(SHOW_HOT_ONLY_KEY, false)
     this._hideModelSections = this.context.workspaceState.get<boolean>(HIDE_MODEL_SECTIONS_KEY, false)
+    // Mirror the persisted flag into a context key so the view-title eye
+    // button can swap between the Hide/Show variants (`when` clauses in
+    // package.json cannot read workspaceState, only context keys).
+    void commands.executeCommand('setContext', 'chanh.modelSectionsHidden', this._hideModelSections)
 
     // Restore any saved sub-capability filters so the tree reopens as the user
     // left it. Entries are stored as [key, label] pairs.
@@ -355,6 +360,8 @@ export class ServerViewProvider implements TreeDataProvider<TreeItem>, Disposabl
   toggleModelSections(): void {
     this._hideModelSections = !this._hideModelSections
     void this.context.workspaceState.update(HIDE_MODEL_SECTIONS_KEY, this._hideModelSections)
+    // Keep the eye-button context key in sync so the icon flips immediately.
+    void commands.executeCommand('setContext', 'chanh.modelSectionsHidden', this._hideModelSections)
     this.refresh()
   }
 
