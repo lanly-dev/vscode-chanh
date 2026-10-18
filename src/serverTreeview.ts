@@ -116,7 +116,10 @@ export class ServerViewProvider implements TreeDataProvider<TreeItem>, Disposabl
    */
   private setupExpandStatePersistence(context: ExtensionContext, treeView: TreeView<TreeItem>): void {
     const EXPANDED_SECTIONS_KEY = 'chanh.expandedSections'
-    const sectionIds = new Set<string>(['chanh:installed', 'chanh:downloadable', 'chanh:system'])
+    // Track every collapsible node we own (`chanh:*` ids). Top-level sections
+    // default to expanded; capability/recipe sub-groups default to collapsed
+    // and are still remembered once the user expands them.
+    const isSectionId = (id: string): boolean => id.startsWith('chanh:')
 
     // Restore the previously persisted expand/collapse state, if any. Unknown
     // ids and non-boolean values are ignored so a corrupt entry cannot break
@@ -124,7 +127,7 @@ export class ServerViewProvider implements TreeDataProvider<TreeItem>, Disposabl
     const stored = context.workspaceState.get<Record<string, boolean>>(EXPANDED_SECTIONS_KEY)
     if (stored) {
       for (const [id, open] of Object.entries(stored)) {
-        if (sectionIds.has(id) && typeof open === 'boolean') {
+        if (isSectionId(id) && typeof open === 'boolean') {
           this._expandedSections.set(id, open)
         }
       }
@@ -140,7 +143,7 @@ export class ServerViewProvider implements TreeDataProvider<TreeItem>, Disposabl
 
     const onExpand = (e: TreeViewExpansionEvent<TreeItem>): void => {
       const id = e.element.id
-      if (id !== undefined && sectionIds.has(id)) {
+      if (id !== undefined && isSectionId(id)) {
         this._expandedSections.set(id, true)
         persist()
         if (id === 'chanh:system') {
@@ -156,7 +159,12 @@ export class ServerViewProvider implements TreeDataProvider<TreeItem>, Disposabl
 
     const onCollapse = (e: TreeViewExpansionEvent<TreeItem>): void => {
       const id = e.element.id
-      if (id !== undefined && sectionIds.has(id)) {
+      if (id !== undefined && isSectionId(id)) {
+        // Hiding the Installed/Downloadable sections removes their nodes (and
+        // any nested capability groups) from the tree, which the view may
+        // report as a collapse. Ignore those so toggling visibility never
+        // overwrites the remembered state.
+        if (this._hideModelSections && id !== 'chanh:system') return
         this._expandedSections.set(id, false)
         persist()
         // The collapsed header is where live stats show; repaint it.
@@ -190,6 +198,16 @@ export class ServerViewProvider implements TreeDataProvider<TreeItem>, Disposabl
    */
   private sectionState(id: string): TreeItemCollapsibleState {
     return this._expandedSections.get(id) === false ? Collapsed : Expanded
+  }
+
+  /**
+   * Initial expansion for a capability sub-group header. Unlike top-level
+   * sections these default to collapsed; once the user expands one, the open
+   * state is remembered (via `_expandedSections`) so hide/show toggles,
+   * refreshes, and grouping switches restore it instead of resetting.
+   */
+  private subSectionState(id: string): TreeItemCollapsibleState {
+    return this._expandedSections.get(id) === true ? Expanded : Collapsed
   }
 
   private _onDidChangeTreeData = new EventEmitter<TreeItem | TreeItem[] | undefined | void>()
@@ -1556,12 +1574,13 @@ export class ServerViewProvider implements TreeDataProvider<TreeItem>, Disposabl
         // The raw "General" value is a sentinel; show a friendly label instead.
         const subFilterLabel = subFilter === SINGLE_CAP ? SINGLE_CAP_LABEL : subFilter
 
-        const item = new TreeItem(`${title} (${matchCount})`, Collapsed)
+        const capGroupId = `chanh:capgroup:${downloadable ? 'dl' : 'ins'}:${category}`
+        const item = new TreeItem(`${title} (${matchCount})`, this.subSectionState(capGroupId))
         // Stable id independent of label/count/filter so VS Code can match the
         // group across refreshes and keep its expanded state (toggling the hot
         // or sub-capability filter changes the label, which would otherwise
         // reset the group to collapsed).
-        item.id = `chanh:capgroup:${downloadable ? 'dl' : 'ins'}:${category}`
+        item.id = capGroupId
         item.contextValue = subFilter
           ? 'CHANH_CAP_GROUP_FILTERED'
           : (subCount > 0 ? 'CHANH_CAP_GROUP' : 'CHANH_CAP_GROUP_NOSUB')
