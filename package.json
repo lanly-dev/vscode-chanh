@@ -93,11 +93,6 @@
         "icon": "$(debug-stop)"
       },
       {
-        "command": "chanh.openSettings",
-        "title": "Chanh: Open Settings",
-        "icon": "$(gear)"
-      },
-      {
         "command": "chanh.refreshServer",
         "title": "Chanh: Refresh Server Status",
         "icon": "$(refresh)"
@@ -122,6 +117,20 @@
         "icon": "$(edit)"
       },
       {
+        "command": "chanh.selectChatModel",
+        "title": "Chanh: Select Chat Model"
+      },
+      {
+        "command": "chanh.openLmConfigsFile",
+        "title": "Chanh: Open chatLanguageModels.json",
+        "icon": "$(file-text)"
+      },
+      {
+        "command": "chanh.openSettings",
+        "title": "Chanh: Open Settings",
+        "icon": "$(gear)"
+      },
+      {
         "command": "chanh.ncp.revealBinaryDir",
         "title": "Reveal Binary Folder in File Explorer",
         "icon": "$(folder)"
@@ -137,18 +146,18 @@
         "icon": "$(close)"
       },
       {
-        "command": "chanh.toggleModelGrouping",
-        "title": "Toggle Model Grouping by Capability",
+        "command": "chanh.ncp.toggleModelGrouping",
+        "title": "Chanh: Toggle Model Grouping by Capability",
         "icon": "$(group-by-ref-type)"
       },
       {
-        "command": "chanh.toggleDlModelGrouping",
-        "title": "Toggle Downloadable Models Grouping by Capability",
+        "command": "chanh.ncp.toggleDlModelGrouping",
+        "title": "Chanh: Toggle Downloadable Models Grouping by Capability",
         "icon": "$(group-by-ref-type)"
       },
       {
-        "command": "chanh.toggleHotModels",
-        "title": "Toggle Downloadable Hot Models Only",
+        "command": "chanh.ncp.toggleHotModels",
+        "title": "Chanh: Toggle Downloadable Hot Models Only",
         "icon": "$(flame)"
       },
       {
@@ -162,13 +171,13 @@
         "icon": "$(eye)"
       },
       {
-        "command": "chanh.filterCapGroup",
-        "title": "Filter by Sub-Capability",
+        "command": "chanh.ncp.filterCapGroup",
+        "title": "Chanh: Filter by Sub-Capability",
         "icon": "$(filter)"
       },
       {
-        "command": "chanh.clearCapFilter",
-        "title": "Clear Sub-Capability Filter",
+        "command": "chanh.ncp.clearCapFilter",
+        "title": "Chanh: Clear Sub-Capability Filter",
         "icon": "$(clear-all)"
       },
       {
@@ -212,18 +221,9 @@
         "icon": "$(trash)"
       },
       {
-        "command": "chanh.selectChatModel",
-        "title": "Chanh: Select Chat Model"
-      },
-      {
-        "command": "chanh.configLmEndpoint",
-        "title": "Chanh: add entry to VS Code's chat custom endpoints",
+        "command": "chanh.ncp.configLmEndpoint",
+        "title": "Chanh: Add Entry to VS Code's Chat Custom Endpoints",
         "icon": "$(wrench)"
-      },
-      {
-        "command": "chanh.openLmConfigsFile",
-        "title": "Chanh: Open chatLanguageModels.json",
-        "icon": "$(file-text)"
       }
     ],
     "menus": {
@@ -243,11 +243,11 @@
           "when": "view == CHANH_TREEVIEW && chanh.modelSectionsHidden",
           "group": "navigation@2"
         },
-                {
+        {
           "command": "chanh.openSettings",
           "when": "view == CHANH_TREEVIEW",
           "group": "navigation@3"
-        },
+        }
       ],
       "view/item/context": [
         {
@@ -276,27 +276,27 @@
           "group": "inline@2"
         },
         {
-          "command": "chanh.toggleModelGrouping",
+          "command": "chanh.ncp.toggleModelGrouping",
           "when": "view == CHANH_TREEVIEW && viewItem == CHANH_INSTALLED_HEADER",
           "group": "inline"
         },
         {
-          "command": "chanh.toggleHotModels",
+          "command": "chanh.ncp.toggleHotModels",
           "when": "view == CHANH_TREEVIEW && viewItem == CHANH_DOWNLOADABLE_HEADER",
           "group": "inline"
         },
         {
-          "command": "chanh.toggleDlModelGrouping",
+          "command": "chanh.ncp.toggleDlModelGrouping",
           "when": "view == CHANH_TREEVIEW && viewItem == CHANH_DOWNLOADABLE_HEADER",
           "group": "inline"
         },
         {
-          "command": "chanh.filterCapGroup",
+          "command": "chanh.ncp.filterCapGroup",
           "when": "view == CHANH_TREEVIEW && viewItem == CHANH_CAP_GROUP",
           "group": "inline"
         },
         {
-          "command": "chanh.clearCapFilter",
+          "command": "chanh.ncp.clearCapFilter",
           "when": "view == CHANH_TREEVIEW && viewItem == CHANH_CAP_GROUP_FILTERED",
           "group": "inline"
         },
@@ -321,7 +321,7 @@
           "group": "inline@1"
         },
         {
-          "command": "chanh.configLmEndpoint",
+          "command": "chanh.ncp.configLmEndpoint",
           "when": "view == CHANH_TREEVIEW && viewItem == CHANH_LOADED_MODEL",
           "group": "inline@2"
         },
@@ -469,7 +469,7 @@
       },
       {
         "command": "chanh.ncp.toggleModelSectionsShow",
-        "when": "chanh.modelSectionsHidden"
+        "when": "false"
       }
     ]
   },
