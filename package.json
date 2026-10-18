@@ -83,28 +83,22 @@
         "title": "Chanh: Download/Update Binary"
       },
       {
-        "command": "chanh.startServer",
-        "title": "Chanh: Start Server",
-        "icon": "$(play)"
-      },
-      {
-        "command": "chanh.stopServer",
-        "title": "Chanh: Stop Server",
-        "icon": "$(debug-stop)"
-      },
-      {
-        "command": "chanh.refreshServer",
-        "title": "Chanh: Refresh Server Status",
-        "icon": "$(refresh)"
-      },
-      {
-        "command": "chanh.switchServer",
-        "title": "Chanh: Switch Server",
-        "icon": "$(arrow-swap)"
+        "command": "chanh.selectChatModel",
+        "title": "Chanh: Select Chat Model"
       },
       {
         "command": "chanh.setMaxLoadedModels",
         "title": "Chanh: Set Max Loaded Models"
+      },
+      {
+        "command": "chanh.openLmConfigsFile",
+        "title": "Chanh: Open chatLanguageModels.json",
+        "icon": "$(file-text)"
+      },
+      {
+        "command": "chanh.openSettings",
+        "title": "Chanh: Open Settings",
+        "icon": "$(gear)"
       },
       {
         "command": "chanh.openServerUrl",
@@ -117,18 +111,24 @@
         "icon": "$(edit)"
       },
       {
-        "command": "chanh.selectChatModel",
-        "title": "Chanh: Select Chat Model"
+        "command": "chanh.startServer",
+        "title": "Chanh: Start Server",
+        "icon": "$(play)"
       },
       {
-        "command": "chanh.openLmConfigsFile",
-        "title": "Chanh: Open chatLanguageModels.json",
-        "icon": "$(file-text)"
+        "command": "chanh.stopServer",
+        "title": "Chanh: Stop Server",
+        "icon": "$(debug-stop)"
       },
       {
-        "command": "chanh.openSettings",
-        "title": "Chanh: Open Settings",
-        "icon": "$(gear)"
+        "command": "chanh.switchServer",
+        "title": "Chanh: Switch Server",
+        "icon": "$(arrow-swap)"
+      },
+      {
+        "command": "chanh.refreshServer",
+        "title": "Chanh: Refresh Server Status",
+        "icon": "$(refresh)"
       },
       {
         "command": "chanh.ncp.revealBinaryDir",
@@ -146,56 +146,6 @@
         "icon": "$(close)"
       },
       {
-        "command": "chanh.ncp.toggleModelGrouping",
-        "title": "Chanh: Toggle Model Grouping by Capability",
-        "icon": "$(group-by-ref-type)"
-      },
-      {
-        "command": "chanh.ncp.toggleDlModelGrouping",
-        "title": "Chanh: Toggle Downloadable Models Grouping by Capability",
-        "icon": "$(group-by-ref-type)"
-      },
-      {
-        "command": "chanh.ncp.toggleHotModels",
-        "title": "Chanh: Toggle Downloadable Hot Models Only",
-        "icon": "$(flame)"
-      },
-      {
-        "command": "chanh.ncp.toggleModelSectionsHide",
-        "title": "Chanh: Hide Installed & Downloadable Sections",
-        "icon": "$(eye-closed)"
-      },
-      {
-        "command": "chanh.ncp.toggleModelSectionsShow",
-        "title": "Chanh: Show Installed & Downloadable Sections",
-        "icon": "$(eye)"
-      },
-      {
-        "command": "chanh.ncp.filterCapGroup",
-        "title": "Chanh: Filter by Sub-Capability",
-        "icon": "$(filter)"
-      },
-      {
-        "command": "chanh.ncp.clearCapFilter",
-        "title": "Chanh: Clear Sub-Capability Filter",
-        "icon": "$(clear-all)"
-      },
-      {
-        "command": "chanh.ncp.setModelContext",
-        "title": "Set Context Size",
-        "icon": "$(symbol-numeric)"
-      },
-      {
-        "command": "chanh.ncp.resetModelContext",
-        "title": "Reset Context Size to Default",
-        "icon": "$(clear-all)"
-      },
-      {
-        "command": "chanh.ncp.showModelInfo",
-        "title": "Show Model Info",
-        "icon": "$(info)"
-      },
-      {
         "command": "chanh.ncp.loadModel",
         "title": "Load Model",
         "icon": "$(run-above)"
@@ -211,6 +161,21 @@
         "icon": "$(trash)"
       },
       {
+        "command": "chanh.ncp.showModelInfo",
+        "title": "Show Model Info",
+        "icon": "$(info)"
+      },
+      {
+        "command": "chanh.ncp.setModelContext",
+        "title": "Set Context Size",
+        "icon": "$(symbol-numeric)"
+      },
+      {
+        "command": "chanh.ncp.resetModelContext",
+        "title": "Reset Context Size to Default",
+        "icon": "$(clear-all)"
+      },
+      {
         "command": "chanh.ncp.selectBackend",
         "title": "Select Backend",
         "icon": "$(circuit-board)"
@@ -224,6 +189,41 @@
         "command": "chanh.ncp.configLmEndpoint",
         "title": "Chanh: Add Entry to VS Code's Chat Custom Endpoints",
         "icon": "$(wrench)"
+      },
+      {
+        "command": "chanh.ncp.toggleModelSectionsHide",
+        "title": "Chanh: Hide Installed & Downloadable Sections",
+        "icon": "$(eye-closed)"
+      },
+      {
+        "command": "chanh.ncp.toggleModelSectionsShow",
+        "title": "Chanh: Show Installed & Downloadable Sections",
+        "icon": "$(eye)"
+      },
+      {
+        "command": "chanh.ncp.toggleModelGrouping",
+        "title": "Chanh: Toggle Model Grouping by Capability",
+        "icon": "$(group-by-ref-type)"
+      },
+      {
+        "command": "chanh.ncp.toggleDlModelGrouping",
+        "title": "Chanh: Toggle Downloadable Models Grouping by Capability",
+        "icon": "$(group-by-ref-type)"
+      },
+      {
+        "command": "chanh.ncp.toggleHotModels",
+        "title": "Chanh: Toggle Downloadable Hot Models Only",
+        "icon": "$(flame)"
+      },
+      {
+        "command": "chanh.ncp.filterCapGroup",
+        "title": "Chanh: Filter by Sub-Capability",
+        "icon": "$(filter)"
+      },
+      {
+        "command": "chanh.ncp.clearCapFilter",
+        "title": "Chanh: Clear Sub-Capability Filter",
+        "icon": "$(clear-all)"
       }
     ],
     "menus": {
@@ -420,6 +420,10 @@
     },
     "commandPalette": [
       {
+        "command": "chanh.ncp.revealBinaryDir",
+        "when": "false"
+      },
+      {
         "command": "chanh.ncp.downloadModel",
         "when": "false"
       },
@@ -440,6 +444,10 @@
         "when": "false"
       },
       {
+        "command": "chanh.ncp.showModelInfo",
+        "when": "false"
+      },
+      {
         "command": "chanh.ncp.setModelContext",
         "when": "false"
       },
@@ -448,7 +456,7 @@
         "when": "false"
       },
       {
-        "command": "chanh.ncp.showModelInfo",
+        "command": "chanh.ncp.selectBackend",
         "when": "false"
       },
       {
@@ -456,11 +464,7 @@
         "when": "false"
       },
       {
-        "command": "chanh.ncp.selectBackend",
-        "when": "false"
-      },
-      {
-        "command": "chanh.ncp.revealBinaryDir",
+        "command": "chanh.ncp.configLmEndpoint",
         "when": "false"
       },
       {
@@ -469,6 +473,26 @@
       },
       {
         "command": "chanh.ncp.toggleModelSectionsShow",
+        "when": "false"
+      },
+      {
+        "command": "chanh.ncp.toggleModelGrouping",
+        "when": "false"
+      },
+      {
+        "command": "chanh.ncp.toggleDlModelGrouping",
+        "when": "false"
+      },
+      {
+        "command": "chanh.ncp.toggleHotModels",
+        "when": "false"
+      },
+      {
+        "command": "chanh.ncp.filterCapGroup",
+        "when": "false"
+      },
+      {
+        "command": "chanh.ncp.clearCapFilter",
         "when": "false"
       }
     ]
