@@ -152,13 +152,13 @@
         "icon": "$(flame)"
       },
       {
-        "command": "chanh.toggleModelSectionsHide",
-        "title": "Toggle Installed & Downloadable Sections",
+        "command": "chanh.ncp.toggleModelSectionsHide",
+        "title": "Chanh: Hide Installed & Downloadable Sections",
         "icon": "$(eye-closed)"
       },
       {
-        "command": "chanh.toggleModelSectionsShow",
-        "title": "Toggle Installed & Downloadable Sections",
+        "command": "chanh.ncp.toggleModelSectionsShow",
+        "title": "Chanh: Show Installed & Downloadable Sections",
         "icon": "$(eye)"
       },
       {
@@ -231,23 +231,23 @@
         {
           "command": "chanh.refreshServer",
           "when": "view == CHANH_TREEVIEW",
-          "group": "navigation"
+          "group": "navigation@1"
         },
         {
+          "command": "chanh.ncp.toggleModelSectionsHide",
+          "when": "view == CHANH_TREEVIEW && !chanh.modelSectionsHidden",
+          "group": "navigation@2"
+        },
+        {
+          "command": "chanh.ncp.toggleModelSectionsShow",
+          "when": "view == CHANH_TREEVIEW && chanh.modelSectionsHidden",
+          "group": "navigation@2"
+        },
+                {
           "command": "chanh.openSettings",
           "when": "view == CHANH_TREEVIEW",
-          "group": "navigation"
+          "group": "navigation@3"
         },
-        {
-          "command": "chanh.toggleModelSectionsHide",
-          "when": "view == CHANH_TREEVIEW && !chanh.modelSectionsHidden",
-          "group": "navigation"
-        },
-        {
-          "command": "chanh.toggleModelSectionsShow",
-          "when": "view == CHANH_TREEVIEW && chanh.modelSectionsHidden",
-          "group": "navigation"
-        }
       ],
       "view/item/context": [
         {
@@ -267,17 +267,12 @@
         },
         {
           "command": "chanh.editServerPort",
-          "when": "view == CHANH_TREEVIEW && viewItem == CHANH_SERVER_URL",
-          "group": "inline"
-        },
-        {
-          "command": "chanh.editServerPort",
-          "when": "view == CHANH_TREEVIEW && viewItem == CHANH_SERVER_ERROR_MSG",
+          "when": "view == CHANH_TREEVIEW && (viewItem == CHANH_SERVER_URL || viewItem == CHANH_SERVER_ERROR_MSG)",
           "group": "inline"
         },
         {
           "command": "chanh.ncp.downloadModel",
-          "when": "view == CHANH_TREEVIEW && viewItem == CHANH_DOWNLOADABLE_MODEL",
+          "when": "view == CHANH_TREEVIEW && (viewItem == CHANH_DOWNLOADABLE_MODEL || viewItem == CHANH_PARTIAL_MODEL)",
           "group": "inline@2"
         },
         {
@@ -347,7 +342,7 @@
         },
         {
           "command": "chanh.ncp.removeModel",
-          "when": "view == CHANH_TREEVIEW && (viewItem =~ /CHANH_MODEL_(INSTALLED|LOADED)/ || viewItem == CHANH_LOADED_MODEL)",
+          "when": "view == CHANH_TREEVIEW && (viewItem =~ /CHANH_MODEL_(INSTALLED|LOADED)/ || viewItem == CHANH_LOADED_MODEL || viewItem == CHANH_PARTIAL_MODEL)",
           "group": "2_remove"
         },
         {
@@ -362,28 +357,13 @@
         },
         {
           "command": "chanh.ncp.showModelInfo",
-          "when": "view == CHANH_TREEVIEW && viewItem =~ /CHANH_MODEL_(INSTALLED|LOADED)/",
-          "group": "inline"
-        },
-        {
-          "command": "chanh.ncp.showModelInfo",
-          "when": "view == CHANH_TREEVIEW && viewItem == CHANH_DOWNLOADABLE_MODEL",
-          "group": "inline"
-        },
-        {
-          "command": "chanh.ncp.downloadModel",
-          "when": "view == CHANH_TREEVIEW && viewItem == CHANH_PARTIAL_MODEL",
+          "when": "view == CHANH_TREEVIEW && (viewItem =~ /CHANH_MODEL_(INSTALLED|LOADED)/ || viewItem == CHANH_DOWNLOADABLE_MODEL)",
           "group": "inline"
         },
         {
           "command": "chanh.ncp.cancelDownload",
           "when": "view == CHANH_TREEVIEW && viewItem == CHANH_DOWNLOADING_MODEL",
           "group": "inline"
-        },
-        {
-          "command": "chanh.ncp.removeModel",
-          "when": "view == CHANH_TREEVIEW && viewItem == CHANH_PARTIAL_MODEL",
-          "group": "2_remove"
         }
       ]
     },
@@ -482,6 +462,14 @@
       {
         "command": "chanh.ncp.revealBinaryDir",
         "when": "false"
+      },
+      {
+        "command": "chanh.ncp.toggleModelSectionsHide",
+        "when": "false"
+      },
+      {
+        "command": "chanh.ncp.toggleModelSectionsShow",
+        "when": "chanh.modelSectionsHidden"
       }
     ]
   },
