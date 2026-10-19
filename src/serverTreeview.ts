@@ -1401,7 +1401,7 @@ export class ServerViewProvider implements TreeDataProvider<TreeItem>, Disposabl
 
     const loadedIds = new Set(server.health?.all_models_loaded.map((m) => m.model_name) ?? [])
     const orderedModels = this.sortModelsLoadedFirst(server.models, loadedIds)
-    return orderedModels.map((model) => this.toInsModelItem(model, loadedIds.has(model.id)))
+    return orderedModels.map((model) => this.toInsModelItem(model, this.isModelLoaded(model, loadedIds)))
   }
 
   /** Downloadable catalog models (not yet on disk) — each pulls on click. */
@@ -1536,6 +1536,41 @@ export class ServerViewProvider implements TreeDataProvider<TreeItem>, Disposabl
     })
   }
 
+  /**
+   * Whether a model is effectively loaded.
+   *
+   * Omni collection models (recipe === 'collection.omni') are virtual bundles
+   * the server loads as individual per-capability parts. The collection entry
+   * itself never appears in `all_models_loaded`, so we treat it as loaded when
+   * every capability it claims has at least one loaded model covering it.
+   */
+  private isModelLoaded(model: LemonadeModel, loadedIds: Set<string>): boolean {
+    // Direct hit: the model itself is listed as loaded.
+    if (loadedIds.has(model.id)) return true
+
+    const server = this._activeServer
+    if (!server?.models) return false
+
+    // Omni collection: loaded when its parts (per-capability models) are loaded.
+    if (model.recipe === 'collection.omni') {
+      const categories = ModelManager.getCapabilityCategories(model)
+        .filter(c => c !== 'omni' && CAPABILITY_ORDER.includes(c))
+      if (categories.length === 0) return false
+
+      // For each capability the collection claims, check if any loaded model
+      // covers it. The loaded model's capability labels come from server.models.
+      for (const cat of categories) {
+        const hasMatch = server.models.some(m =>
+          loadedIds.has(m.id) && ModelManager.capabilityFor(m, cat)
+        )
+        if (!hasMatch) return false
+      }
+      return true
+    }
+
+    return false
+  }
+
   /** Group installed models under one collapsible header per capability. */
   private getCapabilityGroups(models: LemonadeModel[], downloadable = false): TreeItem[] {
     const grouped = new Map<string, LemonadeModel[]>()
@@ -1638,7 +1673,7 @@ export class ServerViewProvider implements TreeDataProvider<TreeItem>, Disposabl
     const loadedIds = new Set(server?.health?.all_models_loaded.map((m) => m.model_name) ?? [])
     // Within each capability group, surface loaded models first.
     const ordered = this.sortModelsLoadedFirst(filtered, loadedIds)
-    return ordered.map((m) => this.toInsModelItem(m, loadedIds.has(m.id), true))
+    return ordered.map((m) => this.toInsModelItem(m, this.isModelLoaded(m, loadedIds), true))
   }
 
   /**
