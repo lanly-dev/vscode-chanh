@@ -48,6 +48,7 @@ Plain chat models (no `tool-calling` label) remain available through the `@chanh
 - Add System utilization monitoring
 - Add token count footer option
 - Add custom endpoint option - Chanh 🍋‍🟩
+- Add omni, audio-gen treeview group
 
 ### 0.1.2
 - Bugfixes and improve agent integration

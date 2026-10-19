@@ -3,14 +3,64 @@ All notable changes to the "Chanh" extension will be documented in this file.\
 Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how to structure this file.
 
 ## [TODO]
+- Backends color change
 - Chat follow up
+- Custom/mirror models support - group
 - Explore and add functionality for different types of models, e.g. image
 - Focus on coding-related features
-- Custom models support
+- Omni integration in vscode agent and list of pack
+- Pin model feature
+- System over limit icon color change, and drives
+- Token stats logs
 
 ## [0.1.3]
 - New `System` tree group: live CPU, GPU and RAM utilization for the local
-  machine (CPU/RAM in-process). On Windows every PCI adapter is listed and
+  machine (CPU/RAM in-process).
+- Per-turn token counts (`usage` from the final stream chunk) now optional; toggle
+  via `chanh.showTokenStats` (defaults to `false`)
+- New `omni` capability class (wizard-hat icon) for models that serve every
+  modality; listed first in the capability grouping and, like any
+  multi-capability model, also under `Chat`
+- New `audio-generation` treeview group
+- Cached the expensive `?show_all=true` full model catalog and the pinned
+  `recipe.backend` map per server URL, so routine refresh and chat cycles reuse
+  them instead of re-pulling the heavy catalog or re-reading /internal/config.
+- Caches invalidated only on real state changes - model pull, model delete,
+  backend pin/uninstall, server switch, or server down - via
+  `invalidateCatalog()` / `invalidatePinnedBackends()`, so transient fetch
+  errors do not wipe the cache.
+- 21 files, 82.07 KB, 1.42.0, req1.140.0
+```
+chanh-0.1.3.vsix
+├─ [Content_Types].xml
+├─ extension.vsixmanifest
+└─ extension/
+   ├─ LICENSE.txt [1.06 KB]
+   ├─ changelog.md [8.02 KB]
+   ├─ package.json [15.76 KB]
+   ├─ readme.md [3.41 KB]
+   ├─ dist/
+   │  └─ extension.js [109.71 KB]
+   └─ media/
+      ├─ chanh.png [31.65 KB]
+      ├─ chanh.svg [3.83 KB]
+      └─ capabilities/
+         ├─ 3d.svg [0.36 KB]
+         ├─ audio-generation.svg [0.32 KB]
+         ├─ chat.svg [0.46 KB]
+         ├─ classification.svg [0.4 KB]
+         ├─ embeddings.svg [0.45 KB]
+         ├─ hot.svg [0.44 KB]
+         ├─ image.svg [0.33 KB]
+         ├─ omni.svg [0.52 KB]
+         ├─ reranking.svg [0.3 KB]
+         ├─ tool-calling.svg [0.29 KB]
+         ├─ transcription.svg [0.3 KB]
+         └─ tts.svg [0.29 KB]
+```
+
+### Notes
+- On Windows every PCI adapter is listed and
   each one is read from whichever source can see it - `nvidia-smi` for NVIDIA
   cards (utilization, VRAM, temperature) and the WDDM performance counters for
   integrated / non-NVIDIA adapters (utilization, dedicated memory); USB display
@@ -21,21 +71,8 @@ Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how 
   values actually changed. The group only appears while the configured server
   runs on this machine (LEMONADE, LEMOND, or a CUSTOM URL pointing at
   localhost) — with a remote server the local numbers would mean nothing.
-- Per-turn token counts (`usage` from the final stream chunk) now optional; toggle
-  via `chanh.showTokenStats` (defaults to `false`)
-- New `omni` capability class (wizard-hat icon) for models that serve every
-  modality; listed first in the capability grouping and, like any
-  multi-capability model, also under LLM / Chat
 - Optimized server fetch: health + full catalog now run concurrently instead of
   sequentially.
-- Cached the expensive `?show_all=true` full model catalog and the pinned
-  `recipe.backend` map per server URL, so routine refresh and chat cycles reuse
-  them instead of re-pulling the heavy catalog or re-reading /internal/config.
-- Caches invalidated only on real state changes - model pull, model delete,
-  backend pin/uninstall, server switch, or server down - via
-  `invalidateCatalog()` / `invalidatePinnedBackends()`, so transient fetch
-  errors do not wipe the cache.
-
 
 ## [0.1.2] - 2026-10-06
 - Token counting uses the server tokenizer (`POST /v1/tokenize`), memoised; char estimate is the fallback (`ee90799`)
