@@ -886,8 +886,17 @@ export class ServerViewProvider implements TreeDataProvider<TreeItem>, Disposabl
     // Loaded models section
     if (this._activeServer?.status === ServerStatus.RUNNING) {
       const loadedModels = this._activeServer?.health?.all_models_loaded || []
+      // Omni collections are virtual bundles whose parts are loaded individually;
+      // count them as loaded models too when all their parts are loaded.
+      let omniLoadedCount = 0
+      if (this._activeServer?.models) {
+        const loadedIds = new Set(loadedModels.map((m) => m.model_name))
+        for (const m of this._activeServer.models) {
+          if (m.recipe === 'collection.omni' && this.isModelLoaded(m, loadedIds)) omniLoadedCount++
+        }
+      }
 
-      const loadedHeader = new TreeItem(`Loaded Models (${loadedModels.length})`, Expanded)
+      const loadedHeader = new TreeItem(`Loaded Models (${loadedModels.length + omniLoadedCount})`, Expanded)
       let color
       if (loadedModels.length) color = new ThemeColor('charts.yellow')
       loadedHeader.iconPath = new ThemeIcon('zap', color)
@@ -1267,39 +1276,71 @@ export class ServerViewProvider implements TreeDataProvider<TreeItem>, Disposabl
     if (!server?.health) return []
     const loadedModels = server.health.all_models_loaded
 
-    if (!loadedModels || loadedModels.length === 0) {
+    const loadedIds = new Set(loadedModels.map((m) => m.model_name))
+
+    const items: (TreeItem & { modelId: string })[] = loadedModels.map((model) =>
+      this.buildLoadedModelItem(model, server)
+    )
+
+    // Omni collections: the server lists only their per-capability parts as
+    // loaded, never the collection itself. When every part of an Omni
+    // collection is loaded, surface the collection as a loaded model too.
+    if (server.models) {
+      for (const model of server.models) {
+        if (model.recipe !== 'collection.omni') continue
+        if (!this.isModelLoaded(model, loadedIds)) continue
+        // Avoid a duplicate if the collection id is ever listed directly.
+        if (loadedIds.has(model.id)) continue
+
+        const synthetic = {
+          model_name: model.id,
+          is_busy: false,
+          is_streaming: false,
+          backend_url: undefined
+        }
+        items.push(this.buildLoadedModelItem(synthetic, server))
+      }
+    }
+
+    if (items.length === 0) {
       const noModelsItem = new TreeItem('No loaded models', None)
       noModelsItem.iconPath = new ThemeIcon('circle-slash')
       return [noModelsItem]
     }
 
-    return loadedModels.map((model) => {
-      const item = new TreeItem(model.model_name, None) as TreeItem & { modelId: string }
-      // The inline Unload/Remove menus on this row hand the item to the command
-      // handlers, which read `modelId` from it.
-      item.modelId = model.model_name
-      item.iconPath = new ThemeIcon('pass-filled', new ThemeColor('charts.green'))
-      // Loaded models get a green label through the FileDecoration provider, the
-      // same way installed-model rows do (the tree-item API cannot color label
-      // text directly). Every row here is loaded, hence the hard-coded true.
-      item.resourceUri = ModelDecorationProvider.uriFor(model.model_name, true)
-      // Enrich the runtime status with the downloaded model's catalog metadata
-      // (size, context, recipe...) when the model is in the server's model list.
-      const catalogModel = server.models?.find((m) => m.id === model.model_name)
-      if (catalogModel) {
-        item.tooltip = this.buildModelTooltip(catalogModel, {
-          isLoaded: true,
-          busy: model.is_busy,
-          streaming: model.is_streaming,
-          backendUrl: model.backend_url,
-          effectiveBackend: this.effectiveBackendFor(catalogModel.recipe)
-        })
-      } else item.tooltip = `Model: ${model.model_name}\nBusy: ${model.is_busy}\nStreaming: ${model.is_streaming}`
+    return items
+  }
 
-      item.contextValue = 'CHANH_LOADED_MODEL'
-      item.description = model.is_busy ? 'busy' : 'idle'
-      return item
-    })
+  /** Build a tree row for a loaded model entry. */
+  private buildLoadedModelItem(
+    model: { model_name: string, is_busy: boolean, is_streaming: boolean, backend_url?: string },
+    server: ServerInstance
+  ): TreeItem & { modelId: string } {
+    const item = new TreeItem(model.model_name, None) as TreeItem & { modelId: string }
+    // The inline Unload/Remove menus on this row hand the item to the command
+    // handlers, which read `modelId` from it.
+    item.modelId = model.model_name
+    item.iconPath = new ThemeIcon('pass-filled', new ThemeColor('charts.green'))
+    // Loaded models get a green label through the FileDecoration provider, the
+    // same way installed-model rows do (the tree-item API cannot color label
+    // text directly). Every row here is loaded, hence the hard-coded true.
+    item.resourceUri = ModelDecorationProvider.uriFor(model.model_name, true)
+    // Enrich the runtime status with the downloaded model's catalog metadata
+    // (size, context, recipe...) when the model is in the server's model list.
+    const catalogModel = server.models?.find((m) => m.id === model.model_name)
+    if (catalogModel) {
+      item.tooltip = this.buildModelTooltip(catalogModel, {
+        isLoaded: true,
+        busy: model.is_busy,
+        streaming: model.is_streaming,
+        backendUrl: model.backend_url,
+        effectiveBackend: this.effectiveBackendFor(catalogModel.recipe)
+      })
+    } else item.tooltip = `Model: ${model.model_name}\nBusy: ${model.is_busy}\nStreaming: ${model.is_streaming}`
+
+    item.contextValue = 'CHANH_LOADED_MODEL'
+    item.description = model.is_busy ? 'busy' : 'idle'
+    return item
   }
 
   private getDownloadingChildren(): TreeItem[] {
