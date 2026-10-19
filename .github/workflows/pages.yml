@@ -1,3 +1,4 @@
+# Requires Settings -> Pages -> Build and deployment -> Source: GitHub Actions.
 name: Deploy website
 
 on:

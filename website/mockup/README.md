@@ -19,8 +19,8 @@ Open [`index.html`](index.html) directly in a browser. There is no build step, s
 | **Server tree** | Expand/collapse sections, switch server mode, start/stop the server, refresh, hide the model catalog with the eye button |
 | **Installed models** | 22 models grouped by capability; expand Chat/Image/Transcription; filter a group by sub-capability; toggle flat/grouped view |
 | **Downloadable models** | Toggle hot-only, download a model, watch progress, cancel and retry a partial download |
-| **Model rows** | Click for Model Info; hover for load/unload, info and backend actions; right-click for the full context menu |
-| **Model Info** | Read all server metadata, change context size, pick a backend, open the model in chat, add a VS Code chat endpoint |
+| **Model rows** | Click for Model Info; hover for load/unload, info and backend actions; right-click for context size, reset and removal |
+| **Model Info** | Read the same metadata table the extension shows: capabilities, context windows, checkpoint, registry, recipe and backend |
 | **Chat** | Seeded `/explain` conversation, streaming answers, `/fix`, token footer, model picker, new chat |
 | **Settings** | Change server mode/URL, ports, max loaded models, token stats, sample interval and chat model |
 | **VS Code chrome** | Tabs, quick picks, command palette, toasts, dialogs and keyboard shortcuts |

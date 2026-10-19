@@ -23,7 +23,6 @@
     omni: 'Omni', chat: 'Chat', embeddings: 'Embedding', reranking: 'Reranking', classification: 'Classification',
     transcription: 'Transcription', tts: 'Text-to-Speech', 'audio-generation': 'Audio generation', image: 'Image', '3d': '3D', other: 'Other'
   };
-  const CAP_FILES = new Set(['chat', 'image', 'transcription', 'embeddings', 'tts', 'omni', 'audio-generation', 'classification', 'reranking', '3d', 'tool-calling', 'hot']);
 
   const fmtSize = (gb) => {
     if (typeof gb !== 'number' || gb <= 0) return '';
@@ -55,26 +54,28 @@
 
   const INSTALLED_SEED = [
     makeModel('Qwen3.5-4B-MTP-GGUF', 3.41, ['chat', 'vision', 'tool-calling', 'mtp'], {
-      loaded: true, ctx: 4096, maxCtx: 262144, savedCtx: 49152, checkpoint: 'unsloth/Qwen3.5-4B-MTP-GGUF:Q4_K_M',
-      created: '2025-09-14', type: 'chat', registry: 'huggingface'
+      loaded: true, ctx: 4096, maxCtx: 262144, savedCtx: 49152,
+      checkpoint: 'unsloth/Qwen3.5-4B-MTP-GGUF:Qwen3.5-4B-UD-Q4_K_XL.gguf',
+      created: '2009-02-13', createdValue: 1234567890, backendUrl: 'http://127.0.0.1:8012/v1',
+      type: 'chat', registry: 'huggingface'
     }),
     makeModel('Bonsai-1.7B-gguf', 0.23, ['chat', 'tool-calling']),
     makeModel('Bonsai-4B-gguf', 0.53, ['chat', 'tool-calling']),
     makeModel('Bonsai-8B-gguf', 1.08, ['chat', 'tool-calling']),
     makeModel('LFM2-1.2B-GGUF', 0.68, ['chat']),
     makeModel('LFM2.5-1.2B-Instruct-GGUF', 0.68, ['chat', 'tool-calling']),
-    makeModel('LMX-Omni-5.5B-Lite', 9.30, ['omni', 'chat', 'vision'], { recipe: 'collection.omni', type: 'omni' }),
+    makeModel('user.LMX-Omni-5.5B-Lite-Custom', 9.30, ['omni', 'chat', 'vision'], { recipe: 'collection.omni', type: 'omni', loaded: true }),
     makeModel('MiniCPM-V-4-GGUF', 2.04, ['chat', 'vision', 'image', 'tool-calling']),
     makeModel('MiniCPM-V-4.6-GGUF', 1.53, ['chat', 'vision', 'image', 'tool-calling'], { hot: true }),
     makeModel('Qwen3-0.6B-GGUF', 0.36, ['chat', 'tool-calling']),
     makeModel('SDXL-Turbo', 6.94, ['image'], { recipe: 'sd.cpp', type: 'image', hot: true, checkpoint: 'stabilityai/sdxl-turbo' }),
     makeModel('FLUX.1-schnell', 11.90, ['image'], { recipe: 'sd.cpp', type: 'image', checkpoint: 'black-forest-labs/FLUX.1-schnell' }),
-    makeModel('SD-Turbo', 5.31, ['image'], { recipe: 'sd.cpp', type: 'image' }),
+    makeModel('SD-Turbo', 4.86, ['image'], { recipe: 'sd.cpp', type: 'image', loaded: true }),
     makeModel('RealESRGAN-x4', 0.07, ['image'], { recipe: 'sd.cpp', type: 'image' }),
     makeModel('Whisper-Large-v3', 1.55, ['transcription'], { recipe: 'whisper.cpp', type: 'transcription' }),
     makeModel('Whisper-Small', 0.48, ['transcription'], { recipe: 'whisper.cpp', type: 'transcription' }),
-    makeModel('Whisper-Tiny', 0.08, ['transcription'], { recipe: 'whisper.cpp', type: 'transcription' }),
-    makeModel('Kokoro-82M', 0.33, ['tts'], { recipe: 'onnx', type: 'tts' }),
+    makeModel('Whisper-Tiny', 0.07, ['transcription'], { recipe: 'whisper.cpp', type: 'transcription', loaded: true }),
+    makeModel('kokoro-v1', 0.33, ['tts'], { recipe: 'onnx', type: 'tts', loaded: true }),
     makeModel('nomic-embed-text-v1.5', 0.55, ['embeddings'], { recipe: 'llamacpp', type: 'embeddings' }),
     makeModel('all-MiniLM-L6-v2', 0.09, ['embeddings'], { recipe: 'llamacpp', type: 'embeddings' }),
     makeModel('bge-reranker-v2-m3', 0.57, ['reranking'], { recipe: 'llamacpp', type: 'reranking' }),
@@ -129,8 +130,7 @@
     infoModelId: 'Qwen3.5-4B-MTP-GGUF',
     chatModelId: 'Qwen3.5-4B-MTP-GGUF',
     tabs: [
-      { id: 'model-info', label: 'Qwen3.5-4B-MTP-GGUF', icon: 'info', closable: true },
-      { id: 'chat', label: 'Chanh Chat', icon: 'chat', closable: true }
+      { id: 'model-info', label: 'Qwen3.5-4B-MTP-GGUF', icon: 'info', closable: true }
     ],
     activeTab: 'model-info',
     expanded: {
@@ -333,11 +333,10 @@
     </div>`;
   }
 
-  function sysRow(depth, label, key, cls) {
+  function sysRow(depth, label, key) {
     return `<div class="tree-row sys-row" style="${pad(depth)}" title="${label} utilization">
       ${leafIndent}${rowIcon('layout', 'idle')}<span class="label">${label}</span>
       <span class="desc" data-sys-val="${key}">${sys[key]}%</span>
-      <span class="mini-meter ${cls}"><i data-sys-bar="${key}" style="width:${sys[key]}%"></i></span>
     </div>`;
   }
 
@@ -432,6 +431,7 @@
             <span class="desc">idle</span>
             <span class="row-actions">
               <button class="row-action" data-action="info" data-model="${escAttr(m.id)}" title="Show Model Info">${svg('info')}</button>
+              <button class="row-action" data-action="endpoint" data-model="${escAttr(m.id)}" title="Add Entry to VS Code’s Chat Custom Endpoints">${svg('plug')}</button>
               <button class="row-action" data-action="unload" data-model="${escAttr(m.id)}" title="Unload Model">${svg('run-below')}</button>
             </span>
           </div>`;
@@ -660,27 +660,9 @@
   /* Model info                                                          */
   /* ------------------------------------------------------------------ */
   function chipsFor(model) {
-    const chips = [];
-    for (const label of model.labels || []) {
-      const icon = CAP_FILES.has(label) ? `<img src="assets/capabilities/${label}.svg" alt="" />` : svg('sparkle');
-      chips.push(`<span class="chip">${icon}${esc(label)}</span>`);
-    }
-    if (model.hot) chips.push(`<span class="chip hot">${svg('flame')}hot</span>`);
-    return chips.join('');
-  }
-
-  function infoActionButtons(model, downloaded, loaded) {
-    const chat = `<button class="btn primary" data-action="chatModel" data-model="${escAttr(model.id)}">${svg('chat')}Chat with this model</button>`;
-    const download = `<button class="btn primary" data-action="download" data-model="${escAttr(model.id)}">${svg('download')}Download model</button>`;
-    const loadToggle = downloaded
-      ? `<button class="btn" data-action="${loaded ? 'unload' : 'load'}" data-model="${escAttr(model.id)}">${svg(loaded ? 'run-below' : 'run-above')}${loaded ? 'Unload' : 'Load model'}</button>`
-      : '';
-    return `${downloaded ? chat : download}
-      ${loadToggle}
-      <button class="btn" data-action="context" data-model="${escAttr(model.id)}">${svg('hash')}Set context size</button>
-      <button class="btn" data-action="backend" data-model="${escAttr(model.id)}">${svg('circuit')}Select backend</button>
-      <button class="btn" data-action="endpoint" data-model="${escAttr(model.id)}">${svg('plug')}Add to VS Code chat</button>
-      <button class="btn ghost danger" data-action="remove" data-model="${escAttr(model.id)}">${svg('trash')}Remove</button>`;
+    const labels = [...(model.labels || [])];
+    if (model.hot) labels.push('hot');
+    return labels.map(label => `<span class="chip">${esc(label)}</span>`).join('');
   }
 
   function renderModelInfo() {
@@ -693,89 +675,35 @@
     }
     const downloaded = isDownloaded(model.id);
     const loaded = downloaded && model.loaded;
-    const effective = model.savedCtx === -1 ? -1 : (model.savedCtx || model.ctx);
-    const effectiveText = effective === -1 ? 'Automatic' : `${fmtNumber(effective)} tokens`;
-    const savedText = model.savedCtx === undefined ? '' : (model.savedCtx === -1 ? 'Automatic' : `${fmtNumber(model.savedCtx)} tokens`);
+    const effective = model.savedCtx === -1 ? -1 : (model.savedCtx ?? model.ctx);
+    const fmtCtx = (n) => n === -1 ? 'Automatic' : (typeof n === 'number' && n > 0 ? `${fmtNumber(n)} tokens` : '');
+    const labels = [...(model.labels || [])];
+    if (model.hot) labels.push('hot');
     const status = loaded ? 'Loaded — idle' : downloaded ? 'Downloaded (not loaded)' : 'Not downloaded — pull to install';
-    const backend = downloaded ? `auto (${state.pinnedBackend})` : '—';
-    const usagePct = Math.max(2, Math.min(100, Math.round((effective === -1 ? model.ctx : effective) / model.maxCtx * 100)));
     const rows = [
-      ['Capabilities', (model.labels || []).join(', '), ''],
-      ['Status', status, ''],
-      ['Size', fmtSize(model.size), ''],
-      ['Context (effective)', effectiveText, ''],
-      ['Context (reported)', model.ctx ? `${fmtNumber(model.ctx)} tokens` : '', ''],
-      ['Max context window', `${fmtNumber(model.maxCtx)} tokens`, ''],
-      ['Context (saved override)', savedText, ''],
-      ['Context (default)', `${fmtNumber(model.ctx)} tokens`, ''],
-      ['Checkpoint', model.checkpoint, 'mono'],
-      ['Registry', model.registry, ''],
-      ['Recipe/backend', model.recipe, 'mono'],
-      ['Type', model.type, ''],
-      ['Owned by', model.ownedBy, ''],
-      ['Created', model.created, '']
+      ['Capabilities', labels.join(', ')],
+      ['Status', status],
+      ['Size', fmtSize(model.size)],
+      ['Context (effective)', fmtCtx(effective)],
+      ['Context (reported)', fmtCtx(model.ctx)],
+      ['Max context window', fmtCtx(model.maxCtx)],
+      ['Context (saved override)', model.savedCtx === undefined ? '' : fmtCtx(model.savedCtx)],
+      ['Context (default)', fmtCtx(model.ctx)],
+      ['Checkpoint', model.checkpoint],
+      ['Registry', model.registry],
+      ['Recipe/backend', model.recipe],
+      ['Type', model.type],
+      ['Owned by', model.ownedBy],
+      ['Created', model.created],
+      ['Created value', model.createdValue?.toString()],
+      ['Backend', loaded ? model.backendUrl : '']
     ].filter(([, value]) => value);
 
-    view.innerHTML = `
-      <div class="info-page">
-        <div class="info-eyebrow"><span class="dot" style="${downloaded ? '' : 'background:#777;box-shadow:none'}"></span>${downloaded ? 'Local model' : 'Available in catalog'} · lemonade server</div>
-        <div class="info-title-row">
-          <h1>${esc(model.id)}</h1>
-          <span class="info-badge ${downloaded ? '' : 'offline'}">${loaded ? 'Loaded' : downloaded ? 'Ready' : 'Not downloaded'}</span>
-        </div>
-        <div class="chips">${chipsFor(model)}</div>
-        <div class="info-actions">${infoActionButtons(model, downloaded, loaded)}</div>
-
-        <div class="info-layout">
-          <div>
-            <div class="panel">
-              <div class="panel-head"><h3>Model details</h3><span class="hint">reported by /v1/models</span></div>
-              ${rows.map(([label, value, cls]) => `<div class="meta-row"><span class="meta-label">${label}</span><span class="meta-value ${cls}">${esc(value)}</span></div>`).join('')}
-            </div>
-            <div class="local-note" style="margin-top:16px">
-              ${svg('lock')}
-              <div><b>Local by design.</b> This model is served by Lemonade on <code style="font-family:var(--mono);color:#c9c9c9">${esc(serverInfo().url.replace('http://', ''))}</code>. Prompts, code and tool results stay on this machine — no account and no cloud round-trip.</div>
-            </div>
-          </div>
-
-          <aside>
-            <div class="summary-card">
-              <div class="summary-hero">
-                <div class="summary-icon"><img src="assets/chanh.svg" alt="" /></div>
-                <div>
-                  <div class="summary-title">${loaded ? 'Running locally' : downloaded ? 'Ready to load' : 'One click away'}</div>
-                  <div class="summary-sub">${esc(model.recipe)} · ${downloaded ? `${esc(state.pinnedBackend)} backend` : 'not installed yet'}</div>
-                </div>
-              </div>
-              <div class="summary-body">
-                <div class="meter-block">
-                  <div class="meter-label"><span>Context window</span><b>${effective === -1 ? 'auto' : `${Math.round(usagePct)}% used`}</b></div>
-                  <div class="meter"><span style="width:${usagePct}%"></span></div>
-                  <div class="kv" style="padding-top:6px"><span>${effective === -1 ? 'server managed' : `${fmtNumber(effective)} allocated`}</span><span>${fmtNumber(model.maxCtx)} max</span></div>
-                </div>
-                <div class="kv"><span>Status</span><span>${loaded ? 'idle · loaded' : downloaded ? 'on disk' : 'downloadable'}</span></div>
-                <div class="kv"><span>Backend</span><span>${backend}</span></div>
-                <div class="kv"><span>Throughput</span><span>${loaded ? `${state.tokens.tps.toFixed(1)} tok/s` : '—'}</span></div>
-                <div class="kv"><span>Endpoint</span><span>${esc(serverInfo().url.replace('http://', ''))}</span></div>
-                <div class="summary-actions">
-                  ${downloaded
-                    ? `<button class="btn primary" data-action="chatModel" data-model="${escAttr(model.id)}">${svg('chat')}Open in chat</button>`
-                    : `<button class="btn gold" data-action="download" data-model="${escAttr(model.id)}">${svg('download')}Download &amp; load</button>`}
-                  <button class="btn" data-action="context" data-model="${escAttr(model.id)}">${svg('hash')}Context: ${effective === -1 ? 'auto' : fmtNumber(effective)}</button>
-                </div>
-              </div>
-            </div>
-            <div class="panel">
-              <div class="panel-head"><h3>Try a prompt</h3></div>
-              <div style="padding:12px 14px;display:flex;flex-direction:column;gap:7px">
-                ${['Explain this codebase', 'Write a unit test', 'Find a bug in serverManager.ts'].map(p =>
-                  `<button class="btn" style="justify-content:flex-start;text-align:left" data-action="chatPrompt" data-model="${escAttr(model.id)}" data-prompt="${escAttr(p)}">${svg('sparkle')}${esc(p)}</button>`
-                ).join('')}
-              </div>
-            </div>
-          </aside>
-        </div>
-      </div>`;
+    view.innerHTML = `<div class="info-page">
+      <h2>${esc(model.id)}</h2>
+      <div class="info-sub">${chipsFor(model)}</div>
+      ${rows.map(([label, value]) => `<div class="info-row"><span class="info-label">${esc(label)}</span><span class="info-value">${esc(value)}</span></div>`).join('')}
+    </div>`;
   }
 
   /* ------------------------------------------------------------------ */
@@ -988,7 +916,7 @@
           <pre>${highlightJSON(json)}</pre>
           <p style="max-width:680px;color:#8f8f8f;font-size:11.5px;line-height:1.6;margin-top:18px">
             Chanh's native model provider already exposes tool-calling chat models to the picker. This optional entry wires a single
-            loaded model into VS Code's custom-endpoint chat surface as well.
+            loaded model into VS Code’s custom-endpoint chat surface as well.
           </p>
         </div>
       </div>`;
@@ -1012,7 +940,7 @@
           <ul>
             <li><strong>ServerManager</strong> owns the lifecycle — it starts the managed <code>lemond</code> binary, watches its health endpoint, and stops it on deactivate.</li>
             <li><strong>ModelManager</strong> talks to the OpenAI-compatible API to pull, load, unload and configure models.</li>
-            <li><strong>ChanhLmcProvider</strong> exposes those models to VS Code's native picker, so agent mode can stream text and tool calls.</li>
+            <li><strong>ChanhLmcProvider</strong> exposes those models to VS Code’s native picker, so agent mode can stream text and tool calls.</li>
           </ul>
           <div class="code-block">
             <div class="code-head"><span><span class="lang">ts</span> serverManager.ts</span><button data-copy-code>${svg('copy')}Copy</button></div>
@@ -1177,7 +1105,7 @@
         <p>It also resolves the URL relative to the configured base so a custom server with a path prefix still works. Want me to apply it to the working tree?</p>`;
     }
     if (lower.includes('agent') || lower.includes('tool')) {
-      return `<p>Agent mode uses the same local models, exposed through VS Code's native picker under <strong>Chanh 🍋</strong>. The provider forwards your tools untouched and translates tool calls back into <code>LanguageModelToolCallPart</code>s.</p>
+      return `<p>Agent mode uses the same local models, exposed through VS Code’s native picker under <strong>Chanh 🍋</strong>. The provider forwards your tools untouched and translates tool calls back into <code>LanguageModelToolCallPart</code>s.</p>
         <ul>
           <li>Only chat models that advertise <code>tool-calling</code> appear in the native picker.</li>
           <li>A <code>vision</code> label enables image attachments in the picker.</li>
@@ -1536,8 +1464,17 @@
   function afterContextChange(model) {
     renderTree();
     renderModelInfo();
-    const text = model.savedCtx === -1 ? 'Automatic' : `${fmtNumber(model.savedCtx)} tokens`;
+    const text = model.savedCtx === undefined ? 'server default' : model.savedCtx === -1 ? 'Automatic' : `${fmtNumber(model.savedCtx)} tokens`;
     showToast('Context size updated', `<b>${esc(model.id)}</b> → ${text}`, 'success');
+  }
+
+  function resetModelContext(id) {
+    const model = getModel(id);
+    if (!model) return;
+    model.savedCtx = undefined;
+    renderTree();
+    renderModelInfo();
+    showToast('Context size reset', `<b>${esc(id)}</b> now uses the server default.`, 'info');
   }
 
   function openBackendPicker(modelId) {
@@ -1731,13 +1668,12 @@
     if (!model) return;
     const downloaded = isDownloaded(id);
     const items = downloaded ? [
-      { label: 'Show Model Info', icon: 'info', run: () => selectModel(id) },
-      { label: model.loaded ? 'Unload Model' : 'Load Model', icon: model.loaded ? 'run-below' : 'run-above', run: () => (model.loaded ? unloadModel(id) : loadModel(id)) },
       { label: 'Set Context Size…', icon: 'hash', run: () => openContextPicker(id) },
-      { label: 'Select Backend…', icon: 'circuit', run: () => openBackendPicker(id) },
-      { label: 'Add to VS Code Chat Endpoints', icon: 'plug', run: () => addEndpoint(id) },
+      ...(model.savedCtx !== undefined
+        ? [{ label: 'Reset Context Size to Default', icon: 'refresh', run: () => resetModelContext(id) }]
+        : []),
       { separator: true },
-      { label: 'Remove Model from Disk…', icon: 'trash', run: () => removeModel(id) }
+      { label: 'Remove Model', icon: 'trash', run: () => removeModel(id) }
     ] : [
       { label: 'Show Model Info', icon: 'info', run: () => selectModel(id) },
       { label: 'Download Model', icon: 'download', run: () => startDownload(id) },
@@ -1913,7 +1849,7 @@
     {
       target: '[data-tour="model-Qwen3.5-4B-MTP-GGUF"]',
       title: 'Load, tune, and inspect in place',
-      text: 'Loaded models turn green. Hover a row to <b>load</b>, open <b>model info</b> or choose a backend. Right-click for context size, chat endpoints and removal.',
+      text: 'Loaded models turn green. Hover a row to <b>load</b>, open <b>model info</b> or choose a backend. Right-click for context size and removal.',
       setup: () => {
         state.expanded.installed = true;
         state.expanded.capIns.add('chat');
@@ -1923,9 +1859,9 @@
       }
     },
     {
-      target: '.info-actions',
+      target: '.info-page',
       title: 'Everything the server reports',
-      text: 'Open a model to see its <b>context, recipe, checkpoint and registry</b>. Context size and backend are one click away, and a single button adds the model to VS Code’s chat endpoints.',
+      text: 'Open a model to see the same metadata the server returns: <b>capabilities, context windows, checkpoint, registry, recipe and backend</b>.',
       setup: () => {
         state.infoModelId = state.selectedId || 'Qwen3.5-4B-MTP-GGUF';
         openTab('model-info');
@@ -1950,9 +1886,9 @@
       }
     },
     {
-      target: '.sidebar-footer',
+      target: '#statusServer',
       title: 'Private by design',
-      text: 'Once a model is downloaded, everything runs on <b>127.0.0.1</b> — no account, no cloud round-trip, no data leaving the machine. That is the whole point of Chanh.',
+      text: 'Once a model is downloaded, everything runs on <b>127.0.0.1</b> — no account, no cloud round-trip, no data leaving the machine. The status bar keeps the local endpoint in view.',
       setup: () => { toggleModelPicker(false); }
     }
   ];

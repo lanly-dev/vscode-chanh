@@ -69,7 +69,6 @@
     <!-- Title bar -->
     <header class="titlebar">
       <div class="titlebar-left">
-        <img class="titlebar-logo" src="assets/chanh.svg" alt="" />
         <nav class="menus" aria-label="Menu">
           <button>File</button><button>Edit</button><button>Selection</button><button>View</button>
           <button>Go</button><button>Run</button><button>Terminal</button><button>Help</button>
@@ -113,10 +112,6 @@
           </div>
         </div>
         <div class="tree" id="tree" role="tree" aria-label="Chanh servers and models"></div>
-        <div class="sidebar-footer">
-          <svg class="icon"><use href="#i-lock"></use></svg>
-          <span><strong>100% local.</strong> Nothing leaves this machine.</span>
-        </div>
       </aside>
 
       <!-- Editor -->
@@ -144,7 +139,7 @@
     <footer class="statusbar">
       <div class="status-left">
         <button class="status-item status-remote" id="statusServer" title="Open Server URL">
-          <span class="status-lemon">🍋</span><span id="statusServerText">Chanh: Running</span><span class="status-url" id="statusServerUrl">localhost:13305</span>
+          <span id="statusServerText">Chanh: Running</span><span class="status-url" id="statusServerUrl">localhost:13305</span>
         </button>
         <button class="status-item" title="Source Control"><svg class="icon"><use href="#i-git"></use></svg> main*</button>
         <button class="status-item" title="Problems">⊗ 0 <span class="status-warning">⚠ 0</span></button>
