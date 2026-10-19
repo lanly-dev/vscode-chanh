@@ -1,6 +1,6 @@
 # Change Log
 All notable changes to the "Chanh" extension will be documented in this file.\
-Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how to structure this file.
+Check [Keep a Changelog](https://keepachangelog.com/) for recommendations on how to structure this file.
 
 ## [TODO]
 - Backends color change
@@ -13,7 +13,7 @@ Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how 
 - System over limit icon color change, and drives
 - Token stats logs
 
-## [0.1.3]
+## [0.1.3] - 2026-10-18
 - New `System` tree group: live CPU, GPU and RAM utilization for the local
   machine (CPU/RAM in-process).
 - Per-turn token counts (`usage` from the final stream chunk) now optional; toggle
@@ -22,6 +22,15 @@ Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how 
   modality; listed first in the capability grouping and, like any
   multi-capability model, also under `Chat`
 - New `audio-generation` treeview group
+- Sub-capability filter on capability group headers: narrow a capability group
+  to one sub-capability (`single_cap`); the active filter shows as count +
+  filter in the header (`b292e26`, `1f918a4`, `189d10d`)
+- Custom native endpoint option: `configLmEndpoint` writes an entry for a
+  loaded model into VS Code's `chatLanguageModels.json` (opened for inspection
+  via `openLmConfigsFile`) (`778bfbd`, `1a2bff3`, `66d845c`, `b9f18bc`)
+- Assorted fixes: cancellable server start, config wipe, tree repaint storm,
+  case-sensitive filtering, unbounded context, and non-cancellable downloads
+  (`f1463a6`)
 - Cached the expensive `?show_all=true` full model catalog and the pinned
   `recipe.backend` map per server URL, so routine refresh and chat cycles reuse
   them instead of re-pulling the heavy catalog or re-reading /internal/config.
@@ -29,16 +38,26 @@ Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how 
   backend pin/uninstall, server switch, or server down - via
   `invalidateCatalog()` / `invalidatePinnedBackends()`, so transient fetch
   errors do not wipe the cache.
-- 21 files, 82.07 KB, 1.42.0, req1.140.0
+- Eye button to hide the Installed & Downloadable sections or show them again;
+  the choice persists per workspace (`bfe5b00`)
+- Expand/collapse state of the tree's sections is persisted across window
+  reloads and retained across hide/show toggles, refreshes, and grouping
+  switches (`4159f6c`)
+- Omni collection models (e.g. `LMX-Omni-5.5B-Lite`) now count as loaded in
+  Installed Models whenever every per-capability part they claim is loaded,
+  instead of showing green but never becoming active (`dd94aa9`)
+- Omni collections with all parts loaded now appear as entries in the Loaded
+  Models group and count toward its "Loaded Models (N)" header (`7a222ad`)
+- 21 files, 82.85 KB, 1.42.0, req1.140.0
 ```
 chanh-0.1.3.vsix
 ├─ [Content_Types].xml
 ├─ extension.vsixmanifest
 └─ extension/
    ├─ LICENSE.txt [1.06 KB]
-   ├─ changelog.md [8.02 KB]
+   ├─ changelog.md [10.2 KB]
    ├─ package.json [15.76 KB]
-   ├─ readme.md [3.41 KB]
+   ├─ readme.md [3.69 KB]
    ├─ dist/
    │  └─ extension.js [109.71 KB]
    └─ media/

@@ -1,8 +1,8 @@
 # Chanh 🍋
 **Chanh** `/ch-ahn/` (*n.*) — lime or lemon in Vietnamese
 
-A VS Code extension that downloads, hosts, and runs the [Lemonade Server](https://lemonade-server.ai/)[ embeddable binary](https://lemonade-server.ai/docs/embeddable/backends) locally, enabling AI chat with local LLMs directly in VS Code.
-<a href="https://marketplace.visualstudio.com/items?itemName=	lanly-dev.chanh" target="_blank">
+A VS Code extension that downloads, hosts, and runs the [Lemonade Server](https://lemonade-server.ai/) [embeddable binary](https://lemonade-server.ai/docs/embeddable/backends) locally, enabling AI chat with local LLMs directly in VS Code.
+<a href="https://marketplace.visualstudio.com/items?itemName=lanly-dev.chanh" target="_blank">
   <img src='https://code.visualstudio.com/favicon.ico' width='10'/>
 </a>
 <a href="https://open-vsx.org/extension/lanly-dev/chanh" target="_blank">
@@ -12,7 +12,7 @@ A VS Code extension that downloads, hosts, and runs the [Lemonade Server](https:
 ## Features
 - Managing/downloading Lemonade models
 - Chat integration: `@chanh` chat participant for quick Q&A, plus chat models with tool-calling support in the native VS Code model picker (agent mode, streaming, and vision)
-- Everything runs locally, and work offline
+- Everything runs locally and works offline
 - Multiple server modes: system-installed Lemonade Server, Embeddable Lemonade, or custom URL
 - Just another way to [integrate with VS Code](https://lemonade-server.ai/docs/integrations/ai-toolkit)
 
@@ -41,17 +41,21 @@ Plain chat models (no `tool-calling` label) remain available through the `@chanh
 | `chanh.lemonadePort` | `13305` | Port for the Lemonade Server (System) |
 | `chanh.serverMode` | `"LEMONADE"` | Which Lemonade Server to use: `LEMONADE`, `LEMOND`, or `CUSTOM` |
 | `chanh.maxLoadedModels` | (unset) | Maximum number of loaded models. Use `-1` for unlimited. |
+| `chanh.showTokenStats` | `false` | Show per-turn token stats in the chat/agent footer (from the model's `usage` block) |
+| `chanh.systemSampleInterval` | `5` | Seconds between System group CPU/GPU/RAM samples |
 
 ## Release Notes
+
 ### 0.1.3
-- Add Sub-capabilities filter
-- Add System utilization monitoring
-- Add token count footer option
+- Add an eye button to toggle Installed and Downloadable sections
 - Add custom endpoint option - Chanh 🍋‍🟩
 - Add omni, audio-gen treeview group
+- Add sub-capabilities filter
+- Add system utilization treeview display
+- Add token count footer option
 
 ### 0.1.2
-- Bugfixes and improve agent integration
+- Bugfixes and improved agent integration
 
 ### 0.1.1
 - Add backends/recipes management
