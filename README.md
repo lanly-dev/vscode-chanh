@@ -18,6 +18,14 @@ A VS Code extension that downloads, hosts, and runs the [Lemonade Server](https:
 
 <img src='https://github.com/lanly-dev/vscode-chanh/blob/main/media/sc.png?raw=true' width='600'/>
 
+## Interactive mockup
+A standalone, clickable prototype of the extension UI lives in [`mockup/index.html`](mockup/index.html). Open it directly in a browser — no build or server needed — and click **Play demo** for a guided tour of server management, model downloads, context/backend settings, chat and the native model picker. All data is simulated.
+
+<img src='mockup/preview.png' width='720'/>
+
+### Demo video
+A 2-minute narrated walkthrough of the real extension UI is available at [`demo/Chanh-UI-Demo.mp4`](demo/Chanh-UI-Demo.mp4). It covers server management, the model tree, model actions, Model Info, context/backend selection, the command palette and settings.
+
 ## Chat Commands
 The `@chanh` chat participant supports the following slash commands:
 
