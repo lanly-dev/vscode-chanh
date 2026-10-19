@@ -1,6 +1,7 @@
 *.vsix
+# Demo video is published on YouTube, not committed.
+*.mp4
 bin/
 dist/
 node_modules/
 package-lock.json
-website/
