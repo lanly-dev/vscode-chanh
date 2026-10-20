@@ -36,7 +36,8 @@ import type {
 
 /** Capability grouping order and display titles for the tree view. */
 const CAPABILITY_ORDER = [
-  'chat', 'image', 'transcription', 'embeddings', 'tts', 'omni', 'audio-generation', 'classification', 'reranking', '3d'
+  'chat', 'image', 'transcription', 'embeddings', 'tts', 'omni', 'audio-generation',
+  'classification', 'reranking', '3d', 'custom'
 ]
 
 const CAPABILITY_TITLES: Readonly<Record<string, string>> = {
@@ -50,6 +51,7 @@ const CAPABILITY_TITLES: Readonly<Record<string, string>> = {
   'audio-generation': 'Audio generation',
   image: 'Image',
   '3d': '3D',
+  custom: 'Custom',
   other: 'Other'
 }
 

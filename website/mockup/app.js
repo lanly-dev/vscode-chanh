@@ -18,10 +18,10 @@
   const now = () => 'just now';
   const cssEscape = (value) => (window.CSS && CSS.escape ? CSS.escape(value) : String(value).replace(/[^a-zA-Z0-9_-]/g, '\\$&'));
 
-  const CAP_ORDER = ['chat', 'image', 'transcription', 'embeddings', 'tts', 'omni', 'audio-generation', 'classification', 'reranking', '3d'];
+  const CAP_ORDER = ['chat', 'image', 'transcription', 'embeddings', 'tts', 'omni', 'audio-generation', 'classification', 'reranking', '3d', 'custom'];
   const CAP_TITLES = {
     omni: 'Omni', chat: 'Chat', embeddings: 'Embedding', reranking: 'Reranking', classification: 'Classification',
-    transcription: 'Transcription', tts: 'Text-to-Speech', 'audio-generation': 'Audio generation', image: 'Image', '3d': '3D', other: 'Other'
+    transcription: 'Transcription', tts: 'Text-to-Speech', 'audio-generation': 'Audio generation', image: 'Image', '3d': '3D', custom: 'Custom', other: 'Other'
   };
 
   const fmtSize = (gb) => {
