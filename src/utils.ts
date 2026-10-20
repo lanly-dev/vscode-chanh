@@ -199,3 +199,18 @@ export async function openLmConfigsFile(): Promise<void> {
   }
   await vscode.window.showTextDocument(uri)
 }
+
+/**
+ * Copy a model's id from a tree-view row to the clipboard. Wired to the
+ * "Copy Model ID" context menu, which is offered on every model-bearing row
+ * (installed, loaded, downloadable, partial) — all of them carry `modelId`.
+ */
+export async function copyModelId(item?: { modelId?: string }): Promise<void> {
+  const modelId = item?.modelId
+  if (!modelId) {
+    void vscode.window.showErrorMessage('Right-click a model in the Chanh view to copy its id')
+    return
+  }
+  await vscode.env.clipboard.writeText(modelId)
+  void vscode.window.showInformationMessage(`Copied model ID: ${modelId}`)
+}

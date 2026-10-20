@@ -7,7 +7,7 @@ import { listenConfigsChange, ServerManager } from './serverManager'
 import { Logger } from './logger'
 import { ModelDecorationProvider } from './modelDecorations'
 import { ModelManager } from './modelManager'
-import { openLmConfigsFile, openSetting, openUrl, revealBinaryDir } from './utils'
+import { copyModelId, openLmConfigsFile, openSetting, openUrl, revealBinaryDir } from './utils'
 import { refreshEvents } from './events'
 import { ServerViewProvider } from './serverTreeview'
 
@@ -55,30 +55,32 @@ export async function activate(context: ExtensionContext) {
   const d14 = rc('chanh.ncp.cancelDownload', (item: ModelTreeItem) => modelManager.cancelDownload(item.modelId))
   const d15 = rc('chanh.ncp.loadModel', (item: ModelTreeItem) => modelManager.loadModel(item.modelId))
   const d16 = rc('chanh.ncp.unloadModel', (item: ModelTreeItem) => modelManager.unloadModel(item.modelId))
-  const d17 = rc('chanh.ncp.removeModel', (item: ModelTreeItem) => modelManager.deleteModel(item.modelId))
-  const d18 = rc('chanh.ncp.showModelInfo', (item: ModelTreeItem) => modelManager.showModelInfo(item))
+  const d17 = rc('chanh.ncp.showModelInfo', (item: ModelTreeItem) => modelManager.showModelInfo(item))
+
+  const d18 = rc('chanh.ncp.copyModelId', (item: ModelTreeItem) => copyModelId(item))
   const d19 = rc('chanh.ncp.setModelContext', (item: ModelTreeItem) => modelManager.setModelContext(item))
   const d20 = rc('chanh.ncp.resetModelContext', (item: ModelTreeItem) => modelManager.resetModelContext(item))
+  const d21 = rc('chanh.ncp.removeModel', (item: ModelTreeItem) => modelManager.deleteModel(item.modelId))
 
-  const d21 = rc('chanh.ncp.selectBackend', (item: ModelTreeItem) => modelManager.selectBackend(item))
-  const d22 = rc('chanh.ncp.uninstallBackend', (item: BackendTreeItem) => modelManager.uninstallBackend(item))
+  const d22 = rc('chanh.ncp.selectBackend', (item: ModelTreeItem) => modelManager.selectBackend(item))
+  const d23 = rc('chanh.ncp.uninstallBackend', (item: BackendTreeItem) => modelManager.uninstallBackend(item))
 
-  const d23 = rc('chanh.ncp.configLmEndpoint', (item: ModelTreeItem) => modelManager.configLmEndpoint(item.modelId))
-  const d24 = rc('chanh.ncp.toggleModelSectionsHide', () => svProvider.toggleModelSections())
-  const d25 = rc('chanh.ncp.toggleModelSectionsShow', () => svProvider.toggleModelSections())
+  const d24 = rc('chanh.ncp.configLmEndpoint', (item: ModelTreeItem) => modelManager.configLmEndpoint(item.modelId))
+  const d25 = rc('chanh.ncp.toggleModelSectionsHide', () => svProvider.toggleModelSections())
+  const d26 = rc('chanh.ncp.toggleModelSectionsShow', () => svProvider.toggleModelSections())
 
-  const d26 = rc('chanh.ncp.toggleModelGrouping', () => svProvider.toggleModelGrouping())
-  const d27 = rc('chanh.ncp.toggleDlModelGrouping', () => svProvider.toggleDlModelGrouping())
-  const d28 = rc('chanh.ncp.toggleHotModels', () => svProvider.toggleHotModels())
-  const d29 = rc('chanh.ncp.filterCapGroup', (item: CapGroupTreeItem) => svProvider.filterCapGroup(item))
-  const d30 = rc('chanh.ncp.clearCapFilter', (item: CapGroupTreeItem) => svProvider.clearCapFilter(item))
+  const d27 = rc('chanh.ncp.toggleModelGrouping', () => svProvider.toggleModelGrouping())
+  const d28 = rc('chanh.ncp.toggleDlModelGrouping', () => svProvider.toggleDlModelGrouping())
+  const d29 = rc('chanh.ncp.toggleHotModels', () => svProvider.toggleHotModels())
+  const d30 = rc('chanh.ncp.filterCapGroup', (item: CapGroupTreeItem) => svProvider.filterCapGroup(item))
+  const d31 = rc('chanh.ncp.clearCapFilter', (item: CapGroupTreeItem) => svProvider.clearCapFilter(item))
 
-  const d31 = listenConfigsChange(serverManager)
-  const d32 = lmcProvider.register()
-  const d33 = window.registerFileDecorationProvider(new ModelDecorationProvider())
+  const d32 = listenConfigsChange(serverManager)
+  const d33 = lmcProvider.register()
+  const d34 = window.registerFileDecorationProvider(new ModelDecorationProvider())
 
   context.subscriptions.push(d1, d2, d3, d4, d5, d6, d7, d8, d9, d10, d11, d12, d13, d14, d15, d16, d17, d18, d19, d20,
-    d21, d22, d23, d24, d25, d26, d27, d28, d29, d30, d31, d32, d33, serverManager, chatParticipant, lmcProvider,
+    d21, d22, d23, d24, d25, d26, d27, d28, d29, d30, d31, d32, d33, d34, serverManager, chatParticipant, lmcProvider,
     svProvider, Logger
   )
   binaryManager.checkForUpdates()

@@ -166,6 +166,11 @@
         "icon": "$(info)"
       },
       {
+        "command": "chanh.ncp.copyModelId",
+        "title": "Copy Model ID",
+        "icon": "$(copy)"
+      },
+      {
         "command": "chanh.ncp.setModelContext",
         "title": "Set Context Size",
         "icon": "$(symbol-numeric)"
@@ -341,11 +346,6 @@
           "group": "inline"
         },
         {
-          "command": "chanh.ncp.removeModel",
-          "when": "view == CHANH_TREEVIEW && (viewItem =~ /CHANH_MODEL_(INSTALLED|LOADED)/ || viewItem == CHANH_LOADED_MODEL || viewItem == CHANH_PARTIAL_MODEL)",
-          "group": "2_remove"
-        },
-        {
           "command": "chanh.ncp.setModelContext",
           "when": "view == CHANH_TREEVIEW && viewItem =~ /CHANH_MODEL_(INSTALLED|LOADED)/",
           "group": "1_context@1"
@@ -354,6 +354,16 @@
           "command": "chanh.ncp.resetModelContext",
           "when": "view == CHANH_TREEVIEW && viewItem =~ /CHANH_MODEL_(INSTALLED|LOADED)_CTX_SET/",
           "group": "1_context@2"
+        },
+        {
+          "command": "chanh.ncp.copyModelId",
+          "when": "view == CHANH_TREEVIEW && (viewItem =~ /CHANH_MODEL_(INSTALLED|LOADED)/ || viewItem == CHANH_LOADED_MODEL || viewItem == CHANH_DOWNLOADABLE_MODEL || viewItem == CHANH_PARTIAL_MODEL)",
+          "group": "1_context@3"
+        },
+        {
+          "command": "chanh.ncp.removeModel",
+          "when": "view == CHANH_TREEVIEW && (viewItem =~ /CHANH_MODEL_(INSTALLED|LOADED)/ || viewItem == CHANH_LOADED_MODEL || viewItem == CHANH_PARTIAL_MODEL)",
+          "group": "2_remove"
         },
         {
           "command": "chanh.ncp.showModelInfo",
@@ -445,6 +455,10 @@
       },
       {
         "command": "chanh.ncp.showModelInfo",
+        "when": "false"
+      },
+      {
+        "command": "chanh.ncp.copyModelId",
         "when": "false"
       },
       {
