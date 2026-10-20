@@ -1,5 +1,7 @@
 import * as vscode from 'vscode'
-import { closeOpenMarkdownFence, formatTurnFooter, shouldShowTokenStats } from './utils'
+import {
+  closeOpenMarkdownFence, contextBudget, formatTurnFooter, outputTokenBudget, shouldShowTokenStats
+} from './utils'
 import { Logger } from './logger'
 import { ServerStatus } from './interfaces'
 import { ModelManager } from './modelManager'
@@ -7,26 +9,6 @@ import type { ChatCompletionRequest, ChatContentPart, ChatMessage, OpenAIMessage
 import type { ToolCall, ToolDefinition } from './interfaces'
 import type { ChatStreamStats } from './interfaces'
 import type { ServerManager } from './serverManager'
-
-/**
- * Completion budget for a context window: half the window, floored at 256 and
- * capped at 4096 so a wide window does not invite a rambling answer.
- */
-function outputTokenBudget(contextWindow: number): number {
-  return Math.min(Math.max(Math.floor(contextWindow / 2), 256), 4096)
-}
-
-/**
- * Split a context window between prompt and completion. Measured on llama.cpp,
- * the window is shared by the two (an uncapped turn stopped at exactly
- * `total_tokens == ctx_size`), so declaring each equal to the whole window
- * over-promises by 2x: the host assembles a prompt the completion no longer
- * fits alongside, and the server drops the oldest tokens without saying so.
- */
-function contextBudget(contextWindow: number): { maxInput: number, maxOutput: number } {
-  const maxOutput = outputTokenBudget(contextWindow)
-  return { maxInput: Math.max(contextWindow - maxOutput, 1), maxOutput }
-}
 
 /** The `tool_choice` shapes the server accepts for a non-empty tool list. */
 type ToolChoice = NonNullable<ChatCompletionRequest['tool_choice']>

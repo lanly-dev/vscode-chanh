@@ -82,6 +82,26 @@ export function shouldShowTokenStats(): boolean {
   return vscode.workspace.getConfiguration('chanh').get<boolean>('showTokenStats', false)
 }
 
+/**
+ * Completion budget for a context window: half the window, floored at 256 and
+ * capped at 4096 so a wide window does not invite a rambling answer.
+ */
+export function outputTokenBudget(contextWindow: number): number {
+  return Math.min(Math.max(Math.floor(contextWindow / 2), 256), 4096)
+}
+
+/**
+ * Split a context window between prompt and completion. Measured on llama.cpp,
+ * the window is shared by the two (an uncapped turn stopped at exactly
+ * `total_tokens == ctx_size`), so declaring each equal to the whole window
+ * over-promises by 2x: the host assembles a prompt the completion no longer
+ * fits alongside, and the server drops the oldest tokens without saying so.
+ */
+export function contextBudget(contextWindow: number): { maxInput: number, maxOutput: number } {
+  const maxOutput = outputTokenBudget(contextWindow)
+  return { maxInput: Math.max(contextWindow - maxOutput, 1), maxOutput }
+}
+
 
 /** Format a byte count as a human-readable size (e.g. 1.2 GB). */
 export function formatBytes(value: number): string {

@@ -12,7 +12,9 @@ import {
   ChatResponseTurn,
   ChatResult,
   Disposable,
-  ThemeIcon
+  Location,
+  ThemeIcon,
+  Uri
 } from 'vscode'
 
 import { LemonadeClient } from './lemonadeClient'
@@ -21,8 +23,8 @@ import { ModelManager } from './modelManager'
 import { ServerManager } from './serverManager'
 import { ServerStatus } from './interfaces'
 
-import type { ChatStreamStats } from './interfaces'
-import { closeOpenMarkdownFence, formatTurnFooter, shouldShowTokenStats } from './utils'
+import type { ChatMessage, ChatStreamStats, LemonadeModel } from './interfaces'
+import { closeOpenMarkdownFence, contextBudget, formatTurnFooter, shouldShowTokenStats } from './utils'
 
 // Handles VS Code chat requests by forwarding them to the Lemonade Server.
 export class ChatParticipant implements Disposable {
@@ -32,6 +34,8 @@ export class ChatParticipant implements Disposable {
   private client: LemonadeClient
   private participant: VSCodeChatParticipant
   private selectedModel: string | undefined
+  /** Context window (tokens) of the model resolved for this session. */
+  private contextWindow = 8192
 
   constructor(private serverManager: ServerManager, private modelManager: ModelManager) {
     this.client = new LemonadeClient(serverManager.activeServerUrl)
@@ -84,7 +88,8 @@ export class ChatParticipant implements Disposable {
     const config = workspace.getConfiguration('chanh')
     const chatModel = config.get<string>('chatModel', '')
     if (chatModel) {
-      if (chatModels.some((m) => m.id === chatModel)) return await this.loadForChat(chatModel)
+      const configured = chatModels.find((m) => m.id === chatModel)
+      if (configured) return await this.loadForChat(configured)
       window.showWarningMessage(
         `Configured chat model '${chatModel}' is not available on the server. Pick another model.`
       )
@@ -98,16 +103,20 @@ export class ChatParticipant implements Disposable {
       ignoreFocusOut: true
     })
     if (!selected) return undefined
-    return await this.loadForChat(selected.label)
+    const picked = chatModels.find((m) => m.id === selected.label)
+    if (!picked) return undefined
+    return await this.loadForChat(picked)
   }
 
   /** Load the model on the server (a no-op when already loaded) and remember it. */
-  private async loadForChat(model: string): Promise<string> {
-    await this.client.loadModel(model)
-    this.selectedModel = model
+  private async loadForChat(model: LemonadeModel): Promise<string> {
+    await this.client.loadModel(model.id)
+    this.selectedModel = model.id
+    // Remember the window so history trimming can budget against it.
+    this.contextWindow = model.context_length ?? model.max_context_window ?? 8192
     // Keep the tree view's loaded rows in sync with this implicit load.
     this.modelManager?.refreshTreeView()
-    return model
+    return model.id
   }
 
   /** Set the selected model. */
@@ -159,16 +168,35 @@ export class ChatParticipant implements Disposable {
       return { errorDetails: { message: 'No model available' } }
     }
 
-    // Build the chat messages from history
-    const history = this.extractHistory(context)
-    const messages = LemonadeClient.toChatMessages(request.prompt, history, request.command)
+    // Resolve explicit #file#/symbol references into one context message.
+    const references = await this.buildReferenceContext(request)
 
-    // Attach the active editor's content as context. getEditorContext() already
-    // returns a complete, fenced message, so it is sent verbatim as a user turn
-    // right before the prompt — a second wrapper would nest code fences and
-    // break the markdown (and small models weigh the turns closest to the
-    // question more).
-    const editorContext = this.getEditorContext()
+    // Active editor context — skipped when its file was already attached above
+    // (sending it twice wastes the same tokens twice). Note that context must
+    // be re-sent every turn: /v1/chat/completions is stateless and VS Code's
+    // history carries only prompts/replies, not what we splice in here.
+    let editorContext: string | undefined
+    const activeDoc = window.activeTextEditor?.document
+    if (activeDoc && !references.files.has(activeDoc.uri.fsPath)) {
+      editorContext = this.getEditorContext()
+    }
+
+    // Build the chat messages from history, trimmed to the model's window.
+    const history = this.extractHistory(context)
+    const trimmedHistory = await this.trimHistory(history, [
+      LemonadeClient.buildSystemPrompt(request.command),
+      references.text,
+      editorContext,
+      request.prompt
+    ])
+    const messages = LemonadeClient.toChatMessages(request.prompt, trimmedHistory, request.command)
+
+    // Attach context as user turns right before the prompt — a wrapper would
+    // nest code fences and break the markdown (and small models weigh the
+    // turns closest to the question more).
+    if (references.text) {
+      messages.splice(messages.length - 1, 0, { role: 'user', content: references.text })
+    }
     if (editorContext) {
       messages.splice(messages.length - 1, 0, { role: 'user', content: editorContext })
     }
@@ -248,6 +276,149 @@ export class ChatParticipant implements Disposable {
       }
     }
     return history
+  }
+
+  /** Max chars of any single reference attachment sent as context. */
+  private static readonly MAX_REFERENCE_CHARS = 16384
+
+  /**
+   * Resolve the request's `#file#`/`#symbol#` references into one context
+   * message. Whole-file `Uri`s are read in full (capped), `Location`
+   * references contribute just their selected range, and plain strings are
+   * passed through. Also returns the set of file paths covered so callers can
+   * avoid attaching the same file twice.
+   */
+  private async buildReferenceContext(
+    request: ChatRequest
+  ): Promise<{ text?: string, files: Set<string> }> {
+    const files = new Set<string>()
+    const blocks: string[] = []
+
+    for (const reference of request.references) {
+      const value = reference.value
+      try {
+        if (value instanceof Uri) {
+          const content = await this.readReferenceText(value)
+          if (content === undefined) continue
+          files.add(value.fsPath)
+          blocks.push(this.formatReferenceBlock(value, content))
+        } else if (value instanceof Location) {
+          const document = await workspace.openTextDocument(value.uri)
+          const content = document.getText(value.range)
+          if (!content.trim()) continue
+          files.add(value.uri.fsPath)
+          const label = value.uri.fsPath.split(/[\\/]/).pop() ?? value.uri.fsPath
+          const range = value.range
+          blocks.push(
+            `File: ${label} (lines ${range.start.line + 1}-${range.end.line + 1})\n` +
+            this.fenceReference(content, document.languageId)
+          )
+        } else if (typeof value === 'string' && value.trim()) {
+          // Symbol names and other plain-string values.
+          blocks.push(`${reference.modelDescription ?? 'Reference'}: ${value}`)
+        }
+      } catch (err) {
+        // A deleted/inaccessible reference must not fail the whole request.
+        Logger.warn(`Failed to resolve chat reference: ${err}`)
+      }
+    }
+
+    if (blocks.length === 0) return { files }
+    return { text: `The user attached the following reference(s):\n\n${blocks.join('\n\n')}`, files }
+  }
+
+  /** Read a referenced file's text, or undefined when unreadable. */
+  private async readReferenceText(uri: Uri): Promise<string | undefined> {
+    try {
+      const document = await workspace.openTextDocument(uri)
+      return document.getText()
+    } catch (err) {
+      Logger.warn(`Cannot read referenced file ${uri.fsPath}: ${err}`)
+      return undefined
+    }
+  }
+
+  /** Format a whole-file reference as a fenced block, truncated when huge. */
+  private formatReferenceBlock(uri: Uri, content: string): string {
+    const label = uri.fsPath.split(/[\\/]/).pop() ?? uri.fsPath
+    // openTextDocument already mapped the language; reuse it when available.
+    let languageId = 'plaintext'
+    const doc = workspace.textDocuments.find((d) => d.uri.fsPath === uri.fsPath)
+    if (doc) languageId = doc.languageId
+    return `File: ${label}\n${this.fenceReference(content, languageId)}`
+  }
+
+  /** Fence reference content, truncating to the cap with a visible note. */
+  private fenceReference(content: string, languageId: string): string {
+    const max = ChatParticipant.MAX_REFERENCE_CHARS
+    const isTruncated = content.length > max
+    const visible = isTruncated ? content.slice(0, max) : content
+    const note = isTruncated
+      ? `\n\n[Note: this reference was truncated to ${max} chars for context.]`
+      : ''
+    return `\`\`\`${languageId}\n${visible}\n\`\`\`${note}`
+  }
+
+  /**
+   * Trim the oldest history turns when the assembled request would overflow
+   * the model's input budget. Without this, long sessions fail with an opaque
+   * server error (or the server silently drops the oldest tokens). Returns the
+   * turns to send, with a note when anything was cut.
+   */
+  private async trimHistory(
+    history: Array<{ role: string, content: string }>,
+    fixedTexts: Array<string | undefined>
+  ): Promise<Array<{ role: string, content: string }>> {
+    if (history.length === 0) return history
+
+    const { maxInput } = contextBudget(this.contextWindow)
+    // Tokens consumed by everything that is not history: system prompt,
+    // context attachments, and the prompt itself. The margin covers
+    // per-message framing the tokenizer never sees.
+    const fixedTokens = await this.countTokens(fixedTexts.filter((t): t is string => !!t).join('\n'))
+    const budget = maxInput - fixedTokens - 32
+    // A huge attachment can dwarf the window; trimming all history would not
+    // help, so leave the request alone and let the server's own handling apply.
+    if (budget <= 0) return history
+
+    // One tokenize call for the whole history; only when it overflows do we
+    // pay the per-turn round trips to find the cut point.
+    const historyText = history.map((m) => `${m.role}: ${m.content}`).join('\n')
+    if (await this.countTokens(historyText) <= budget) return history
+
+    const kept: Array<{ role: string, content: string }> = []
+    let used = 0
+    for (let i = history.length - 1; i >= 0; i--) {
+      const turn = history[i]
+      const turnTokens = await this.countTokens(`${turn.role}: ${turn.content}`)
+      if (used + turnTokens > budget) break
+      used += turnTokens
+      kept.unshift(turn)
+    }
+    const dropped = history.length - kept.length
+    Logger.info(
+      `Trimmed ${dropped} of ${history.length} chat history turn(s) to fit ` +
+      `the ${this.contextWindow}-token window (${used}/${budget} tokens kept)`
+    )
+    if (dropped === 0) return history
+    return [
+      {
+        role: 'user',
+        content: `[Note: ${dropped} earlier message(s) were trimmed to fit the model's context window.]`
+      },
+      ...kept
+    ]
+  }
+
+  /** Token count via the server, with a character estimate as fallback. */
+  private async countTokens(text: string): Promise<number> {
+    if (!text) return 0
+    try {
+      return await this.client.tokenize(text)
+    } catch (err) {
+      Logger.warn(`Cannot reach the server tokenizer, using character estimate: ${err}`)
+      return Math.ceil(text.length / 4)
+    }
   }
 
   /**
