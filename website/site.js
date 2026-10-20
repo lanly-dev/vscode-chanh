@@ -4,99 +4,119 @@
   const $ = (selector, root = document) => root.querySelector(selector)
   const $$ = (selector, root = document) => Array.from(root.querySelectorAll(selector))
 
-  // Header elevation
-  const header = $('.site-header')
-  const onScroll = () => header?.classList.toggle('scrolled', window.scrollY > 8)
-  onScroll()
-  window.addEventListener('scroll', onScroll, { passive: true })
+  /* Table of contents ------------------------------------------------ */
+  const allTocLinks = $$('.toc a[href^="#"]')
+  const sections = [...new Set(allTocLinks.map(link => link.getAttribute('href').slice(1)))]
+    .map(id => document.getElementById(id))
+    .filter(Boolean)
 
-  // Mobile navigation
-  const navToggle = $('.nav-toggle')
-  const navLinks = $('#nav-links')
-  navToggle?.addEventListener('click', () => {
-    const open = navLinks?.classList.toggle('open')
-    navToggle.setAttribute('aria-expanded', String(Boolean(open)))
-  })
-  $$('.nav-links a').forEach(link => link.addEventListener('click', () => {
-    navLinks?.classList.remove('open')
-    navToggle?.setAttribute('aria-expanded', 'false')
-  }))
-
-  // Reveal on scroll
-  const revealables = $$('.reveal')
-  const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches
-  if (!reduceMotion && 'IntersectionObserver' in window) {
-    const observer = new IntersectionObserver((entries) => {
-      for (const entry of entries) {
-        if (entry.isIntersecting) {
-          entry.target.classList.add('is-visible')
-          observer.unobserve(entry.target)
-        }
-      }
-    }, { threshold: 0.12, rootMargin: '0px 0px -40px 0px' })
-    revealables.forEach(el => observer.observe(el))
-  } else {
-    revealables.forEach(el => el.classList.add('is-visible'))
+  function setActive(id) {
+    allTocLinks.forEach(link => {
+      link.classList.toggle('active', link.getAttribute('href') === `#${id}`)
+    })
   }
 
-  // Copy install command
-  $$('[data-copy]').forEach(button => {
-    button.addEventListener('click', async () => {
-      const text = button.getAttribute('data-copy') || ''
-      const label = button.querySelector('span')
-      try {
-        await navigator.clipboard.writeText(text)
-      } catch {
-        const area = document.createElement('textarea')
-        area.value = text
-        area.style.position = 'fixed'
-        area.style.opacity = '0'
-        document.body.appendChild(area)
-        area.select()
-        try { document.execCommand('copy') } catch { /* ignore */ }
-        area.remove()
-      }
-      if (label) {
-        const original = label.textContent
-        label.textContent = 'Copied'
-        button.classList.add('copied')
-        setTimeout(() => { label.textContent = original; button.classList.remove('copied') }, 1600)
-      }
+  function updateActiveSection() {
+    if (!sections.length) return
+    const offset = window.scrollY + 110
+    let current = sections[0]
+    for (const section of sections) {
+      const top = section.getBoundingClientRect().top + window.scrollY
+      if (top <= offset) current = section
+    }
+    if (window.innerHeight + window.scrollY >= document.documentElement.scrollHeight - 4) {
+      current = sections[sections.length - 1]
+    }
+    setActive(current.id)
+  }
+
+  let tocTicking = false
+  function onTocScroll() {
+    if (tocTicking) return
+    tocTicking = true
+    requestAnimationFrame(() => {
+      updateActiveSection()
+      tocTicking = false
     })
+  }
+
+  updateActiveSection()
+  window.addEventListener('scroll', onTocScroll, { passive: true })
+  window.addEventListener('resize', onTocScroll)
+
+  allTocLinks.forEach(link => link.addEventListener('click', () => {
+    setActive(link.getAttribute('href').slice(1))
+    const details = link.closest('details')
+    if (details) details.open = false
+  }))
+
+  /* Copy buttons ----------------------------------------------------- */
+  async function copyText(text) {
+    try {
+      await navigator.clipboard.writeText(text)
+    } catch {
+      const area = document.createElement('textarea')
+      area.value = text
+      area.setAttribute('readonly', '')
+      area.style.position = 'fixed'
+      area.style.opacity = '0'
+      document.body.appendChild(area)
+      area.select()
+      document.execCommand('copy')
+      area.remove()
+    }
+  }
+
+  document.addEventListener('click', async event => {
+    const button = event.target.closest('[data-copy], [data-copy-target]')
+    if (!button) return
+    let text = button.dataset.copy
+    if (text === undefined) {
+      const target = document.querySelector(button.dataset.copyTarget)
+      text = target?.innerText ?? target?.textContent ?? ''
+    }
+    try {
+      await copyText(text)
+      const label = button.querySelector('span')
+      const original = label ? label.textContent : button.textContent
+      if (label) label.textContent = 'Copied'
+      button.classList.add('copied')
+      window.setTimeout(() => {
+        if (label) label.textContent = original
+        button.classList.remove('copied')
+      }, 1600)
+    } catch {
+      /* Clipboard permissions can fail on file://; leave the selection alone. */
+    }
   })
 
-  // YouTube demo link — set this when the video is published.
-  // Example: const YOUTUBE_URL = 'https://youtu.be/XXXXXXXXXXX'
+  /* YouTube placeholder ---------------------------------------------- */
   const YOUTUBE_URL = ''
   const youtubeButtons = $$('[data-youtube]')
   const youtubeBadges = $$('[data-youtube-badge]')
   const youtubeNote = $('#youtube-note')
-  let youtubeHintTimer = null
+  const youtubeNoteText = $('#youtube-note-text')
 
   if (YOUTUBE_URL) {
     youtubeButtons.forEach(button => button.setAttribute('aria-label', 'Watch the Chanh demo on YouTube'))
     youtubeBadges.forEach(badge => { badge.textContent = 'Watch on YouTube' })
-    const noteText = $('#youtube-note-text')
-    if (noteText) {
+    if (youtubeNoteText) {
       const link = document.createElement('a')
       link.href = YOUTUBE_URL
       link.target = '_blank'
       link.rel = 'noopener'
       link.textContent = 'YouTube'
-      noteText.textContent = 'Watch the full 1:57 walkthrough on '
-      noteText.append(link, '.')
+      youtubeNoteText.textContent = 'Watch the full UI walkthrough on '
+      youtubeNoteText.append(link, '.')
     }
   }
 
-  function previewDemo() {
-    const demo = $('#demo')
-    if (demo) demo.scrollIntoView({ behavior: reduceMotion ? 'auto' : 'smooth', block: 'start' })
+  function pulseDemoNote() {
     if (!youtubeNote) return
     youtubeNote.classList.remove('pulse')
     void youtubeNote.offsetWidth
     youtubeNote.classList.add('pulse')
-    clearTimeout(youtubeHintTimer)
-    youtubeHintTimer = setTimeout(() => youtubeNote.classList.remove('pulse'), 2600)
+    window.setTimeout(() => youtubeNote.classList.remove('pulse'), 1700)
   }
 
   youtubeButtons.forEach(button => {
@@ -104,12 +124,13 @@
       if (YOUTUBE_URL) {
         window.open(YOUTUBE_URL, '_blank', 'noopener')
       } else {
-        previewDemo()
+        $('#demo')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+        pulseDemoNote()
       }
     })
   })
 
-  // Footer year
+  /* Footer ----------------------------------------------------------- */
   const year = $('#year')
   if (year) year.textContent = String(new Date().getFullYear())
 })()

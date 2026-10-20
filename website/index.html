@@ -3,26 +3,25 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Chanh 🍋 — Run local AI models inside VS Code</title>
-  <meta name="description" content="Chanh is a free VS Code extension that runs Lemonade Server locally. Manage models, chat offline, and use local LLMs in agent mode — no cloud round-trip." />
-  <meta name="theme-color" content="#0b0d10" />
+  <title>Chanh — Technical documentation</title>
+  <meta name="description" content="Technical documentation for Chanh, a VS Code extension that manages a local Lemonade Server, local models, chat and agent-mode integration." />
+  <meta name="theme-color" content="#0c0f13" />
   <link rel="icon" href="./assets/chanh.svg" type="image/svg+xml" />
   <link rel="apple-touch-icon" href="./mockup/assets/chanh.png" />
   <link rel="canonical" href="https://lanly-dev.github.io/lemond/" />
-  <!-- If the repository is renamed, update the canonical URL, og:url and GitHub links below. -->
 
-  <meta property="og:type" content="website" />
-  <meta property="og:title" content="Chanh 🍋 — Run local AI models inside VS Code" />
-  <meta property="og:description" content="Local LLMs, native agent mode and a full model manager — inside VS Code. Free, private and offline-ready." />
+  <meta property="og:type" content="article" />
+  <meta property="og:title" content="Chanh — Technical documentation" />
+  <meta property="og:description" content="Architecture, server modes, model lifecycle, configuration, commands and agent integration for the Chanh VS Code extension." />
   <meta property="og:url" content="https://lanly-dev.github.io/lemond/" />
   <meta property="og:image" content="https://lanly-dev.github.io/lemond/demo/Chanh-Demo-Poster.png" />
   <meta name="twitter:card" content="summary_large_image" />
-  <meta name="twitter:title" content="Chanh 🍋 — Run local AI models inside VS Code" />
-  <meta name="twitter:description" content="Local LLMs, native agent mode and a full model manager — inside VS Code. Free, private and offline-ready." />
+  <meta name="twitter:title" content="Chanh — Technical documentation" />
+  <meta name="twitter:description" content="Architecture, server modes, model lifecycle, configuration, commands and agent integration for the Chanh VS Code extension." />
   <meta name="twitter:image" content="https://lanly-dev.github.io/lemond/demo/Chanh-Demo-Poster.png" />
 
   <link rel="stylesheet" href="./styles.css" />
-  <noscript><style>.reveal { opacity: 1 !important; transform: none !important; }</style></noscript>
+  <noscript><style>.toc a.active { background: transparent; border-left-color: var(--gold); }</style></noscript>
 
   <script type="application/ld+json">
   {
@@ -31,7 +30,7 @@
     "name": "Chanh",
     "applicationCategory": "DeveloperApplication",
     "operatingSystem": "Windows, macOS, Linux",
-    "description": "A free VS Code extension that runs Lemonade Server locally, manages local models, and exposes them to VS Code chat and agent mode.",
+    "description": "A VS Code extension that manages a local Lemonade Server and exposes local models to VS Code chat and agent mode.",
     "url": "https://lanly-dev.github.io/lemond/",
     "downloadUrl": "https://marketplace.visualstudio.com/items?itemName=lanly-dev.chanh",
     "license": "https://github.com/lanly-dev/lemond/blob/main/LICENSE",
@@ -41,391 +40,544 @@
   </script>
 </head>
 <body>
-  <a class="skip-link" href="#main">Skip to content</a>
+  <a class="skip-link" href="#overview">Skip to content</a>
 
   <svg class="sprite" aria-hidden="true">
-    <symbol id="i-server" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="7" rx="2"/><rect x="3" y="13" width="18" height="7" rx="2"/><path d="M7 7.5h.01M7 16.5h.01"/></symbol>
-    <symbol id="i-layers" viewBox="0 0 24 24"><path d="m12 3 9 4.5-9 4.5-9-4.5z"/><path d="m3 12 9 4.5 9-4.5"/><path d="m3 16.5 9 4.5 9-4.5"/></symbol>
-    <symbol id="i-sparkles" viewBox="0 0 24 24"><path d="m12 3 1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9z"/><path d="M19 16v4M17 18h4"/></symbol>
-    <symbol id="i-shield" viewBox="0 0 24 24"><path d="M12 3 5 6v5c0 4.6 2.9 8.1 7 10 4.1-1.9 7-5.4 7-10V6z"/><path d="m9 12 2 2 4-4"/></symbol>
-    <symbol id="i-sliders" viewBox="0 0 24 24"><path d="M4 6h10M18 6h2M4 12h4M12 12h8M4 18h10M18 18h2"/><circle cx="16" cy="6" r="2"/><circle cx="10" cy="12" r="2"/><circle cx="16" cy="18" r="2"/></symbol>
-    <symbol id="i-offline" viewBox="0 0 24 24"><path d="M3 3l18 18"/><path d="M8.5 15.5a5 5 0 0 1 6.5-.8M5 12.3a9 9 0 0 1 3.4-1.7M2 8.8A15 15 0 0 1 8 5.7M15.5 6a15 15 0 0 1 6.5 2.8M19 12.3a9 9 0 0 0-2.3-1.4M12 19h.01"/></symbol>
-    <symbol id="i-check" viewBox="0 0 24 24"><path d="m4 12 5 5L20 6"/></symbol>
-    <symbol id="i-play" viewBox="0 0 24 24"><path d="M8 5v14l11-7z" style="fill:currentColor;stroke:none"/></symbol>
     <symbol id="i-github" viewBox="0 0 24 24"><path d="M9 19c-4 1.2-4-2.2-6-2.8M15 21v-3.2a2.8 2.8 0 0 0-.8-2.1c2.7-.3 5.6-1.4 5.6-6.1a4.7 4.7 0 0 0-1.3-3.2 4.4 4.4 0 0 0-.1-3.2s-1-.3-3.3 1.2a11.5 11.5 0 0 0-6 0C6.8 2.9 5.8 3.2 5.8 3.2a4.4 4.4 0 0 0-.1 3.2A4.7 4.7 0 0 0 4.4 9.6c0 4.7 2.9 5.8 5.6 6.1a2.8 2.8 0 0 0-.8 2.1V21"/></symbol>
+    <symbol id="i-external" viewBox="0 0 24 24"><path d="M14 4h6v6M20 4l-9 9"/><path d="M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5"/></symbol>
     <symbol id="i-copy" viewBox="0 0 24 24"><rect x="8" y="8" width="12" height="13" rx="2"/><path d="M16 8V5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h3"/></symbol>
+    <symbol id="i-check" viewBox="0 0 24 24"><path d="m4 12 5 5L20 6"/></symbol>
     <symbol id="i-arrow" viewBox="0 0 24 24"><path d="M5 12h14m-6-6 6 6-6 6"/></symbol>
-    <symbol id="i-download" viewBox="0 0 24 24"><path d="M12 3v12m-5-5 5 5 5-5M4 20h16"/></symbol>
-    <symbol id="i-close" viewBox="0 0 24 24"><path d="m6 6 12 12M18 6 6 18"/></symbol>
+    <symbol id="i-play" viewBox="0 0 24 24"><path d="M8 5v14l11-7z" style="fill:currentColor;stroke:none"/></symbol>
+    <symbol id="i-lock" viewBox="0 0 24 24"><rect x="4" y="10" width="16" height="11" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></symbol>
     <symbol id="i-menu" viewBox="0 0 24 24"><path d="M4 7h16M4 12h16M4 17h16"/></symbol>
   </svg>
 
-  <header class="site-header" id="top">
-    <div class="container nav">
-      <a class="brand" href="#top" aria-label="Chanh home">
-        <img src="./assets/chanh.svg" alt="" width="32" height="32" />
-        <span>Chanh <small>for VS Code</small></span>
+  <header class="topbar" id="top">
+    <div class="topbar-inner">
+      <a class="brand" href="#overview" aria-label="Chanh documentation">
+        <img src="./assets/chanh.svg" alt="" width="28" height="28" />
+        <span class="brand-text"><strong>Chanh</strong><span>Documentation</span></span>
       </a>
-
-      <button class="nav-toggle" type="button" aria-label="Toggle navigation" aria-expanded="false" aria-controls="nav-links">
-        <svg class="icon"><use href="#i-menu"></use></svg>
-      </button>
-
-      <nav class="nav-links" id="nav-links" aria-label="Primary">
-        <a href="#features">Features</a>
-        <a href="#demo">Demo</a>
-        <a href="#inside">Inside</a>
-        <a href="#mockup">Mockup</a>
-        <a href="#install">Install</a>
-        <a href="#faq">FAQ</a>
-        <a class="mobile-install" href="https://marketplace.visualstudio.com/items?itemName=lanly-dev.chanh" target="_blank" rel="noopener">Install extension</a>
+      <span class="version-pill">v0.1.4</span>
+      <nav class="topbar-nav" aria-label="Project links">
+        <a href="https://github.com/lanly-dev/lemond" target="_blank" rel="noopener"><svg class="icon"><use href="#i-github"></use></svg>GitHub</a>
+        <a href="https://marketplace.visualstudio.com/items?itemName=lanly-dev.chanh" target="_blank" rel="noopener">Marketplace</a>
+        <a href="https://open-vsx.org/extension/lanly-dev/chanh" target="_blank" rel="noopener">Open VSX</a>
       </nav>
-
-      <div class="nav-actions">
-        <a class="btn btn-ghost btn-small nav-github" href="https://github.com/lanly-dev/lemond" target="_blank" rel="noopener">
-          <svg class="icon"><use href="#i-github"></use></svg>
-          <span>GitHub</span>
-        </a>
-        <a class="btn btn-primary btn-small" href="https://marketplace.visualstudio.com/items?itemName=lanly-dev.chanh" target="_blank" rel="noopener">
-          Install
-        </a>
-      </div>
+      <a class="topbar-install" href="https://marketplace.visualstudio.com/items?itemName=lanly-dev.chanh" target="_blank" rel="noopener">Install</a>
     </div>
   </header>
 
-  <main id="main">
-    <section class="hero">
-      <div class="container hero-grid">
-        <div class="hero-copy">
-          <span class="eyebrow"><span class="dot"></span>Free · Local · Open source</span>
-          <h1>Your models.<br />Your machine.<br /><span class="accent">Your editor.</span></h1>
-          <p class="lede">
-            Chanh runs a <strong>Lemonade Server</strong> on your machine and brings local models into VS Code.
-            Chat, agent mode, vision and tool calling — without sending your code to the cloud.
+  <div class="docs-shell">
+    <aside class="docs-sidebar">
+      <div class="sidebar-sticky">
+        <p class="sidebar-heading">On this page</p>
+        <nav class="toc" id="toc" aria-label="Table of contents">
+          <a href="#overview" class="active"><span class="toc-num">01</span>Overview</a>
+          <a href="#architecture"><span class="toc-num">02</span>Architecture</a>
+          <a href="#requirements"><span class="toc-num">03</span>Requirements</a>
+          <a href="#installation"><span class="toc-num">04</span>Installation</a>
+          <a href="#server-modes"><span class="toc-num">05</span>Server modes</a>
+          <a href="#model-lifecycle"><span class="toc-num">06</span>Model lifecycle</a>
+          <a href="#configuration"><span class="toc-num">07</span>Configuration</a>
+          <a href="#chat-agent"><span class="toc-num">08</span>Chat &amp; agent mode</a>
+          <a href="#commands"><span class="toc-num">09</span>Commands</a>
+          <a href="#demo"><span class="toc-num">10</span>Demo &amp; mockup</a>
+          <a href="#development"><span class="toc-num">11</span>Development</a>
+          <a href="#license"><span class="toc-num">12</span>License</a>
+        </nav>
+        <div class="sidebar-footer">
+          <a href="https://github.com/lanly-dev/lemond/edit/main/website/index.html" target="_blank" rel="noopener">Edit this page</a>
+          <span>MIT licensed</span>
+        </div>
+      </div>
+    </aside>
+
+    <main class="doc-main">
+      <details class="mobile-toc">
+        <summary><svg class="icon"><use href="#i-menu"></use></svg>On this page</summary>
+        <nav class="toc" aria-label="Table of contents">
+          <a href="#overview">Overview</a>
+          <a href="#architecture">Architecture</a>
+          <a href="#requirements">Requirements</a>
+          <a href="#installation">Installation</a>
+          <a href="#server-modes">Server modes</a>
+          <a href="#model-lifecycle">Model lifecycle</a>
+          <a href="#configuration">Configuration</a>
+          <a href="#chat-agent">Chat &amp; agent mode</a>
+          <a href="#commands">Commands</a>
+          <a href="#demo">Demo &amp; mockup</a>
+          <a href="#development">Development</a>
+          <a href="#license">License</a>
+        </nav>
+      </details>
+
+      <article class="doc-article">
+        <header class="doc-header" id="overview">
+          <p class="doc-eyebrow">VS Code extension · Local inference</p>
+          <h1>Chanh <span class="pronunciation">/ch-ahn/</span></h1>
+          <p class="doc-lede">
+            Chanh downloads, hosts and runs a <strong>Lemonade Server</strong> locally, then exposes the models it serves
+            to VS Code. It is an integration layer for the editor: server lifecycle, model management, chat, agent mode
+            and runtime visibility. Model execution is handled by Lemonade.
           </p>
-          <div class="hero-actions">
-            <a class="btn btn-primary" href="https://marketplace.visualstudio.com/items?itemName=lanly-dev.chanh" target="_blank" rel="noopener">
-              <svg class="icon"><use href="#i-download"></use></svg>
-              Install extension
-            </a>
-            <button class="btn btn-secondary" type="button" data-youtube aria-label="Preview the Chanh demo; the video is coming to YouTube">
-              <svg class="icon"><use href="#i-play"></use></svg>
-              Preview the demo
-            </button>
-            <a class="btn btn-ghost" href="./mockup/" target="_blank" rel="noopener">
-              Try the mockup
-              <svg class="icon"><use href="#i-arrow"></use></svg>
-            </a>
+          <div class="doc-facts">
+            <span>Version <code>0.1.4</code></span>
+            <span>VS Code <code>≥ 1.140</code></span>
+            <span>MIT</span>
+            <span>Windows · macOS · Linux</span>
           </div>
-          <div class="hero-meta">
-            <span><svg class="icon"><use href="#i-check"></use></svg>MIT licensed</span>
-            <span><svg class="icon"><use href="#i-check"></use></svg>VS Code 1.140+</span>
-            <span><svg class="icon"><use href="#i-check"></use></svg>Windows · macOS · Linux</span>
+          <div class="doc-actions">
+            <a class="button primary" href="https://marketplace.visualstudio.com/items?itemName=lanly-dev.chanh" target="_blank" rel="noopener">Install extension</a>
+            <a class="button" href="https://github.com/lanly-dev/lemond" target="_blank" rel="noopener"><svg class="icon"><use href="#i-github"></use></svg>Repository</a>
+            <a class="button ghost" href="./mockup/" target="_blank" rel="noopener">Interactive mockup<svg class="icon"><use href="#i-arrow"></use></svg></a>
           </div>
+        </header>
+
+        <p>
+          The extension contributes a Chanh activity-bar view (<code>CHANH_SIDEBAR</code> → <code>CHANH_TREEVIEW</code>),
+          a Model Info webview, the <code>@chanh</code> chat participant, and a VS Code language-model provider registered
+          under the <code>chanh</code> vendor. In <code>LEMONADE</code> and <code>LEMOND</code> modes, prompts and code stay
+          on the machine.
+        </p>
+
+        <div class="callout note">
+          <div class="callout-title">Local by default</div>
+          <p>Chanh has no account, no hosted inference and no cloud fallback. Requests go only to the configured Lemonade endpoint. A <code>CUSTOM</code> URL is the exception — traffic goes wherever you point it.</p>
         </div>
 
-        <figure class="hero-media reveal">
-          <button class="video-launch" type="button" data-youtube aria-label="Preview the Chanh demo; the video is coming to YouTube">
-            <img src="./demo/Chanh-Demo-Poster.png" alt="Chanh running inside VS Code, showing the model tree and Model Info panel" width="1920" height="1080" />
-            <span class="status-chip"><span class="dot"></span>localhost:13305 · Running</span>
-            <span class="play-ring"><svg class="icon"><use href="#i-play"></use></svg></span>
-            <span class="demo-badge" data-youtube-badge>YouTube · coming soon</span>
-          </button>
-          <figcaption class="media-caption">
-            <span>Recorded against a live Lemonade Server</span>
-            <span class="caption-mono">Chanh 0.1.3 · 21 models</span>
-          </figcaption>
-        </figure>
-      </div>
-
-      <div class="container stack-strip" aria-label="Supported model types">
-        <span class="stack-label">Built for</span>
-        <span>Chat &amp; LLM</span><span>Vision</span><span>Tool calling</span><span>Embeddings</span><span>Transcription</span><span>TTS</span><span>Image</span><span>3D</span>
-      </div>
-    </section>
-
-    <section class="section" id="features">
-      <div class="container">
-        <div class="section-head reveal">
-          <span class="eyebrow">Why Chanh</span>
-          <h2>A local AI stack, without leaving the editor.</h2>
-          <p>Chanh handles the server, the models and the VS Code integration. You stay in your code.</p>
+        <h3>At a glance</h3>
+        <div class="table-wrap">
+          <table>
+            <tbody>
+              <tr><th>Extension ID</th><td><code>lanly-dev.chanh</code></td></tr>
+              <tr><th>Publisher</th><td><code>lanly-dev</code></td></tr>
+              <tr><th>Version</th><td><code>0.1.4</code></td></tr>
+              <tr><th>Engine</th><td><code>^1.140.0</code></td></tr>
+              <tr><th>Activation</th><td><code>onStartupFinished</code></td></tr>
+              <tr><th>Chat participant</th><td><code>CHANH_CHAT</code> — <code>@chanh</code></td></tr>
+              <tr><th>Model provider</th><td>VS Code language-model vendor <code>chanh</code></td></tr>
+              <tr><th>Repository</th><td><a href="https://github.com/lanly-dev/lemond" target="_blank" rel="noopener">lanly-dev/lemond</a></td></tr>
+            </tbody>
+          </table>
         </div>
 
-        <div class="feature-grid">
-          <article class="feature-card reveal">
-            <div class="feature-icon"><svg class="icon"><use href="#i-server"></use></svg></div>
-            <h3>Local server, managed</h3>
-            <p>Start, stop and monitor Lemonade Server from the sidebar. Connect to the system install, use the managed <code>lemond</code> binary, or point at any URL.</p>
-          </article>
-          <article class="feature-card reveal">
-            <div class="feature-icon"><svg class="icon"><use href="#i-layers"></use></svg></div>
-            <h3>Every model in one tree</h3>
-            <p>Chat, vision, tool-calling, embedding, transcription, speech, image and 3D models — loaded, installed, or one click from download.</p>
-          </article>
-          <article class="feature-card reveal">
-            <div class="feature-icon"><svg class="icon"><use href="#i-sparkles"></use></svg></div>
-            <h3>Native agent support</h3>
-            <p>Tool-calling models appear in VS Code's model picker under <strong>Chanh&nbsp;🍋</strong>, so agent mode streams and calls tools locally.</p>
-          </article>
-          <article class="feature-card reveal">
-            <div class="feature-icon"><svg class="icon"><use href="#i-shield"></use></svg></div>
-            <h3>Private by design</h3>
-            <p>Inference stays on <code>127.0.0.1</code>. No account, no prompt uploads and no cloud round-trip by default.</p>
-          </article>
-          <article class="feature-card reveal">
-            <div class="feature-icon"><svg class="icon"><use href="#i-sliders"></use></svg></div>
-            <h3>Tune the runtime</h3>
-            <p>Set per-model context sizes, pin a CUDA, Vulkan or CPU backend, and watch live CPU, GPU and memory telemetry.</p>
-          </article>
-          <article class="feature-card reveal">
-            <div class="feature-icon"><svg class="icon"><use href="#i-offline"></use></svg></div>
-            <h3>Offline when you need it</h3>
-            <p>Download once, then keep working without a connection. Weights, settings and chat history stay on your machine.</p>
-          </article>
-        </div>
-      </div>
-    </section>
+        <section class="doc-section" id="architecture">
+          <div class="section-head"><span class="section-num">02</span><h2>Architecture <a class="anchor" href="#architecture" aria-label="Link to Architecture">#</a></h2></div>
+          <p>
+            Chanh sits between VS Code and Lemonade Server. The server exposes an OpenAI-compatible HTTP API; the extension
+            translates that API into tree data, webviews, chat responses and VS Code language-model parts.
+          </p>
 
-    <section class="section section-alt" id="demo">
-      <div class="container">
-        <div class="section-head reveal">
-          <span class="eyebrow">Walkthrough</span>
-          <h2>See the whole workflow.</h2>
-          <p>A 1:57 walkthrough recorded against the real extension and a live local server. It is coming to YouTube — until then, here is a still from the recording.</p>
-        </div>
+          <div class="arch" role="img" aria-label="VS Code talks to Lemonade Server over local HTTP; Lemonade Server reads local model files">
+            <div class="arch-tier">
+              <div class="arch-tier-title">VS Code</div>
+              <div class="arch-items">
+                <span>Chanh tree</span><span>Model Info</span><span>@chanh</span><span>Language model provider</span>
+              </div>
+            </div>
+            <div class="arch-link"><span>HTTP · localhost</span></div>
+            <div class="arch-tier">
+              <div class="arch-tier-title">Lemonade Server</div>
+              <div class="arch-items">
+                <span>llama.cpp</span><span>whisper.cpp</span><span>sd.cpp</span><span>ONNX</span>
+              </div>
+            </div>
+            <div class="arch-link"><span>loads</span></div>
+            <div class="arch-tier muted">
+              <div class="arch-tier-title">Local model files &amp; caches</div>
+            </div>
+          </div>
 
-        <!-- Set YOUTUBE_URL in site.js when the video is published. -->
-        <div class="video-frame reveal" id="youtube-placeholder">
-          <button class="video-launch" type="button" data-youtube aria-label="Preview the Chanh demo; the video is coming to YouTube">
-            <img src="./demo/Chanh-Demo-Poster.png" alt="Chanh running inside VS Code, showing the model tree and Model Info panel" width="1920" height="1080" loading="lazy" />
-            <span class="status-chip"><span class="dot"></span>localhost:13305 · Running</span>
-            <span class="play-ring"><svg class="icon"><use href="#i-play"></use></svg></span>
-            <span class="demo-badge" data-youtube-badge>YouTube · coming soon</span>
-          </button>
-        </div>
+          <h3>Process model</h3>
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>Component</th><th>Source</th><th>Responsibility</th></tr></thead>
+              <tbody>
+                <tr><td>ServerManager</td><td><code>src/serverManager.ts</code></td><td>Active server, health, ports and lifecycle. Starts/stops only the managed <code>lemond</code> process.</td></tr>
+                <tr><td>LemonadeClient</td><td><code>src/lemonadeClient.ts</code></td><td>HTTP and wire-format translation for health, models, system info, pull, load, unload and options.</td></tr>
+                <tr><td>ModelManager</td><td><code>src/modelManager.ts</code></td><td>Downloads, load/unload, context-size overrides, backend selection, model info and endpoint configuration.</td></tr>
+                <tr><td>ServerViewProvider</td><td><code>src/serverTreeview.ts</code></td><td>Tree model, section state, capability grouping, filters and persisted view preferences.</td></tr>
+                <tr><td>ChanhLmcProvider</td><td><code>src/lmcProvider.ts</code></td><td>VS Code <code>LanguageModelChatProvider</code> used by the native model picker and agent mode.</td></tr>
+                <tr><td>ChatParticipant</td><td><code>src/chatParticipant.ts</code></td><td><code>@chanh</code>, slash commands, streaming responses and token usage.</td></tr>
+                <tr><td>SystemMonitor</td><td><code>src/systemMonitor.ts</code></td><td>CPU, GPU and memory sampling for the sidebar System group.</td></tr>
+                <tr><td>BinaryManager</td><td><code>src/binaryManager.ts</code></td><td>Download and update of the managed <code>lemond</code> binary.</td></tr>
+              </tbody>
+            </table>
+          </div>
 
-        <div class="topics reveal" aria-label="What the demo covers">
-          <span class="topics-label">Covers</span>
-          <span>Server &amp; system</span>
-          <span>Model tree</span>
-          <span>Hover actions</span>
-          <span>Context menu</span>
-          <span>Model Info</span>
-          <span>Context &amp; backend</span>
-          <span>Commands &amp; settings</span>
-        </div>
+          <h3>Data flow</h3>
+          <ol class="steps">
+            <li>The selected server mode resolves a base URL — system Lemonade, managed <code>lemond</code>, or a custom URL.</li>
+            <li><code>/v1/health</code> and <code>/v1/models</code> populate the tree. <code>/v1/system-info</code> supplies recipes and backend install state.</li>
+            <li>Loading, unloading, pulling and context/backend changes are sent to the server; the tree reflects the returned state.</li>
+            <li>Chat and native model requests stream from Lemonade and are translated into VS Code response parts.</li>
+          </ol>
+          <p class="muted">External servers (<code>LEMONADE</code>, <code>CUSTOM</code>) are connected to, not terminated, when the extension deactivates.</p>
+        </section>
 
-        <div class="video-note reveal" id="youtube-note">
-          <span class="youtube-pill">YouTube</span>
-          <span id="youtube-note-text">The full 1:57 walkthrough is being published on YouTube. Follow <a href="https://github.com/lanly-dev/lemond" target="_blank" rel="noopener">the repository</a> for the link.</span>
-        </div>
-      </div>
-    </section>
+        <section class="doc-section" id="requirements">
+          <div class="section-head"><span class="section-num">03</span><h2>Requirements <a class="anchor" href="#requirements" aria-label="Link to Requirements">#</a></h2></div>
+          <div class="table-wrap">
+            <table>
+              <tbody>
+                <tr><th>Editor</th><td>VS Code <code>1.140</code> or newer.</td></tr>
+                <tr><th>Platform</th><td>Windows, macOS or Linux. Lemonade must support the selected backend on that platform.</td></tr>
+                <tr><th>Server</th><td>A running Lemonade Server (system install), the managed <code>lemond</code> binary, or a reachable custom URL.</td></tr>
+                <tr><th>Network</th><td>Required to download the server binary and models. Not required for inference once the model is local.</td></tr>
+                <tr><th>Hardware</th><td>CPU is sufficient. CUDA, Vulkan or ROCm can be selected for supported recipes. Model weights need disk space.</td></tr>
+                <tr><th>Licenses</th><td>The extension is MIT. Each model has its own license; review it before downloading.</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <div class="callout tip">
+            <div class="callout-title">Model support depends on Lemonade</div>
+            <p>Chanh does not bundle model runtimes. Available backends and model recipes come from the installed Lemonade Server and the platform it runs on.</p>
+          </div>
+        </section>
 
-    <section class="section" id="inside">
-      <div class="container split">
-        <div class="split-copy reveal">
-          <span class="eyebrow">Inside VS Code</span>
-          <h2>Built into the editor you already use.</h2>
-          <p>The model manager lives in the sidebar. Everything else is native VS Code: chat, the model picker, command palette and settings.</p>
-          <ul class="check-list">
-            <li><svg class="icon"><use href="#i-check"></use></svg><span>Server health, model counts and live CPU/GPU/RAM in a single tree.</span></li>
-            <li><svg class="icon"><use href="#i-check"></use></svg><span>Model Info pulls real metadata: context windows, checkpoint, registry, recipe and endpoint.</span></li>
-            <li><svg class="icon"><use href="#i-check"></use></svg><span>Only tool-calling chat models appear in the native picker — so agent mode actually works.</span></li>
+        <section class="doc-section" id="installation">
+          <div class="section-head"><span class="section-num">04</span><h2>Installation <a class="anchor" href="#installation" aria-label="Link to Installation">#</a></h2></div>
+          <p>Install from the Marketplace, Open VSX, or the VS Code CLI:</p>
+          <div class="code-block">
+            <div class="code-head"><span>bash</span><button class="copy" type="button" data-copy="code --install-extension lanly-dev.chanh"><svg class="icon"><use href="#i-copy"></use></svg><span>Copy</span></button></div>
+            <pre><code>code --install-extension lanly-dev.chanh</code></pre>
+          </div>
+          <ol class="steps">
+            <li>Open the <strong>Chanh</strong> icon in the activity bar.</li>
+            <li>Choose the server mode. <code>LEMONADE</code> connects to an existing system server; <code>LEMOND</code> lets Chanh manage its binary; <code>CUSTOM</code> uses a configured URL.</li>
+            <li>Download or load a chat-capable model from the tree.</li>
+            <li>Type <code>@chanh</code> in chat, or select a Chanh model in the native picker for agent mode.</li>
+          </ol>
+          <p class="muted">The default server mode is <code>LEMONADE</code> on port <code>13305</code>. See <a href="#configuration">Configuration</a> to change it.</p>
+        </section>
+
+        <section class="doc-section" id="server-modes">
+          <div class="section-head"><span class="section-num">05</span><h2>Server modes <a class="anchor" href="#server-modes" aria-label="Link to Server modes">#</a></h2></div>
+          <p>Server selection is controlled by <code>chanh.serverMode</code>. The tree always shows the active server only.</p>
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>Mode</th><th>Default URL</th><th>Lifecycle</th><th>Use when</th></tr></thead>
+              <tbody>
+                <tr><td><code>LEMONADE</code></td><td><code>http://localhost:13305</code></td><td>External; Chanh connects only</td><td>You already run Lemonade Server system-wide.</td></tr>
+                <tr><td><code>LEMOND</code></td><td><code>http://localhost:8000</code></td><td>Managed by Chanh</td><td>You want the extension to download, start and stop the bundled binary.</td></tr>
+                <tr><td><code>CUSTOM</code></td><td>Configured URL</td><td>External; Chanh connects only</td><td>The server runs elsewhere or on a non-default host/port.</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <p>
+            Ports are configured with <code>chanh.lemonadePort</code> and <code>chanh.lemondPort</code>. The managed binary
+            is stored in global storage and can be revealed from the server header context actions.
+          </p>
+          <div class="callout warn">
+            <div class="callout-title">Start/stop behavior</div>
+            <p><strong>Start Server</strong> and <strong>Stop Server</strong> only control the managed <code>lemond</code> process. In <code>LEMONADE</code> and <code>CUSTOM</code> modes, manage the server outside Chanh.</p>
+          </div>
+        </section>
+
+        <section class="doc-section" id="model-lifecycle">
+          <div class="section-head"><span class="section-num">06</span><h2>Model lifecycle <a class="anchor" href="#model-lifecycle" aria-label="Link to Model lifecycle">#</a></h2></div>
+          <p>The tree is a view over the active server. Sections collapse and expand independently; grouping and filters are persisted per workspace.</p>
+
+          <h3>Tree sections</h3>
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>Section</th><th>Content</th></tr></thead>
+              <tbody>
+                <tr><td>Server</td><td>Status, URL, version, maximum loaded models, backends/recipes and pinned models.</td></tr>
+                <tr><td>System</td><td>CPU, GPU and memory samples. Only rendered while the configured endpoint is local; cadence is <code>chanh.systemSampleInterval</code>.</td></tr>
+                <tr><td>Loaded Models</td><td>Models currently resident in the server, with idle/busy state.</td></tr>
+                <tr><td>Downloading Models</td><td>Active pulls and locally tracked partial downloads. Progress is streamed from <code>/v1/pull</code>.</td></tr>
+                <tr><td>Installed Models</td><td>Downloaded models, grouped by capability or shown flat. Load, inspect, tune, or remove.</td></tr>
+                <tr><td>Downloadable Models</td><td>Catalog from the server. A hot-only filter and sub-capability filters are available.</td></tr>
+              </tbody>
+            </table>
+          </div>
+
+          <h3>States and actions</h3>
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>State</th><th>Meaning</th><th>Available actions</th></tr></thead>
+              <tbody>
+                <tr><td>Downloadable</td><td>Known to the catalog but not on disk.</td><td>Download; inspect metadata.</td></tr>
+                <tr><td>Installed</td><td>Weights are on disk, not loaded.</td><td>Load, show info, select backend, remove.</td></tr>
+                <tr><td>Loaded</td><td>Resident in the server; may be idle or busy.</td><td>Unload, show info, add to chat endpoints.</td></tr>
+                <tr><td>Partial</td><td>An interrupted pull tracked by the extension.</td><td>Retry or remove the partial file.</td></tr>
+              </tbody>
+            </table>
+          </div>
+
+          <p>
+            Downloads are extension-owned: progress comes from the streaming pull response and incomplete pulls are persisted
+            in workspace state. This means a download started by another client, or completed while VS Code was closed, is not
+            reconciled automatically.
+          </p>
+
+          <h3>Capability labels</h3>
+          <p>Labels come from the server and drive grouping, filters and picker eligibility. Matching is case-insensitive.</p>
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>Label</th><th>Behavior</th></tr></thead>
+              <tbody>
+                <tr><td><code>chat</code> / <code>llm</code></td><td>Makes a model eligible for chat. The two labels are treated as equivalent.</td></tr>
+                <tr><td><code>tool-calling</code></td><td>Required for the model to appear in the native picker for agent mode.</td></tr>
+                <tr><td><code>vision</code></td><td>Adds image-attachment support in chat and the picker.</td></tr>
+                <tr><td><code>embeddings</code>, <code>reranking</code></td><td>Grouped under their capability categories.</td></tr>
+                <tr><td><code>transcription</code>, <code>tts</code>, <code>image</code>, <code>3d</code></td><td>Grouped by capability; exposed according to the server's recipes.</td></tr>
+                <tr><td><code>omni</code></td><td>Multi-modality collection. Listed in its own group and in other matched groups.</td></tr>
+                <tr><td><code>hot</code></td><td>Highlights suggested/hot models in the downloadable catalog.</td></tr>
+              </tbody>
+            </table>
+          </div>
+
+          <h3>Context and backend</h3>
+          <ul>
+            <li><strong>Context size</strong> — presets from 8K to 128K, <em>Automatic</em> (<code>-1</code>), or a custom value. Saved per model as a <code>ctx_size</code> recipe option.</li>
+            <li><strong>Backend</strong> — selected per recipe (for example CPU, CUDA, Vulkan). The choice is remembered for every model using that recipe.</li>
+            <li><strong>Model Info</strong> — capabilities, status, size, effective/reported/default context, maximum window, checkpoint, registry, recipe, owner, creation data and the live backend endpoint.</li>
           </ul>
-          <a class="inline-link" href="#demo">Watch it in the demo <svg class="icon"><use href="#i-arrow"></use></svg></a>
-        </div>
 
-        <figure class="screenshot-wrap reveal">
-          <img src="./assets/chanh-in-vscode.png" alt="The Chanh sidebar in VS Code showing models and a Model Info panel" width="2046" height="1386" loading="lazy" />
-          <figcaption class="screenshot-label">VS Code 1.142 · Chanh 0.1.3 · Lemonade 11.8.1</figcaption>
-        </figure>
-      </div>
-    </section>
+          <h3>Server endpoints used</h3>
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>Endpoint</th><th>Used for</th></tr></thead>
+              <tbody>
+                <tr><td><code>/v1/health</code></td><td>Status, loaded models, busy/streaming state and pinned models.</td></tr>
+                <tr><td><code>/v1/models</code></td><td>Catalog, labels, sizes, download status and model metadata.</td></tr>
+                <tr><td><code>/v1/system-info</code></td><td>Recipes, backend install state and backend/device information.</td></tr>
+                <tr><td><code>/v1/pull</code></td><td>Streaming model download progress.</td></tr>
+                <tr><td><code>/v1/load</code> · <code>/v1/unload</code></td><td>Model residency.</td></tr>
+                <tr><td><code>/v1/models/{model}/options</code></td><td>Saved, effective and default recipe options for context and backend.</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </section>
 
-    <section class="section section-alt" id="mockup">
-      <div class="container split split-reverse">
-        <div class="split-copy reveal">
-          <span class="eyebrow">Try it</span>
-          <h2>Explore the UI before you install.</h2>
-          <p>A clickable, self-contained mockup of the extension. Simulated models, downloads, quick picks and settings — no server or VS Code required.</p>
-          <ul class="check-list">
-            <li><svg class="icon"><use href="#i-check"></use></svg><span>Click <strong>Play demo</strong> for a guided seven-step tour.</span></li>
-            <li><svg class="icon"><use href="#i-check"></use></svg><span>Download models, open Model Info, change context and backends.</span></li>
-            <li><svg class="icon"><use href="#i-check"></use></svg><span>Every control works — all data is local and simulated.</span></li>
+        <section class="doc-section" id="configuration">
+          <div class="section-head"><span class="section-num">07</span><h2>Configuration <a class="anchor" href="#configuration" aria-label="Link to Configuration">#</a></h2></div>
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>Setting</th><th>Default</th><th>Description</th></tr></thead>
+              <tbody>
+                <tr><td><code>chanh.chatModel</code></td><td><code>(unset)</code></td><td>Model used by <code>@chanh</code>. Empty prompts for a model.</td></tr>
+                <tr><td><code>chanh.customServerUrl</code></td><td><code>(unset)</code></td><td>URL used when <code>chanh.serverMode</code> is <code>CUSTOM</code>.</td></tr>
+                <tr><td><code>chanh.lemonadePort</code></td><td><code>13305</code></td><td>Port for the system-installed Lemonade Server.</td></tr>
+                <tr><td><code>chanh.lemondPort</code></td><td><code>8000</code></td><td>Port for the managed <code>lemond</code> binary.</td></tr>
+                <tr><td><code>chanh.maxLoadedModels</code></td><td>(unset)</td><td>Maximum number of loaded models. Use <code>-1</code> for unlimited.</td></tr>
+                <tr><td><code>chanh.serverMode</code></td><td><code>LEMONADE</code></td><td><code>LEMONADE</code>, <code>LEMOND</code> or <code>CUSTOM</code>.</td></tr>
+                <tr><td><code>chanh.showTokenStats</code></td><td><code>false</code></td><td>Show per-turn token counts from the model's <code>usage</code> block.</td></tr>
+                <tr><td><code>chanh.systemSampleInterval</code></td><td><code>5</code></td><td>Seconds between CPU/GPU/RAM samples.</td></tr>
+              </tbody>
+            </table>
+          </div>
+
+          <h3>Example settings</h3>
+          <div class="code-block">
+            <div class="code-head"><span>json</span><button class="copy" type="button" data-copy-target="#settings-example"><svg class="icon"><use href="#i-copy"></use></svg><span>Copy</span></button></div>
+            <pre id="settings-example"><code>{
+  "chanh.serverMode": "LEMONADE",
+  "chanh.lemonadePort": 13305,
+  "chanh.chatModel": "Qwen3.5-4B-MTP-GGUF",
+  "chanh.showTokenStats": true,
+  "chanh.systemSampleInterval": 5
+}</code></pre>
+          </div>
+        </section>
+
+        <section class="doc-section" id="chat-agent">
+          <div class="section-head"><span class="section-num">08</span><h2>Chat and agent mode <a class="anchor" href="#chat-agent" aria-label="Link to Chat and agent mode">#</a></h2></div>
+          <p>There are two integration surfaces. Both use the active Lemonade server and the selected model.</p>
+
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>Surface</th><th>Behavior</th></tr></thead>
+              <tbody>
+                <tr><td><code>@chanh</code> participant</td><td>Sends the request directly to Lemonade, streams the reply and supports <code>/fix</code> and <code>/explain</code>. Uses <code>chanh.chatModel</code> or prompts for a chat model.</td></tr>
+                <tr><td>Native model picker</td><td>Registers a VS Code language-model provider under <code>Chanh 🍋</code>. Lists chat models that also advertise <code>tool-calling</code>; vision models accept images.</td></tr>
+                <tr><td>Agent mode</td><td>VS Code orchestrates the loop. Chanh forwards tool definitions and translates tool calls; tools are not executed by the provider.</td></tr>
+              </tbody>
+            </table>
+          </div>
+
+          <div class="code-block">
+            <div class="code-head"><span>chat</span><button class="copy" type="button" data-copy="@chanh /explain"><svg class="icon"><use href="#i-copy"></use></svg><span>Copy</span></button></div>
+            <pre><code>@chanh /explain</code></pre>
+          </div>
+
+          <ul>
+            <li><strong>Model selection</strong> — <code>chanh.chatModel</code> remembers the model used by <code>@chanh</code>. Leave it empty to be prompted.</li>
+            <li><strong>Token stats</strong> — enabled by <code>chanh.showTokenStats</code>; the final stream chunk supplies prompt/completion counts.</li>
+            <li><strong>Vision</strong> — labels containing <code>vision</code> expose image attachments in the picker.</li>
+            <li><strong>Custom endpoint</strong> — the command <em>Add Entry to VS Code's Chat Custom Endpoints</em> writes a single loaded model into <code>chat.customEndpoints</code>.</li>
           </ul>
-          <div class="hero-actions">
-            <a class="btn btn-primary" href="./mockup/" target="_blank" rel="noopener">
-              Open interactive mockup
-              <svg class="icon"><use href="#i-arrow"></use></svg>
-            </a>
+          <div class="callout note">
+            <div class="callout-title">Offline after download</div>
+            <p>Once the server and weights are present locally, inference does not require a network connection. Model selection and chat both use the local endpoint.</p>
           </div>
-        </div>
+        </section>
 
-        <figure class="browser-frame reveal">
-          <div class="browser-bar" aria-hidden="true">
-            <span class="dots"><i></i><i></i><i></i></span>
-            <span class="browser-url">localhost/mockup</span>
-            <span class="browser-live"><span class="dot"></span>Live</span>
-          </div>
-          <img src="./mockup/preview.png" alt="Preview of the interactive Chanh UI mockup" width="1440" height="900" loading="lazy" />
-        </figure>
-      </div>
-    </section>
+        <section class="doc-section" id="commands">
+          <div class="section-head"><span class="section-num">09</span><h2>Commands <a class="anchor" href="#commands" aria-label="Link to Commands">#</a></h2></div>
+          <p><code>Chanh:</code> commands are available in the command palette. Item commands (<code>chanh.ncp.*</code>) appear in model context menus or inline hover actions and may be hidden from the palette.</p>
 
-    <section class="section" id="install">
-      <div class="container">
-        <div class="section-head center reveal">
-          <span class="eyebrow">Get started</span>
-          <h2>Running in about a minute.</h2>
-          <p>Install the extension, pick a model, and start using local inference. No API key, no account.</p>
-        </div>
-
-        <div class="install-grid">
-          <div class="steps">
-            <div class="step reveal">
-              <span class="step-num">01</span>
-              <div>
-                <h3>Install Chanh</h3>
-                <p>Get it from the VS Code Marketplace or Open VSX, or run the command on the right.</p>
-              </div>
-            </div>
-            <div class="step reveal">
-              <span class="step-num">02</span>
-              <div>
-                <h3>Pick a model</h3>
-                <p>Open Chanh in the activity bar. Download or load a chat model; Chanh connects to — or starts — Lemonade Server.</p>
-              </div>
-            </div>
-            <div class="step reveal">
-              <span class="step-num">03</span>
-              <div>
-                <h3>Use it</h3>
-                <p>Type <code>@chanh</code> in Chat, or select a Chanh model in the picker for agent mode.</p>
-              </div>
-            </div>
+          <h3>Server and setup</h3>
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>Command</th><th>Action</th></tr></thead>
+              <tbody>
+                <tr><td><code>chanh.startServer</code></td><td>Start the managed server.</td></tr>
+                <tr><td><code>chanh.stopServer</code></td><td>Stop the managed server.</td></tr>
+                <tr><td><code>chanh.switchServer</code></td><td>Switch the active server mode.</td></tr>
+                <tr><td><code>chanh.refreshServer</code></td><td>Refresh server status and model data.</td></tr>
+                <tr><td><code>chanh.editServerPort</code></td><td>Edit the port or custom URL.</td></tr>
+                <tr><td><code>chanh.openServerUrl</code></td><td>Open the active server URL.</td></tr>
+                <tr><td><code>chanh.downloadBinary</code></td><td>Download or update the managed binary.</td></tr>
+                <tr><td><code>chanh.setMaxLoadedModels</code></td><td>Set the server's loaded-model limit.</td></tr>
+                <tr><td><code>chanh.selectChatModel</code></td><td>Select and load a model for chat.</td></tr>
+                <tr><td><code>chanh.openSettings</code></td><td>Open VS Code settings filtered to Chanh.</td></tr>
+                <tr><td><code>chanh.openLmConfigsFile</code></td><td>Open the chat language-models configuration.</td></tr>
+                <tr><td><code>chanh.ncp.revealBinaryDir</code></td><td>Reveal the managed binary folder.</td></tr>
+              </tbody>
+            </table>
           </div>
 
-          <aside class="install-card reveal">
-            <div class="terminal-bar">
-              <span>Terminal</span>
-              <button class="copy-btn" type="button" data-copy="code --install-extension lanly-dev.chanh" aria-label="Copy install command">
-                <svg class="icon"><use href="#i-copy"></use></svg><span>Copy</span>
+          <h3>Model actions</h3>
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>Command</th><th>Action</th></tr></thead>
+              <tbody>
+                <tr><td><code>chanh.ncp.downloadModel</code></td><td>Pull a downloadable model.</td></tr>
+                <tr><td><code>chanh.ncp.cancelDownload</code></td><td>Cancel an active pull.</td></tr>
+                <tr><td><code>chanh.ncp.loadModel</code></td><td>Load an installed model.</td></tr>
+                <tr><td><code>chanh.ncp.unloadModel</code></td><td>Unload a loaded model.</td></tr>
+                <tr><td><code>chanh.ncp.removeModel</code></td><td>Delete a model from disk.</td></tr>
+                <tr><td><code>chanh.ncp.showModelInfo</code></td><td>Open the Model Info webview.</td></tr>
+                <tr><td><code>chanh.ncp.copyModelId</code></td><td>Copy the model identifier.</td></tr>
+                <tr><td><code>chanh.ncp.setModelContext</code></td><td>Set a context-size override.</td></tr>
+                <tr><td><code>chanh.ncp.resetModelContext</code></td><td>Reset the context override.</td></tr>
+                <tr><td><code>chanh.ncp.selectBackend</code></td><td>Choose the backend for the model's recipe.</td></tr>
+                <tr><td><code>chanh.ncp.uninstallBackend</code></td><td>Uninstall a backend.</td></tr>
+                <tr><td><code>chanh.ncp.configLmEndpoint</code></td><td>Add a loaded model to VS Code chat endpoints.</td></tr>
+              </tbody>
+            </table>
+          </div>
+
+          <h3>View and filtering</h3>
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>Command</th><th>Action</th></tr></thead>
+              <tbody>
+                <tr><td><code>chanh.ncp.toggleModelSectionsHide</code></td><td>Hide Installed and Downloadable sections.</td></tr>
+                <tr><td><code>chanh.ncp.toggleModelSectionsShow</code></td><td>Show Installed and Downloadable sections.</td></tr>
+                <tr><td><code>chanh.ncp.toggleModelGrouping</code></td><td>Group installed models by capability.</td></tr>
+                <tr><td><code>chanh.ncp.toggleDlModelGrouping</code></td><td>Group downloadable models by capability.</td></tr>
+                <tr><td><code>chanh.ncp.toggleHotModels</code></td><td>Show only hot downloadable models.</td></tr>
+                <tr><td><code>chanh.ncp.filterCapGroup</code></td><td>Filter a capability group by sub-capability.</td></tr>
+                <tr><td><code>chanh.ncp.clearCapFilter</code></td><td>Clear a capability filter.</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </section>
+
+        <section class="doc-section" id="demo">
+          <div class="section-head"><span class="section-num">10</span><h2>Demo and mockup <a class="anchor" href="#demo" aria-label="Link to Demo and mockup">#</a></h2></div>
+          <p>Supplementary material for evaluating the UI. Neither asset is required for the extension.</p>
+
+          <div class="asset-grid">
+            <div class="asset-card">
+              <button class="asset-poster" type="button" data-youtube aria-label="Preview the Chanh demo; the video is coming to YouTube">
+                <img src="./demo/Chanh-Demo-Poster.png" alt="Chanh running inside VS Code with the server and model tree visible" width="1920" height="1080" loading="lazy" />
+                <span class="asset-play"><svg class="icon"><use href="#i-play"></use></svg></span>
+                <span class="asset-badge" data-youtube-badge>YouTube · coming soon</span>
               </button>
+              <div class="asset-body">
+                <h3>UI walkthrough</h3>
+                <p>A 1:57 narrated tour of the server tree, model actions, Model Info, context/backend pickers and settings. The MP4 is intentionally not committed.</p>
+                <div class="asset-note" id="youtube-note">
+                  <span class="youtube-pill">YouTube</span>
+                  <span id="youtube-note-text">The full walkthrough is being published on YouTube. Follow <a href="https://github.com/lanly-dev/lemond" target="_blank" rel="noopener">the repository</a> for the link.</span>
+                </div>
+              </div>
             </div>
-            <pre><code><span class="prompt">$</span> code --install-extension lanly-dev.chanh</code></pre>
-            <div class="install-links">
-              <a class="btn btn-primary" href="https://marketplace.visualstudio.com/items?itemName=lanly-dev.chanh" target="_blank" rel="noopener">
-                <svg class="icon"><use href="#i-download"></use></svg>VS Code Marketplace
+
+            <div class="asset-card">
+              <a class="asset-poster" href="./mockup/" target="_blank" rel="noopener" aria-label="Open the interactive Chanh mockup">
+                <img src="./mockup/preview.png" alt="Preview of the interactive Chanh UI mockup" width="1440" height="900" loading="lazy" />
+                <span class="asset-badge">Interactive · simulated</span>
               </a>
-              <a class="btn btn-secondary" href="https://open-vsx.org/extension/lanly-dev/chanh" target="_blank" rel="noopener">Open VSX</a>
-              <a class="btn btn-ghost" href="https://github.com/lanly-dev/lemond" target="_blank" rel="noopener">
-                <svg class="icon"><use href="#i-github"></use></svg>View source
-              </a>
+              <div class="asset-body">
+                <h3>UI mockup</h3>
+                <p>A self-contained browser mockup of the extension. It uses simulated models and downloads and does not connect to Lemonade.</p>
+                <a class="text-link" href="./mockup/" target="_blank" rel="noopener">Open the mockup<svg class="icon"><use href="#i-arrow"></use></svg></a>
+              </div>
             </div>
-            <p class="install-note">Extension ID <code>lanly-dev.chanh</code> · requires VS Code 1.140+</p>
-          </aside>
-        </div>
-      </div>
-    </section>
-
-    <section class="section section-alt" id="faq">
-      <div class="container">
-        <div class="section-head reveal">
-          <span class="eyebrow">Good to know</span>
-          <h2>Questions, answered.</h2>
-        </div>
-
-        <div class="faq-grid">
-          <details class="faq-item reveal">
-            <summary>Is Chanh free?</summary>
-            <p>Yes. The extension is MIT-licensed and free to use. Lemonade Server is also free. Individual model weights have their own licenses — check the model you download.</p>
-          </details>
-          <details class="faq-item reveal">
-            <summary>Does it send my code to a cloud?</summary>
-            <p>By default, prompts and code go only to the Lemonade Server running on your machine. Chanh has no account, no prompt telemetry and no cloud fallback. A custom server URL is the only exception — traffic goes wherever you point it.</p>
-          </details>
-          <details class="faq-item reveal">
-            <summary>Do I need a GPU?</summary>
-            <p>No. Lemonade can run on CPU, CUDA, Vulkan or ROCm. Chanh lets you pick a backend per recipe, and shows live CPU/GPU/memory utilization in the sidebar.</p>
-          </details>
-          <details class="faq-item reveal">
-            <summary>What models can I run?</summary>
-            <p>Chat and instruction models, vision models, tool-calling models for agent mode, embeddings, rerankers, transcription, text-to-speech, image generation and 3D — depending on your Lemonade build and hardware.</p>
-          </details>
-          <details class="faq-item reveal">
-            <summary>Can I use my existing Lemonade install?</summary>
-            <p>Yes. Keep <code>chanh.serverMode</code> on <code>LEMONADE</code> to connect to the system server, use <code>LEMOND</code> to let Chanh manage its bundled binary, or <code>CUSTOM</code> for any URL.</p>
-          </details>
-          <details class="faq-item reveal">
-            <summary>Which VS Code versions are supported?</summary>
-            <p>VS Code 1.140 or newer on Windows, macOS and Linux. Chat and agent mode use VS Code's native chat and language-model APIs.</p>
-          </details>
-        </div>
-      </div>
-    </section>
-
-    <section class="final-cta">
-      <div class="container">
-        <div class="cta-card reveal">
-          <span class="eyebrow">Chanh 🍋</span>
-          <h2>Your models. Your machine. Your data.</h2>
-          <p>Bring a local AI stack into VS Code — no account, no cloud, no compromise.</p>
-          <div class="cta-actions">
-            <a class="btn btn-primary" href="https://marketplace.visualstudio.com/items?itemName=lanly-dev.chanh" target="_blank" rel="noopener">
-              <svg class="icon"><use href="#i-download"></use></svg>Install extension
-            </a>
-            <a class="btn btn-secondary" href="https://github.com/lanly-dev/lemond" target="_blank" rel="noopener">
-              <svg class="icon"><use href="#i-github"></use></svg>Star on GitHub
-            </a>
-            <a class="btn btn-ghost" href="https://github.com/sponsors/lanly-dev" target="_blank" rel="noopener">Sponsor</a>
           </div>
-        </div>
-      </div>
-    </section>
-  </main>
+        </section>
 
-  <footer class="site-footer">
-    <div class="container">
-      <div class="footer-grid">
-        <div class="footer-brand">
-          <a class="brand" href="#top">
-            <img src="./assets/chanh.svg" alt="" width="30" height="30" />
-            <span>Chanh <small>for VS Code</small></span>
-          </a>
-          <p>Chanh <span class="mono">/ch-ahn/</span> — lime or lemon in Vietnamese. A free, local AI server and model manager for VS Code.</p>
-        </div>
-        <div class="footer-col">
-          <h4>Product</h4>
-          <a href="#features">Features</a>
-          <a href="#demo">Demo</a>
-          <a href="#mockup">Mockup</a>
-          <a href="#install">Install</a>
-          <a href="#faq">FAQ</a>
-        </div>
-        <div class="footer-col">
-          <h4>Resources</h4>
-          <a href="https://github.com/lanly-dev/lemond" target="_blank" rel="noopener">GitHub</a>
-          <a href="https://marketplace.visualstudio.com/items?itemName=lanly-dev.chanh" target="_blank" rel="noopener">Marketplace</a>
-          <a href="https://open-vsx.org/extension/lanly-dev/chanh" target="_blank" rel="noopener">Open VSX</a>
-          <a href="https://lemonade-server.ai/" target="_blank" rel="noopener">Lemonade Server</a>
-          <a href="https://github.com/lanly-dev/lemond/blob/main/CHANGELOG.md" target="_blank" rel="noopener">Changelog</a>
-        </div>
-        <div class="footer-col">
-          <h4>Legal</h4>
-          <a href="https://github.com/lanly-dev/lemond/blob/main/LICENSE" target="_blank" rel="noopener">MIT License</a>
-          <a href="https://github.com/sponsors/lanly-dev" target="_blank" rel="noopener">Sponsor</a>
-        </div>
-      </div>
-      <div class="footer-bottom">
-        <span>© <span id="year">2026</span> lanly-dev. Chanh is not affiliated with Microsoft.</span>
-        <span>Made for VS Code · Runs on your machine.</span>
-      </div>
-    </div>
-  </footer>
+        <section class="doc-section" id="development">
+          <div class="section-head"><span class="section-num">11</span><h2>Development <a class="anchor" href="#development" aria-label="Link to Development">#</a></h2></div>
+
+          <h3>Extension</h3>
+          <div class="code-block">
+            <div class="code-head"><span>bash</span><button class="copy" type="button" data-copy="npm install&#10;npm run watch&#10;# press F5 → Extension Development Host"><svg class="icon"><use href="#i-copy"></use></svg><span>Copy</span></button></div>
+            <pre><code>npm install
+npm run watch
+# press F5 → Extension Development Host</code></pre>
+          </div>
+          <p><code>npm run check-types</code> runs the TypeScript compiler, <code>npm run lint</code> runs ESLint, and <code>npm run package</code> type-checks, lints and builds. <code>npm run vsce-package</code> packages a VSIX.</p>
+
+          <h3>Website</h3>
+          <div class="code-block">
+            <div class="code-head"><span>bash</span><button class="copy" type="button" data-copy="python -m http.server 8000 --directory website"><svg class="icon"><use href="#i-copy"></use></svg><span>Copy</span></button></div>
+            <pre><code>python -m http.server 8000 --directory website</code></pre>
+          </div>
+          <p>The site is static. The GitHub Actions workflow publishes the <code>website/</code> directory to Pages; Pages must be enabled with <strong>Source: GitHub Actions</strong>.</p>
+
+          <h3>Repository layout</h3>
+          <pre class="repo-tree"><code>src/
+├─ extension.ts          activation and command wiring
+├─ serverManager.ts      server modes, health and lifecycle
+├─ lemonadeClient.ts     HTTP client and wire types
+├─ modelManager.ts       download, load, context, backend
+├─ serverTreeview.ts     sidebar tree and persistence
+├─ lmcProvider.ts        native language-model provider
+├─ chatParticipant.ts    @chanh and slash commands
+├─ systemMonitor.ts      CPU / GPU / RAM sampling
+└─ binaryManager.ts      managed lemond binary
+
+website/
+├─ index.html            this documentation page
+├─ styles.css
+├─ site.js
+├─ demo/                 poster + notes (MP4 excluded)
+└─ mockup/               interactive UI mockup</code></pre>
+        </section>
+
+        <section class="doc-section" id="license">
+          <div class="section-head"><span class="section-num">12</span><h2>License <a class="anchor" href="#license" aria-label="Link to License">#</a></h2></div>
+          <p>Chanh is released under the <a href="https://github.com/lanly-dev/lemond/blob/main/LICENSE" target="_blank" rel="noopener">MIT License</a>. Model weights and third-party runtimes keep their own licenses.</p>
+          <p class="muted">Chanh is not affiliated with Microsoft. VS Code is a trademark of Microsoft Corporation.</p>
+        </section>
+
+        <footer class="doc-footer">
+          <div class="footer-left">
+            <img src="./assets/chanh.svg" alt="" width="22" height="22" />
+            <span>Chanh documentation</span>
+            <span class="footer-sep">·</span>
+            <span>© <span id="year">2026</span> lanly-dev</span>
+          </div>
+          <div class="footer-links">
+            <a href="https://github.com/lanly-dev/lemond" target="_blank" rel="noopener">GitHub</a>
+            <a href="https://marketplace.visualstudio.com/items?itemName=lanly-dev.chanh" target="_blank" rel="noopener">Marketplace</a>
+            <a href="https://open-vsx.org/extension/lanly-dev/chanh" target="_blank" rel="noopener">Open VSX</a>
+            <a href="https://lemonade-server.ai/" target="_blank" rel="noopener">Lemonade</a>
+          </div>
+        </footer>
+      </article>
+    </main>
+  </div>
 
   <script src="./site.js" defer></script>
 </body>
 </html>
-

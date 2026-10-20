@@ -19,7 +19,7 @@ A VS Code extension that downloads, hosts, and runs the [Lemonade Server](https:
 <img src='https://github.com/lanly-dev/vscode-chanh/blob/main/media/sc.png?raw=true' width='600'/>
 
 ## Website
-The project website lives in [`website/`](website/) and is set up for GitHub Pages. The landing page includes a YouTube-ready demo preview, the interactive mockup, a feature overview, install steps and an FAQ.
+The project website lives in [`website/`](website/) and is set up for GitHub Pages. It is a one-page technical reference covering architecture, server modes, model lifecycle, configuration, commands and chat/agent integration, plus the demo preview and interactive mockup.
 
 Once the Pages workflow runs, it is published at <https://lanly-dev.github.io/lemond/>.
 
