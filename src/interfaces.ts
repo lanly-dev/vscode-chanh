@@ -201,6 +201,12 @@ export interface LemonadeModel {
   update_available?: boolean
     /** Approximate model size in GB, when reported by the server. */
   size?: number
+  /**
+   * Member model names of a collection pack (e.g. `recipe: "collection.omni"`),
+   * as reported by the live server (the desktop app's `ModelInfo.components`).
+   * Regular models get an empty array or omit the field.
+   */
+  components?: string[]
 }
 
 /** One backend entry (a recipe paired with an accelerator) in `/v1/system-info`. */

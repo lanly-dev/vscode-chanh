@@ -765,12 +765,24 @@ export class ModelManager {
         return
       }
       const loaded = health?.all_models_loaded.find((m) => m.model_name === modelId)
+      // Collection packs correlate to their member models via the server's
+      // `components` field; annotate each with capability and load state, the
+      // way the official Lemonade app does.
+      const loadedNames = new Set((health?.all_models_loaded ?? []).map((m) => m.model_name))
+      const componentRows = (model.components ?? [])
+        .filter((c) => c.length > 0)
+        .map((name) => {
+          const part = all.find((m) => m.id === name)
+          const cap = part ? ModelManager.getModelLabel(part) : undefined
+          const state = loadedNames.has(name) ? 'loaded' : 'not loaded'
+          return `${name}${cap ? ` (${cap})` : ''} — ${state}`
+        })
       // Log the raw server data so missing fields can be diagnosed from the
       // Chanh output channel.
       Logger.info(`Model entry for ${modelId}: ${JSON.stringify(model)}`)
 
       const panel = window.createWebviewPanel('chanhModelInfo', modelId, ViewColumn.Active, { enableScripts: false })
-      panel.webview.html = this.buildModelInfoHtml(model, options, loaded)
+      panel.webview.html = this.buildModelInfoHtml(model, options, loaded, componentRows)
     } catch (err: unknown) {
       Logger.error('Failed to show model info', err)
       showErrorMessage(`Failed to show model info: ${err}`)
@@ -781,7 +793,9 @@ export class ModelManager {
   private buildModelInfoHtml(
     model: LemonadeModel,
     options?: Awaited<ReturnType<LemonadeClient['getModelOptions']>>,
-    loaded?: { is_busy?: boolean, is_streaming?: boolean, backend_url?: string }
+    loaded?: { is_busy?: boolean, is_streaming?: boolean, backend_url?: string },
+    /** Preformatted member-model lines for collection packs (omni/router). */
+    componentRows?: string[]
   ): string {
     const esc = (value: unknown): string => String(value ?? '')
       .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
@@ -805,6 +819,7 @@ export class ModelManager {
 
     const rows = [
       row('Capabilities', ModelManager.getModelLabel(model)),
+      row('Components', componentRows?.length ? componentRows.join('\n') : undefined),
       row('Status', loaded
         ? ['Loaded', loaded.is_busy ? 'busy' : 'idle', loaded.is_streaming ? 'streaming' : undefined]
           .filter(Boolean).join(' — ')

@@ -1494,6 +1494,19 @@ export class ServerViewProvider implements TreeDataProvider<TreeItem>, Disposabl
     if (model.type) lines.push(`Type: ${model.type}`)
     if (model.owned_by) lines.push(`Owned By: ${model.owned_by}`)
 
+    // Collection packs (e.g. omni) correlate to their member models via the
+    // server's `components` field; list each with its capability labels, the
+    // way the official Lemonade app does.
+    const components = (model.components ?? []).filter((c) => c.length > 0)
+    if (components.length > 0) {
+      lines.push('Components:')
+      for (const name of components) {
+        const part = this._activeServer?.models?.find((m) => m.id === name)
+        const cap = part ? ModelManager.getModelLabel(part) : undefined
+        lines.push(`  ${name}${cap ? ` (${cap})` : ''}`)
+      }
+    }
+
     // Backend: the accelerator the recipe resolves to (from system-info), plus
     // the per-model runtime endpoint once the model is loaded.
     if (opts.effectiveBackend) lines.push(`Backend: ${opts.effectiveBackend}`)
@@ -1585,7 +1598,9 @@ export class ServerViewProvider implements TreeDataProvider<TreeItem>, Disposabl
    * Omni collection models (recipe === 'collection.omni') are virtual bundles
    * the server loads as individual per-capability parts. The collection entry
    * itself never appears in `all_models_loaded`, so we treat it as loaded when
-   * every capability it claims has at least one loaded model covering it.
+   * every member named in the server's `components` field is loaded, or — for
+   * servers that don't report components — when every capability it claims has
+   * at least one loaded model covering it.
    */
   private isModelLoaded(model: LemonadeModel, loadedIds: Set<string>): boolean {
     // Direct hit: the model itself is listed as loaded.
@@ -1594,8 +1609,14 @@ export class ServerViewProvider implements TreeDataProvider<TreeItem>, Disposabl
     const server = this._activeServer
     if (!server?.models) return false
 
-    // Omni collection: loaded when its parts (per-capability models) are loaded.
     if (model.recipe === 'collection.omni') {
+      // Preferred: the server names the pack's member models explicitly via
+      // `components`; the pack counts as loaded when every member is loaded.
+      const components = (model.components ?? []).filter((c) => c.length > 0)
+      if (components.length > 0) return components.every((c) => loadedIds.has(c))
+
+      // Fallback for servers that don't report components: treat the pack as
+      // loaded when every capability it claims has a loaded model covering it.
       const categories = ModelManager.getCapabilityCategories(model)
         .filter(c => c !== 'omni' && CAPABILITY_ORDER.includes(c))
       if (categories.length === 0) return false
