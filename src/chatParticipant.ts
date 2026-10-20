@@ -21,7 +21,7 @@ import { ModelManager } from './modelManager'
 import { ServerManager } from './serverManager'
 import { ServerStatus } from './interfaces'
 
-import type { ChatMessage, ChatStreamStats } from './interfaces'
+import type { ChatStreamStats } from './interfaces'
 import { closeOpenMarkdownFence, formatTurnFooter, shouldShowTokenStats } from './utils'
 
 // Handles VS Code chat requests by forwarding them to the Lemonade Server.
@@ -61,51 +61,53 @@ export class ChatParticipant implements Disposable {
     Logger.info(`Chat client pointing to: ${url}`)
   }
 
-  /** Get the model to use for chat. */
+  /**
+   * Get the model to use for chat, loading it on the server when needed.
+   * Throws when listing/loading fails so the caller can surface the real
+   * error instead of a generic "no model" message.
+   */
   private async getModel(): Promise<string | undefined> {
     // Reuse the model already chosen earlier in this session.
     if (this.selectedModel) return this.selectedModel
 
-    // Use the configured chat model if one is set.
-    const config = workspace.getConfiguration('chanh')
-    const chatModel = config.get<string>('chatModel', '')
-
-    if (chatModel) {
-      this.selectedModel = chatModel
-      return chatModel
-    }
-
     if (this.serverManager.status !== ServerStatus.RUNNING) return undefined
 
-    try {
-      // No chat model configured -> let the user pick which model to chat with.
-      const allModels = await this.client.listModels()
-      const chatModels = allModels.filter((m) => ModelManager.capabilityFor(m, 'chat'))
-      const msg = 'No chat-capable models found. Please download a chat model first.'
-      if (!allModels.length || !chatModels.length) {
-        window.showWarningMessage(msg)
-        return undefined
-      }
-
-      const items = chatModels.map((m) => ({ label: m.id, description: ModelManager.getModelLabel(m) }))
-      const selected = await window.showQuickPick(items, {
-        title: 'Select a model to chat with',
-        placeHolder: 'Choose a model',
-        ignoreFocusOut: true
-      })
-
-      if (selected) {
-        this.selectedModel = selected.label
-        // Load the model if not already loaded
-        await this.client.loadModel(selected.label)
-        // Keep the tree view's loaded rows in sync with this implicit load.
-        this.modelManager?.refreshTreeView()
-        return selected.label
-      }
-    } catch (err) {
-      Logger.error('Failed to get model for chat', err)
+    const allModels = await this.client.listModels()
+    const chatModels = allModels.filter((m) => ModelManager.capabilityFor(m, 'chat'))
+    if (!allModels.length || !chatModels.length) {
+      window.showWarningMessage('No chat-capable models found. Please download a chat model first.')
+      return undefined
     }
-    return undefined
+
+    // Use the configured chat model when it still exists and is chat-capable;
+    // a stale config (deleted model, switched server) falls back to the picker.
+    const config = workspace.getConfiguration('chanh')
+    const chatModel = config.get<string>('chatModel', '')
+    if (chatModel) {
+      if (chatModels.some((m) => m.id === chatModel)) return await this.loadForChat(chatModel)
+      window.showWarningMessage(
+        `Configured chat model '${chatModel}' is not available on the server. Pick another model.`
+      )
+    }
+
+    // No usable chat model configured -> let the user pick which model to chat with.
+    const items = chatModels.map((m) => ({ label: m.id, description: ModelManager.getModelLabel(m) }))
+    const selected = await window.showQuickPick(items, {
+      title: 'Select a model to chat with',
+      placeHolder: 'Choose a model',
+      ignoreFocusOut: true
+    })
+    if (!selected) return undefined
+    return await this.loadForChat(selected.label)
+  }
+
+  /** Load the model on the server (a no-op when already loaded) and remember it. */
+  private async loadForChat(model: string): Promise<string> {
+    await this.client.loadModel(model)
+    this.selectedModel = model
+    // Keep the tree view's loaded rows in sync with this implicit load.
+    this.modelManager?.refreshTreeView()
+    return model
   }
 
   /** Set the selected model. */
@@ -141,10 +143,19 @@ export class ChatParticipant implements Disposable {
       }
     }
 
-    // Get the model to use
-    const model = await this.getModel()
+    // Get the model to use; surface real failures (list/load errors, slot
+    // conflicts) instead of a generic "no model" message.
+    let model: string | undefined
+    try {
+      model = await this.getModel()
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err)
+      Logger.error('Failed to get model for chat', err)
+      response.markdown(`**Error:** ${message}`)
+      return { errorDetails: { message } }
+    }
     if (!model) {
-      response.markdown('No model is loaded.')
+      response.markdown('No chat model selected.')
       return { errorDetails: { message: 'No model available' } }
     }
 
@@ -152,14 +163,14 @@ export class ChatParticipant implements Disposable {
     const history = this.extractHistory(context)
     const messages = LemonadeClient.toChatMessages(request.prompt, history, request.command)
 
-    // Add context from active editor if available
+    // Attach the active editor's content as context. getEditorContext() already
+    // returns a complete, fenced message, so it is sent verbatim as a user turn
+    // right before the prompt — a second wrapper would nest code fences and
+    // break the markdown (and small models weigh the turns closest to the
+    // question more).
     const editorContext = this.getEditorContext()
     if (editorContext) {
-      const contextMessage: ChatMessage = {
-        role: 'system',
-        content: `The user has the following code open in their editor:\n\n\`\`\`\n${editorContext}\n\`\`\``
-      }
-      messages.splice(1, 0, contextMessage)
+      messages.splice(messages.length - 1, 0, { role: 'user', content: editorContext })
     }
 
     // Stream the response. The server reports per-model `is_busy`, so repaint
@@ -192,6 +203,12 @@ export class ChatParticipant implements Disposable {
       }
       return {}
     } catch (err) {
+      // A cancelled turn is the user's own doing, not a failure — exit quietly
+      // instead of rendering an error (mirrors lmcProvider's handling).
+      if (token.isCancellationRequested) {
+        Logger.info('Chat request cancelled by user')
+        return {}
+      }
       const message = err instanceof Error ? err.message : String(err)
       Logger.error('Chat completion failed', err)
       // Offer a one-click fix when the model's context size is too small.
@@ -233,8 +250,11 @@ export class ChatParticipant implements Disposable {
     return history
   }
 
-  /** Get the active editor's content as context, capped at 8192 chars with a
-   *  truncation note, labelled with the filename and language id. */
+  /**
+   * Get the active editor's content as context, capped at 8192 chars with a
+   * truncation note, labelled with the filename and language id. Returns a
+   * complete chat message ready to send — callers must not wrap it again.
+   */
   private getEditorContext(): string | undefined {
     const editor = window.activeTextEditor
     if (!editor) return undefined

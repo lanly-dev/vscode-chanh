@@ -233,7 +233,6 @@ Re-checked against the running Lemonade 11.8.1 server on 2026-09-30. Each of the
 ### Existing
 
 - [ ] `src/lmcProvider.ts:277` - handle a `false` result from `serverManager.ensureRunning()` in `provideLanguageModelChatResponse()`; a declined or failed start currently falls through into model loading and completion against an unavailable server instead of returning a clear provider error.
-- [ ] `src/chatParticipant.ts:83` - align chat model filtering with `ModelManager.capabilityFor()` so models labelled `llm` are treated like `chat`; the native agent picker already accepts both, but `@chanh` currently accepts only the literal `chat` label.
 - [ ] `src/lmcProvider.ts:288` - cache or drop the `/v1/health` pre-check before `/v1/load` (the `alreadyLoaded` probe around `client.getHealth()`).
 - [ ] `src/modelManager.ts:457` - add tests for `setModelContext()` sizing, min/max limits, and reload failure.
 - [ ] `src/serverManager.ts:527` / `src/serverManager.ts:803` - verify port-occupied, reconnect, and mode-switch paths in `start()` / `stop()`.
