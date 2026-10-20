@@ -11,6 +11,7 @@ import {
   ChatResponseStream,
   ChatResponseTurn,
   ChatResult,
+  ConfigurationTarget,
   Disposable,
   Location,
   ThemeIcon,
@@ -23,8 +24,11 @@ import { ModelManager } from './modelManager'
 import { ServerManager } from './serverManager'
 import { ServerStatus } from './interfaces'
 
+import type { ChatFollowup, QuickPickItem } from 'vscode'
 import type { ChatMessage, ChatStreamStats, LemonadeModel } from './interfaces'
-import { closeOpenMarkdownFence, contextBudget, formatTurnFooter, shouldShowTokenStats } from './utils'
+import {
+  closeOpenMarkdownFence, contextBudget, formatSize, formatTurnFooter, shouldShowTokenStats
+} from './utils'
 
 // Handles VS Code chat requests by forwarding them to the Lemonade Server.
 export class ChatParticipant implements Disposable {
@@ -36,6 +40,10 @@ export class ChatParticipant implements Disposable {
   private selectedModel: string | undefined
   /** Context window (tokens) of the model resolved for this session. */
   private contextWindow = 8192
+  /** Slash command of the last request; keys the follow-up suggestions. */
+  private _lastCommand: string | undefined
+  /** History turns predating the last /reset; not sent to the model. */
+  private _ignoreHistoryBefore = 0
 
   constructor(private serverManager: ServerManager, private modelManager: ModelManager) {
     this.client = new LemonadeClient(serverManager.activeServerUrl)
@@ -43,6 +51,13 @@ export class ChatParticipant implements Disposable {
     // Create the chat participant
     this.participant = chat.createChatParticipant('CHANH_CHAT', this.handleRequest.bind(this))
     this.participant.iconPath = new ThemeIcon('sparkle')
+
+    // Suggested follow-ups after each answer, keyed to what was just asked.
+    // Not offered after errors or a /reset (nothing to continue from).
+    this.participant.followupProvider = {
+      provideFollowups: (result) =>
+        (result.errorDetails || result.metadata?.reset ? [] : this.buildFollowups())
+    }
 
     // Update client when server status changes to running
     this._subscriptions.push(
@@ -96,15 +111,34 @@ export class ChatParticipant implements Disposable {
     }
 
     // No usable chat model configured -> let the user pick which model to chat with.
-    const items = chatModels.map((m) => ({ label: m.id, description: ModelManager.getModelLabel(m) }))
-    const selected = await window.showQuickPick(items, {
+    // Loaded models sort first and are marked, size is shown to tell quants
+    // apart, and the choice is persisted like the palette command does.
+    const loadedIds = new Set(
+      (await this.client.getHealth().catch(() => undefined))?.all_models_loaded.map((m) => m.model_name) ?? []
+    )
+    type ModelPick = QuickPickItem & { modelId?: string }
+    const loadedRank = (item: ModelPick): number => (item.description?.startsWith('$(check)') ? 0 : 1)
+    const items: ModelPick[] = chatModels
+      .map((m) => ({
+        label: m.id,
+        description: [loadedIds.has(m.id) ? '$(check) loaded' : undefined, formatSize(m.size)]
+          .filter(Boolean).join(' · '),
+        detail: ModelManager.getModelLabel(m),
+        modelId: m.id
+      }))
+      // Sort is stable, so equal ranks keep catalog order.
+      .sort((a, b) => loadedRank(a) - loadedRank(b))
+    const selected = await window.showQuickPick<ModelPick>(items, {
       title: 'Select a model to chat with',
       placeHolder: 'Choose a model',
       ignoreFocusOut: true
     })
     if (!selected) return undefined
-    const picked = chatModels.find((m) => m.id === selected.label)
+    const picked = chatModels.find((m) => m.id === selected.modelId)
     if (!picked) return undefined
+    // Persist like the command-palette path, so the choice survives restarts
+    // and future sessions skip the picker.
+    await workspace.getConfiguration('chanh').update('chatModel', picked.id, ConfigurationTarget.Global)
     return await this.loadForChat(picked)
   }
 
@@ -125,6 +159,55 @@ export class ChatParticipant implements Disposable {
     Logger.info(`Selected model for chat: ${model}`)
   }
 
+  /**
+   * Follow-up suggestions for the last answer. Keyed to the last slash
+   * command so the suggestions read as natural next steps; no per-answer
+   * content analysis — stable prompts a small local model can actually take.
+   */
+  private buildFollowups(): ChatFollowup[] {
+    const common: ChatFollowup[] = [
+      { prompt: 'Suggest improvements and point out edge cases', label: 'Suggest improvements' },
+      { prompt: 'Make the answer more concise', label: 'More concise' }
+    ]
+    switch (this._lastCommand) {
+      case 'fix':
+        return [
+          { prompt: 'Explain the fix step by step', label: 'Explain the fix' },
+          { prompt: 'Write tests for the fixed code', label: 'Write tests' },
+          ...common
+        ]
+      case 'explain':
+        return [
+          { prompt: 'Now refactor it for clarity', label: 'Refactor for clarity' },
+          { prompt: 'Write unit tests for it', label: 'Write tests' },
+          ...common
+        ]
+      case 'test':
+        return [
+          { prompt: 'Explain what each test covers', label: 'Explain tests' },
+          { prompt: 'Add edge case tests', label: 'More edge cases' },
+          ...common
+        ]
+      case 'doc':
+        return [
+          { prompt: 'Explain the documentation you wrote', label: 'Explain' },
+          ...common
+        ]
+      case 'refactor':
+        return [
+          { prompt: 'Explain what changed and why', label: 'Explain changes' },
+          { prompt: 'Write tests to verify behavior is unchanged', label: 'Verify with tests' },
+          ...common
+        ]
+      default:
+        return [
+          { prompt: 'Explain the code above in more detail', label: 'Explain in more detail' },
+          { prompt: 'Write unit tests for the code above', label: 'Write tests' },
+          ...common
+        ]
+    }
+  }
+
   /** Handle a chat request from VS Code. */
   private async handleRequest(
     request: ChatRequest,
@@ -133,6 +216,16 @@ export class ChatParticipant implements Disposable {
     token: CancellationToken
   ): Promise<ChatResult> {
     Logger.info(`Chat request received: "${request.prompt.substring(0, 100)}"`)
+
+    // /reset starts fresh: keep the visible VS Code history but stop sending
+    // turns that predate it. No model needed for this.
+    if (request.command === 'reset') {
+      this._ignoreHistoryBefore = context.history.length
+      response.markdown('Context cleared — earlier messages will not be included in future requests. '
+        + 'The chat view keeps them for reference.')
+      return { metadata: { reset: true } }
+    }
+    this._lastCommand = request.command
 
     if (this.serverManager.status !== ServerStatus.RUNNING) {
       const start = await window.showInformationMessage(
@@ -153,9 +246,11 @@ export class ChatParticipant implements Disposable {
     }
 
     // Get the model to use; surface real failures (list/load errors, slot
-    // conflicts) instead of a generic "no model" message.
+    // conflicts) instead of a generic "no model" message. Loading can take a
+    // while on CPU, so say what is happening instead of showing silence.
     let model: string | undefined
     try {
+      if (!this.selectedModel) response.progress('Selecting and loading a chat model…')
       model = await this.getModel()
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err)
@@ -210,11 +305,20 @@ export class ChatParticipant implements Disposable {
       this.modelManager?.refreshTreeView()
     }
     this.modelManager?.refreshTreeView()
+    // Small local models can spend a long time on prompt processing before
+    // the first token arrives; surface that instead of showing silence.
+    // Progress parts are replaced by the next one, so the stale message
+    // disappears as soon as streaming starts.
+    let firstToken = false
+    const prefillTimer = setTimeout(() => {
+      if (!firstToken) response.progress('Waiting for the first token (prompt processing)…')
+    }, 1500)
     try {
       const stats: ChatStreamStats = {}
       const fullResponse = await this.client.chatCompletionStream(
         { model, messages },
         (tokenChunk) => {
+          firstToken = true
           markBusy()
           response.markdown(tokenChunk)
         },
@@ -222,6 +326,7 @@ export class ChatParticipant implements Disposable {
         undefined,
         stats
       )
+      firstToken = true
 
       Logger.info(`Chat response complete (${fullResponse.length} chars)`)
       const footer = formatTurnFooter(stats, fullResponse.length)
@@ -244,6 +349,7 @@ export class ChatParticipant implements Disposable {
       response.markdown(`\n\n**Error:** ${message}`)
       return { errorDetails: { message } }
     } finally {
+      clearTimeout(prefillTimer)
       // Dispose cancellation listeners so they cannot fire after the request
       // settles (avoiding double abort / stale controller handling).
       for (const disposable of this._cancellationDisposables) disposable.dispose()
@@ -252,11 +358,13 @@ export class ChatParticipant implements Disposable {
     }
   }
 
-  /** Extract chat history from the VS Code chat context. */
+  /** Extract chat history from the VS Code chat context, honouring /reset. */
   private extractHistory(context: ChatContext): Array<{ role: string, content: string }> {
     const history: Array<{ role: string, content: string }> = []
 
-    for (const turn of context.history) {
+    // Turns before the last /reset are skipped: VS Code owns the visible
+    // history, we only control what gets sent to the model.
+    for (const turn of context.history.slice(this._ignoreHistoryBefore)) {
       // Check if it's a request turn (user message)
       if (turn instanceof ChatRequestTurn) {
         const requestTurn = turn as ChatRequestTurn

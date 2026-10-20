@@ -219,6 +219,22 @@ Three gaps in `src/chatParticipant.ts`, all on the context-assembly path that ru
 
 Known limits worth stating: the fixed-text tokenization double-counts slightly (framing around messages is not tokenized), so the trim is conservative by a few tokens plus an explicit 32-token margin; and if a single attachment is larger than the whole budget, trimming all history would not help, so the request is sent unchanged and the server's own handling applies.
 
+### `@chanh` follow-up suggestions after each answer (2026-10-20)
+
+The participant registers a `followupProvider` so every non-error, non-reset answer gets clickable suggestion chips under it (`src/chatParticipant.ts`). The suggestions are keyed to the last slash command: `/fix` gets "Explain the fix step by step" and "Write tests for the fixed code", `/explain` gets "Refactor for clarity" and "Write tests", `/test`, `/doc`, and `/refactor` each get command-matched next steps, and plain questions get "Explain in more detail" and "Write tests". Two common suggestions ("Suggest improvements", "More concise") appear on every answer. No per-answer content analysis — the prompts are stable so a small local model can handle them reliably. Errors and `/reset` return no followups (`errorDetails` / `metadata.reset`).
+
+### Model picker: loaded-first, sized, marked, persisted (2026-10-20)
+
+When no chat model is configured, `@chanh` opens `showQuickPick` on `/v1/models` (`src/chatParticipant.ts`). Loaded models are probed from `/v1/health`, sorted first, and marked `$(check) loaded`; each row shows `formatSize(m.size)` so quants are tellable apart, with capability labels in `detail`. Picking one persists `chanh.chatModel` globally (same as the command-palette path), so the choice survives restarts and future sessions skip the picker. The "Manage models…" row was removed — opening the sidebar is not a valid quick-pick outcome here. `QuickPickItem` and `ConfigurationTarget` were added to the imports, and `commands` was dropped when the sidebar-opening branch went away.
+
+### Progress feedback while loading and before first token (2026-10-20)
+
+Small local models stall visibly: model loading can take seconds on CPU, and prompt processing before the first token is silent by default. `handleRequest()` now calls `response.progress('Selecting and loading a chat model…')` while resolving/loading a model when none is selected yet, and a prefill watchdog shows `response.progress('Waiting for the first token (prompt processing)…')` after 1.5 s with no token (`src/chatParticipant.ts`). Progress parts are replaced by the next message and cleared as soon as streaming starts, so nothing stale lingers; the watchdog is cleared in `finally`.
+
+### Slash commands: /reset plus /test, /doc, /refactor prompts (2026-10-20)
+
+`package.json` registers `/reset`, `/test`, `/doc`, and `/refactor` as chat commands alongside the existing `/fix` and `/explain`. `/reset` clears per-session context: it marks the current history length in `_ignoreHistoryBefore`, and `extractHistory()` slices from there so turns before the reset stop being sent to the model while VS Code's visible history stays untouched — no model or server needed (`src/chatParticipant.ts`). `buildSystemPrompt()` in `src/lemonadeClient.ts` was rewritten: the `TODO: better prompt?` marker is gone, and each command now carries a proper behavioral task instruction (`fix`, `explain`, `test`, `doc`, `refactor`) on top of one shared base prompt that asks for Markdown output with fenced code blocks tagged by language — which matters for `/test` and `/doc` output rendering.
+
 ---
 
 ## Current TODO

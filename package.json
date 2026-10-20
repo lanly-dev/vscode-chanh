@@ -73,6 +73,22 @@
           {
             "name": "explain",
             "description": "Explain the selected code"
+          },
+          {
+            "name": "test",
+            "description": "Generate unit tests for the selected code"
+          },
+          {
+            "name": "doc",
+            "description": "Write documentation for the selected code"
+          },
+          {
+            "name": "refactor",
+            "description": "Suggest a refactor of the selected code"
+          },
+          {
+            "name": "reset",
+            "description": "Start a fresh conversation (clears the context sent to the model)"
           }
         ]
       }

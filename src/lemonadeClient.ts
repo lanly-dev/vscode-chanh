@@ -640,19 +640,32 @@ export class LemonadeClient {
     })
   }
 
-  /** Build a system prompt for code-related tasks. TODO: better prompt? */
+  /**
+   * Build a system prompt for code-related tasks. One base for every command
+   * (local models get little enough context as it is) plus a task-specific
+   * instruction. Templates are deliberately behavioral — what to produce and
+   * in what form — not step-by-step reasoning scripts.
+   */
   static buildSystemPrompt(command?: string): string {
-    const base = 'You are a helpful AI assistant running locally via Lemonade Server.'
-    if (command === 'fix') {
-      return `${base} The user wants you to fix issues in the provided code. `
-        + 'Analyze the code, identify problems, and provide a corrected version with explanations.'
+    const base = 'You are a helpful AI assistant running locally via Lemonade Server. '
+      + 'Answer in GitHub-flavored Markdown and put code in fenced blocks with a language tag.'
+    const prompts: Record<string, string> = {
+      fix: 'The user wants you to fix issues in the provided code. Analyze the code, identify the '
+        + 'problems, and reply with the corrected code followed by a short explanation of each change.',
+      explain: 'The user wants you to explain the provided code. Give a clear, step-by-step '
+        + 'explanation of what it does and how it works, noting any notable patterns or issues.',
+      test: 'The user wants unit tests for the provided code. Detect the test framework from the '
+        + 'language and any existing code context; write focused tests covering the main behavior '
+        + 'and the important edge cases, and output them as a single test file in a fenced block.',
+      doc: 'The user wants documentation for the provided code. Write concise doc comments in the '
+        + 'idiom for the language (JSDoc/TSDoc, docstrings, etc.) covering purpose, parameters, '
+        + 'return values, and notable behavior. Do not change the code itself.',
+      refactor: 'The user wants a refactor of the provided code with no behavior change. Improve '
+        + 'structure, naming, or clarity; reply with the refactored code and briefly summarize '
+        + 'what changed and why.'
     }
-    if (command === 'explain') {
-      return `${base} The user wants you to explain the provided code. `
-        + 'Provide a clear, detailed explanation of what the code does, '
-        + 'how it works, and any notable patterns or issues.'
-    }
-    return base
+    const extra = prompts[command ?? '']
+    return extra ? `${base} ${extra}` : base
   }
 
   /** Convert VS Code chat messages to OpenAI format. */
