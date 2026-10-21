@@ -33,7 +33,7 @@ export async function activate(context: ExtensionContext) {
 
   const modelManager = new ModelManager(serverManager, svProvider, lmcProvider)
   lmcProvider.setModelManager(modelManager)
-  const chatParticipant = new ChatParticipant(serverManager, modelManager)
+  const chatParticipant = new ChatParticipant(serverManager, modelManager, context)
 
   const d1 = rc('chanh.downloadBinary', () => binaryManager.downloadBinary())
   const d2 = rc('chanh.selectChatModel', () => modelManager.selectChatModel(chatParticipant))

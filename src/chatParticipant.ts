@@ -13,8 +13,8 @@ import {
   ChatResult,
   ConfigurationTarget,
   Disposable,
+  ExtensionContext,
   Location,
-  ThemeIcon,
   Uri
 } from 'vscode'
 
@@ -45,12 +45,20 @@ export class ChatParticipant implements Disposable {
   /** History turns predating the last /reset; not sent to the model. */
   private _ignoreHistoryBefore = 0
 
-  constructor(private serverManager: ServerManager, private modelManager: ModelManager) {
+  constructor(
+    private serverManager: ServerManager,
+    private modelManager: ModelManager,
+    private readonly extensionContext: ExtensionContext
+  ) {
     this.client = new LemonadeClient(serverManager.activeServerUrl)
 
     // Create the chat participant
     this.participant = chat.createChatParticipant('CHANH_CHAT', this.handleRequest.bind(this))
-    this.participant.iconPath = new ThemeIcon('sparkle')
+    this.participant.iconPath = Uri.joinPath(
+      extensionContext.extensionUri,
+      'media',
+      'chanh.svg'
+    )
 
     // Suggested follow-ups after each answer, keyed to what was just asked.
     // Not offered after errors or a /reset (nothing to continue from).

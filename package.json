@@ -56,7 +56,8 @@
     "languageModelChatProviders": [
       {
         "vendor": "chanh",
-        "displayName": "Chanh 🍋"
+        "displayName": "Chanh 🍋",
+        "icon": "media/chanh.svg"
       }
     ],
     "chatParticipants": [
