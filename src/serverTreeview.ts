@@ -1193,6 +1193,7 @@ export class ServerViewProvider implements TreeDataProvider<TreeItem>, Disposabl
     if (element.contextValue === 'CHANH_LOADED_HEADER') return this.getLoadedModelChildren()
     if (element.contextValue === 'CHANH_DOWNLOADING_HEADER') return this.getDownloadingChildren()
     if (element.contextValue === 'CHANH_PINNED_HEADER') return this.getPinnedModelChildren()
+    if (element.contextValue === 'CHANH_PINNED_CATEGORY') return this.getPinnedCategoryChildren(element)
     if (element.contextValue === 'CHANH_INSTALLED_HEADER') return this.getInstalledChildren()
     if (element.contextValue === 'CHANH_DOWNLOADABLE_HEADER') return this.getDownloadableChildren()
     if (element.contextValue === 'CHANH_CAP_GROUP'
@@ -1264,11 +1265,13 @@ export class ServerViewProvider implements TreeDataProvider<TreeItem>, Disposabl
       const pinnedEntries = pinnedModels ? Object.entries(pinnedModels) : []
       const pinnedCount = pinnedEntries.reduce((sum, [, count]) => sum + (count ?? 0), 0)
 
-      const pinnedHeader = new TreeItem(`Pinned Models (${pinnedCount})`, Collapsed)
-      const pinnedColor = pinnedCount > 0 ? new ThemeColor('charts.blue') : undefined
-      pinnedHeader.iconPath = new ThemeIcon('pin', pinnedColor)
-      pinnedHeader.contextValue = 'CHANH_PINNED_HEADER'
-      items.push(pinnedHeader)
+      if (pinnedCount > 0) {
+        const pinnedHeader = new TreeItem(`Pinned Models (${pinnedCount})`, Collapsed)
+        const pinnedColor = new ThemeColor('charts.blue')
+        pinnedHeader.iconPath = new ThemeIcon('pin', pinnedColor)
+        pinnedHeader.contextValue = 'CHANH_PINNED_HEADER'
+        items.push(pinnedHeader)
+      }
     }
     return items
   }
@@ -1330,6 +1333,8 @@ export class ServerViewProvider implements TreeDataProvider<TreeItem>, Disposabl
     // Enrich the runtime status with the downloaded model's catalog metadata
     // (size, context, recipe...) when the model is in the server's model list.
     const catalogModel = server.models?.find((m) => m.id === model.model_name)
+    const loadedEntry = server.health?.all_models_loaded.find((m) => m.model_name === model.model_name)
+    const isPinned = loadedEntry?.pinned === true
     if (catalogModel) {
       item.tooltip = this.buildModelTooltip(catalogModel, {
         isLoaded: true,
@@ -1340,8 +1345,10 @@ export class ServerViewProvider implements TreeDataProvider<TreeItem>, Disposabl
       })
     } else item.tooltip = `Model: ${model.model_name}\nBusy: ${model.is_busy}\nStreaming: ${model.is_streaming}`
 
-    item.contextValue = 'CHANH_LOADED_MODEL'
-    item.description = model.is_busy ? 'busy' : 'idle'
+    item.contextValue = isPinned ? 'CHANH_LOADED_MODEL_PINNED' : 'CHANH_LOADED_MODEL'
+    const descParts = [model.is_busy ? 'busy' : 'idle']
+    if (isPinned) descParts.push('pinned')
+    item.description = descParts.join(' · ')
     return item
   }
 
@@ -1409,10 +1416,15 @@ export class ServerViewProvider implements TreeDataProvider<TreeItem>, Disposabl
 
   private getPinnedModelChildren(): TreeItem[] {
     const server = this._activeServer
-    const pinned = server?.health?.pinned_models
-    if (!pinned) return []
+    const pinnedCounts = server?.health?.pinned_models
 
-    const entries = Object.entries(pinned)
+    if (!pinnedCounts) {
+      const noItem = new TreeItem('No pinned models', None)
+      noItem.iconPath = new ThemeIcon('circle-slash', new ThemeColor('charts.gray'))
+      return [noItem]
+    }
+
+    const entries = Object.entries(pinnedCounts).filter(([, count]) => (count ?? 0) > 0)
     if (entries.length === 0) {
       const noItem = new TreeItem('No pinned models', None)
       noItem.iconPath = new ThemeIcon('circle-slash', new ThemeColor('charts.gray'))
@@ -1420,12 +1432,54 @@ export class ServerViewProvider implements TreeDataProvider<TreeItem>, Disposabl
     }
 
     return entries.map(([category, count]) => {
-      const value = count ?? 0
-      const item = new TreeItem(category, None)
-      item.description = String(value)
-      const color = value > 0 ? new ThemeColor('charts.green') : new ThemeColor('charts.gray')
-      item.iconPath = new ThemeIcon('pinned', color)
-      item.tooltip = `${category}: ${value} pinned`
+      const item = new TreeItem(`${category} (${count})`, Collapsed) as TreeItem & { category?: string }
+      item.category = category
+      item.contextValue = 'CHANH_PINNED_CATEGORY'
+      item.description = `${count} pinned`
+      item.tooltip = `${category}: ${count} pinned model(s)`
+      return item
+    })
+  }
+
+  /** Individual pinned models under one pinned category header. */
+  private getPinnedCategoryChildren(element: TreeItem & { category?: string }): TreeItem[] {
+    const server = this._activeServer
+    const loaded = server?.health?.all_models_loaded ?? []
+    const category = element.category
+    if (!category) return []
+
+    // Lemonade Server reports pinned counts under category keys like "llm",
+    // but models carry capability labels like "chat". Map server category keys
+    // to the matching model label(s) so the right models appear under each header.
+    const categoryLabels: Record<string, string[]> = {
+      llm: ['llm', 'chat'],
+      chat: ['chat', 'llm'],
+      embedding: ['embedding', 'embeddings'],
+      embeddings: ['embeddings', 'embedding'],
+    }
+    const matchLabels = categoryLabels[category] ?? [category]
+
+    // The server only reports pinned counts per category, not which specific
+    // models are pinned. Show every loaded model whose catalog labels match this
+    // category — these are the models that could be pinned in this category.
+    const modelsInCategory = loaded.filter((m) => {
+      const catalogModel = server?.models?.find((mm) => mm.id === m.model_name)
+      const labels = catalogModel?.labels ?? []
+      return matchLabels.some((label) => labels.some((l) => l.toLowerCase() === label.toLowerCase()))
+    })
+
+    if (modelsInCategory.length === 0) {
+      const noItem = new TreeItem('No pinned models', None)
+      noItem.iconPath = new ThemeIcon('circle-slash', new ThemeColor('charts.gray'))
+      return [noItem]
+    }
+
+    return modelsInCategory.map((model) => {
+      const item = new TreeItem(model.model_name, None) as TreeItem & { modelId: string }
+      item.modelId = model.model_name
+      item.contextValue = 'CHANH_PINNED_MODEL'
+      item.description = model.is_busy ? 'busy' : 'idle'
+      item.tooltip = `Model: ${model.model_name}\nCategory: ${category}\nBusy: ${model.is_busy}\nStreaming: ${model.is_streaming}`
       return item
     })
   }
@@ -1571,11 +1625,15 @@ export class ServerViewProvider implements TreeDataProvider<TreeItem>, Disposabl
 
     item.tooltip = tooltip
 
-    if (isLoaded) item.contextValue = 'CHANH_MODEL_LOADED'
-    else item.contextValue = 'CHANH_MODEL_INSTALLED'
+    const isPinned = loadedEntry?.pinned === true
+    if (isLoaded) item.contextValue = isPinned ? 'CHANH_MODEL_LOADED_PINNED' : 'CHANH_MODEL_LOADED'
+    else item.contextValue = isPinned ? 'CHANH_MODEL_INSTALLED_PINNED' : 'CHANH_MODEL_INSTALLED'
     // Rows with a saved ctx_size override get a suffix so the Reset Context
     // Size menu item can be shown only for them.
     if (model.recipe_options?.ctx_size !== undefined) item.contextValue += '_CTX_SET'
+    const descParts = [loadedEntry?.is_busy ? 'busy' : 'idle']
+    if (isPinned) descParts.push('pinned')
+    item.description = descParts.join(' · ')
     return item
   }
 

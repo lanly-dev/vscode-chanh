@@ -164,6 +164,8 @@ export interface HealthResponse {
     is_busy: boolean
     is_streaming: boolean
     backend_url?: string
+    /** Whether the model is pinned (protected from LRU eviction). */
+    pinned?: boolean
   }>
   max_loaded_models?: number
   pinned_models?: PinnedModels

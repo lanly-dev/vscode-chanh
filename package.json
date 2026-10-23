@@ -208,6 +208,16 @@
         "icon": "$(trash)"
       },
       {
+        "command": "chanh.ncp.pinModel",
+        "title": "Pin Model",
+        "icon": "$(pin)"
+      },
+      {
+        "command": "chanh.ncp.unpinModel",
+        "title": "Unpin Model",
+        "icon": "$(pin)"
+      },
+      {
         "command": "chanh.ncp.configLmEndpoint",
         "title": "Chanh: Add Entry to VS Code's Chat Custom Endpoints",
         "icon": "$(wrench)"
@@ -374,12 +384,22 @@
         },
         {
           "command": "chanh.ncp.copyModelId",
-          "when": "view == CHANH_TREEVIEW && (viewItem =~ /CHANH_MODEL_(INSTALLED|LOADED)/ || viewItem == CHANH_LOADED_MODEL || viewItem == CHANH_DOWNLOADABLE_MODEL || viewItem == CHANH_PARTIAL_MODEL)",
+          "when": "view == CHANH_TREEVIEW && (viewItem =~ /CHANH_MODEL_(INSTALLED|LOADED)/ || viewItem == CHANH_LOADED_MODEL || viewItem == CHANH_DOWNLOADABLE_MODEL || viewItem == CHANH_PARTIAL_MODEL || viewItem == CHANH_PINNED_MODEL || viewItem =~ /CHANH_MODEL_LOADED_PINNED/ || viewItem =~ /CHANH_LOADED_MODEL_PINNED/)",
           "group": "1_context@3"
         },
         {
+          "command": "chanh.ncp.pinModel",
+          "when": "view == CHANH_TREEVIEW && (viewItem == CHANH_MODEL_LOADED || viewItem == CHANH_MODEL_LOADED_CTX_SET || viewItem == CHANH_LOADED_MODEL)",
+          "group": "1_context@4"
+        },
+        {
+          "command": "chanh.ncp.unpinModel",
+          "when": "view == CHANH_TREEVIEW && (viewItem == CHANH_PINNED_MODEL || viewItem =~ /CHANH_MODEL_LOADED_PINNED/ || viewItem =~ /CHANH_LOADED_MODEL_PINNED/)",
+          "group": "1_context@4"
+        },
+        {
           "command": "chanh.ncp.removeModel",
-          "when": "view == CHANH_TREEVIEW && (viewItem =~ /CHANH_MODEL_(INSTALLED|LOADED)/ || viewItem == CHANH_LOADED_MODEL || viewItem == CHANH_PARTIAL_MODEL)",
+          "when": "view == CHANH_TREEVIEW && (viewItem =~ /CHANH_MODEL_(INSTALLED|LOADED)/ || viewItem == CHANH_LOADED_MODEL || viewItem == CHANH_PARTIAL_MODEL || viewItem == CHANH_PINNED_MODEL || viewItem =~ /CHANH_MODEL_LOADED_PINNED/ || viewItem =~ /CHANH_LOADED_MODEL_PINNED/)",
           "group": "2_remove"
         },
         {
@@ -492,6 +512,14 @@
       },
       {
         "command": "chanh.ncp.uninstallBackend",
+        "when": "false"
+      },
+      {
+        "command": "chanh.ncp.pinModel",
+        "when": "false"
+      },
+      {
+        "command": "chanh.ncp.unpinModel",
         "when": "false"
       },
       {

@@ -526,6 +526,44 @@ export class ModelManager {
     this.treeViewProvider.refreshServer()
   }
 
+  /** Pin a loaded model so the server protects it from LRU eviction. */
+  async pinModel(item: { modelId?: string }): Promise<void> {
+    const modelId = item.modelId
+    if (!modelId) {
+      showErrorMessage('Missing model ID, please report this bug to the developers')
+      return
+    }
+    if (!await this.serverManager.ensureRunning()) return
+    try {
+      await this.client.pinModel(modelId, true)
+      showInformationMessage(`Model '${modelId}' pinned`)
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : `Failed to pin model: ${String(err)}`
+      Logger.error(message, err)
+      showErrorMessage(message)
+    }
+    this.treeViewProvider.refreshServer()
+  }
+
+  /** Unpin a loaded model, allowing the server to evict it under LRU pressure. */
+  async unpinModel(item: { modelId?: string }): Promise<void> {
+    const modelId = item.modelId
+    if (!modelId) {
+      showErrorMessage('Missing model ID, please report this bug to the developers')
+      return
+    }
+    if (!await this.serverManager.ensureRunning()) return
+    try {
+      await this.client.pinModel(modelId, false)
+      showInformationMessage(`Model '${modelId}' unpinned`)
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : `Failed to unpin model: ${String(err)}`
+      Logger.error(message, err)
+      showErrorMessage(message)
+    }
+    this.treeViewProvider.refreshServer()
+  }
+
   /** Parse an effective/default ctx_size out of a model options response. */
   private static readCtxSize(options: Record<string, unknown> | undefined): number | undefined {
     const value = options?.ctx_size

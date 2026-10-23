@@ -4,11 +4,10 @@ Check [Keep a Changelog](https://keepachangelog.com/) for recommendations on how
 
 ## [TODO]
 - Backends color change
-- Chat follow up
 - Custom/mirror models support - group
 - Explore and add functionality for different types of models, e.g. image
 - Focus on coding-related features
-- Omni integration in vscode agent and list of pack
+- Omni integration in vscode agent - it is not a real model
 - Pin model feature
 - System over limit icon color change, and drives
 - Token stats logs

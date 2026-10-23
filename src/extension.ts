@@ -56,6 +56,8 @@ export async function activate(context: ExtensionContext) {
   const d15 = rc('chanh.ncp.loadModel', (item: ModelTreeItem) => modelManager.loadModel(item.modelId))
   const d16 = rc('chanh.ncp.unloadModel', (item: ModelTreeItem) => modelManager.unloadModel(item.modelId))
   const d17 = rc('chanh.ncp.showModelInfo', (item: ModelTreeItem) => modelManager.showModelInfo(item))
+  const d35 = rc('chanh.ncp.pinModel', (item: ModelTreeItem) => modelManager.pinModel(item))
+  const d36 = rc('chanh.ncp.unpinModel', (item: ModelTreeItem) => modelManager.unpinModel(item))
 
   const d18 = rc('chanh.ncp.copyModelId', (item: ModelTreeItem) => copyModelId(item))
   const d19 = rc('chanh.ncp.setModelContext', (item: ModelTreeItem) => modelManager.setModelContext(item))
@@ -80,8 +82,8 @@ export async function activate(context: ExtensionContext) {
   const d34 = window.registerFileDecorationProvider(new ModelDecorationProvider())
 
   context.subscriptions.push(d1, d2, d3, d4, d5, d6, d7, d8, d9, d10, d11, d12, d13, d14, d15, d16, d17, d18, d19, d20,
-    d21, d22, d23, d24, d25, d26, d27, d28, d29, d30, d31, d32, d33, d34, serverManager, chatParticipant, lmcProvider,
-    svProvider, Logger
+    d21, d22, d23, d24, d25, d26, d27, d28, d29, d30, d31, d32, d33, d34, d35, d36, serverManager, chatParticipant,
+    lmcProvider, svProvider, Logger
   )
   binaryManager.checkForUpdates()
 }

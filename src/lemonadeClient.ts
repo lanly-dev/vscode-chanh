@@ -155,6 +155,19 @@ export class LemonadeClient {
     await this.unloadModel()
   }
 
+  /** Pin or unpin a loaded model, protecting it from (or allowing) LRU eviction. */
+  async pinModel(modelName: string, pinned: boolean): Promise<void> {
+    const { status, data } = await this.request(
+      'POST',
+      '/internal/pin',
+      { model_name: modelName, pinned }
+    )
+    if (status !== 200) {
+      throw new Error(`Failed to ${pinned ? 'pin' : 'unpin'} model: ${status} ${data}`)
+    }
+    Logger.info(`${pinned ? 'Pinned' : 'Unpinned'} model: ${modelName}`)
+  }
+
   /**
    * Read a model's saved, effective, and default recipe options
    * (`ctx_size`, backend, ...). Used to pre-fill the context-size dialog and
