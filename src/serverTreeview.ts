@@ -1448,14 +1448,11 @@ export class ServerViewProvider implements TreeDataProvider<TreeItem>, Disposabl
     const category = element.category
     if (!category) return []
 
-    // Lemonade Server reports pinned counts under category keys like "llm",
-    // but models carry capability labels like "chat". Map server category keys
-    // to the matching model label(s) so the right models appear under each header.
+    // Server category keys map to the model label(s) that belong in that
+    // category. chat is treated as llm; embeddings as embedding.
     const categoryLabels: Record<string, string[]> = {
       llm: ['llm', 'chat'],
-      chat: ['chat', 'llm'],
-      embedding: ['embedding', 'embeddings'],
-      embeddings: ['embeddings', 'embedding'],
+      embedding: ['embedding', 'embeddings']
     }
     const matchLabels = categoryLabels[category] ?? [category]
 
@@ -1479,7 +1476,8 @@ export class ServerViewProvider implements TreeDataProvider<TreeItem>, Disposabl
       item.modelId = model.model_name
       item.contextValue = 'CHANH_PINNED_MODEL'
       item.description = model.is_busy ? 'busy' : 'idle'
-      item.tooltip = `Model: ${model.model_name}\nCategory: ${category}\nBusy: ${model.is_busy}\nStreaming: ${model.is_streaming}`
+      item.tooltip =
+        `Model: ${model.model_name}\nCategory: ${category}\nBusy: ${model.is_busy}\nStreaming: ${model.is_streaming}`
       return item
     })
   }

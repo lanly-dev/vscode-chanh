@@ -3,14 +3,16 @@ All notable changes to the "Chanh" extension will be documented in this file.\
 Check [Keep a Changelog](https://keepachangelog.com/) for recommendations on how to structure this file.
 
 ## [TODO]
-- Backends color change
-- Custom/mirror models support - group
 - Explore and add functionality for different types of models, e.g. image
 - Focus on coding-related features
 - Omni integration in vscode agent - it is not a real model
-- Pin model feature
 - System over limit icon color change, and drives
 - Token stats logs
+
+## [0.1.4]
+- Add custom model group
+- Add pin model
+- Improve chat
 
 ## [0.1.3] - 2026-10-18
 - New `System` tree group: live CPU, GPU and RAM utilization for the local
