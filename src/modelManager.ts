@@ -837,10 +837,10 @@ export class ModelManager {
   ): string {
     const esc = (value: unknown): string => String(value ?? '')
       .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
-    const row = (label: string, value?: string): string | undefined => {
+    const row = (label: string, value?: string, title?: string): string | undefined => {
       if (!value) return undefined
       return `<div class="row"><span class="label">${esc(label)}</span>` +
-        `<span class="value">${esc(value)}</span></div>`
+        `<span class="value"${title ? ` title="${esc(title)}"` : ''}>${esc(value)}</span></div>`
     }
 
     // -1 means "automatic context sizing"; missing values render as empty.
@@ -877,8 +877,7 @@ export class ModelManager {
       row('Owned by', model.owned_by),
       row('Created', typeof model.created === 'number' && model.created > 0
         ? new Date(model.created * 1000).toISOString().slice(0, 10)
-        : undefined),
-      row('Created value', model.created?.toString()),
+        : undefined, typeof model.created === 'number' ? model.created.toString() : undefined),
       row('Backend', loaded?.backend_url)
     ].filter((r): r is string => r !== undefined)
 
