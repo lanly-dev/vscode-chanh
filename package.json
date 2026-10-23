@@ -107,6 +107,22 @@
         "command": "chanh.setMaxLoadedModels",
         "title": "Chanh: Set Max Loaded Models"
       },
+            {
+        "command": "chanh.ncp.copyModelId",
+        "title": "Copy Model ID"
+      },
+      {
+        "command": "chanh.ncp.setModelContext",
+        "title": "Set Context Size"
+      },
+            {
+        "command": "chanh.ncp.pinModel",
+        "title": "Pin Model"
+      },
+      {
+        "command": "chanh.ncp.unpinModel",
+        "title": "Unpin Model"
+      },
       {
         "command": "chanh.openLmConfigsFile",
         "title": "Chanh: Open chatLanguageModels.json",
@@ -183,16 +199,6 @@
         "icon": "$(info)"
       },
       {
-        "command": "chanh.ncp.copyModelId",
-        "title": "Copy Model ID",
-        "icon": "$(copy)"
-      },
-      {
-        "command": "chanh.ncp.setModelContext",
-        "title": "Set Context Size",
-        "icon": "$(symbol-numeric)"
-      },
-      {
         "command": "chanh.ncp.resetModelContext",
         "title": "Reset Context Size to Default",
         "icon": "$(clear-all)"
@@ -206,16 +212,6 @@
         "command": "chanh.ncp.uninstallBackend",
         "title": "Uninstall Backend",
         "icon": "$(trash)"
-      },
-      {
-        "command": "chanh.ncp.pinModel",
-        "title": "Pin Model",
-        "icon": "$(pin)"
-      },
-      {
-        "command": "chanh.ncp.unpinModel",
-        "title": "Unpin Model",
-        "icon": "$(pin)"
       },
       {
         "command": "chanh.ncp.configLmEndpoint",

@@ -1450,11 +1450,11 @@ export class ServerViewProvider implements TreeDataProvider<TreeItem>, Disposabl
 
     // Server category keys map to the model label(s) that belong in that
     // category. chat is treated as llm; embeddings as embedding.
-    const categoryLabels: Record<string, string[]> = {
-      llm: ['llm', 'chat'],
-      embedding: ['embedding', 'embeddings']
+    const categoryLabels: Record<string, string> = {
+      llm: 'chat',
+      embedding: 'embeddings'
     }
-    const matchLabels = categoryLabels[category] ?? [category]
+    const theLabel = categoryLabels[category] ?? category
 
     // The server only reports pinned counts per category, not which specific
     // models are pinned. Show every loaded model whose catalog labels match this
@@ -1462,7 +1462,7 @@ export class ServerViewProvider implements TreeDataProvider<TreeItem>, Disposabl
     const modelsInCategory = loaded.filter((m) => {
       const catalogModel = server?.models?.find((mm) => mm.id === m.model_name)
       const labels = catalogModel?.labels ?? []
-      return matchLabels.some((label) => labels.some((l) => l.toLowerCase() === label.toLowerCase()))
+      return labels.some((l) => l.toLowerCase() === theLabel.toLowerCase())
     })
 
     if (modelsInCategory.length === 0) {
