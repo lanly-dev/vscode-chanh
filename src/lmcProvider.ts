@@ -1,6 +1,6 @@
 import * as vscode from 'vscode'
 import {
-  closeOpenMarkdownFence, contextBudget, formatTurnFooter, outputTokenBudget, shouldShowTokenStats
+  closeOpenMarkdownFence, contextBudget, estimateTokens, formatTurnFooter, outputTokenBudget, shouldShowTokenStats
 } from './utils'
 import { Logger } from './logger'
 import { ServerStatus } from './interfaces'
@@ -452,11 +452,6 @@ class ChanhLmcProvider implements vscode.LanguageModelChatProvider, vscode.Dispo
     }
   }
 
-  /** Character-based estimate, used when the server's tokenizer is unavailable. */
-  private estimateTokens(text: string): number {
-    return Math.ceil(text.length / 4)
-  }
-
   /**
    * Count tokens with the server's tokenizer. `chars / 4` was wrong in both
    * directions, so the host sized requests incorrectly: measured against the
@@ -478,7 +473,7 @@ class ChanhLmcProvider implements vscode.LanguageModelChatProvider, vscode.Dispo
         this.tokenCountFallbackWarned = true
         Logger.warn(`Cannot reach the server tokenizer, using the character estimate: ${err}`)
       }
-      return this.estimateTokens(text)
+      return estimateTokens(text)
     }
 
     // Bound the cache so a long session cannot retain every message forever.

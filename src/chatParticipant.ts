@@ -27,7 +27,7 @@ import { ServerStatus } from './interfaces'
 import type { ChatFollowup, QuickPickItem } from 'vscode'
 import type { ChatMessage, ChatStreamStats, LemonadeModel } from './interfaces'
 import {
-  closeOpenMarkdownFence, contextBudget, formatSize, formatTurnFooter, shouldShowTokenStats
+  closeOpenMarkdownFence, contextBudget, estimateTokens, formatSize, formatTurnFooter, shouldShowTokenStats
 } from './utils'
 
 // Handles VS Code chat requests by forwarding them to the Lemonade Server.
@@ -533,7 +533,7 @@ export class ChatParticipant implements Disposable {
       return await this.client.tokenize(text)
     } catch (err) {
       Logger.warn(`Cannot reach the server tokenizer, using character estimate: ${err}`)
-      return Math.ceil(text.length / 4)
+      return estimateTokens(text)
     }
   }
 

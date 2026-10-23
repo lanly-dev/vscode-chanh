@@ -140,6 +140,11 @@ export function formatByteProgress(written: number, total: number): string {
   return `${(written / divisor).toFixed(digits)} / ${(total / divisor).toFixed(digits)} ${BYTE_UNITS[unit]}`
 }
 
+/** Character-based token estimate, used when the server's tokenizer is unavailable. */
+export function estimateTokens(text: string): number {
+  return Math.ceil(text.length / 4)
+}
+
 export function openSetting(): void {
   vscode.commands.executeCommand('workbench.action.openSettings', '@ext:lanly-dev.chanh')
 }

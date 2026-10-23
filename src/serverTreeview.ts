@@ -1509,7 +1509,7 @@ export class ServerViewProvider implements TreeDataProvider<TreeItem>, Disposabl
       return [none]
     }
     if (this._groupDowModels) return this.getCapabilityGroups(displayModels, true)
-    return displayModels.map((model) => this.toDowItem(model))
+    return displayModels.map((model) => this.toDownloadableItem(model))
   }
 
   /**
@@ -1569,7 +1569,7 @@ export class ServerViewProvider implements TreeDataProvider<TreeItem>, Disposabl
   }
 
   /** Build one downloadable-model leaf row with a pull affordance. */
-  private toDowItem(model: LemonadeModel): TreeItem {
+  private toDownloadableItem(model: LemonadeModel): TreeItem {
     const item = new TreeItem(model.id, None) as TreeItem & { modelId: string }
     item.modelId = model.id
     const sizeText = formatSize(model.size)
@@ -1788,7 +1788,7 @@ export class ServerViewProvider implements TreeDataProvider<TreeItem>, Disposabl
       filtered = filtered.filter((m) => this.matchesSubFilter(m, subFilter))
     }
 
-    if (downloadable) return filtered.map((m) => this.toDowItem(m))
+    if (downloadable) return filtered.map((m) => this.toDownloadableItem(m))
 
     const loadedIds = new Set(server?.health?.all_models_loaded.map((m) => m.model_name) ?? [])
     // Within each capability group, surface loaded models first.
