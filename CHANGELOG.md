@@ -9,7 +9,7 @@ Check [Keep a Changelog](https://keepachangelog.com/) for recommendations on how
 - System over limit icon color change, and drives
 - Token stats logs
 
-## [0.1.4]
+## [0.1.4] - 2026-10-
 - Add Copy ID context menu options
 - Add custom model group
 - Add pinning model feature

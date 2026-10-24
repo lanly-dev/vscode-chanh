@@ -13,7 +13,9 @@ A VS Code extension that downloads, hosts, and runs the [Lemonade Server](https:
 - Managing/downloading Lemonade models
 - Chat integration: `@chanh` chat participant for quick Q&A, plus chat models with tool-calling support in the native VS Code model picker (agent mode, streaming, and vision)
 - Everything runs locally and works offline
-- Multiple server modes: system-installed Lemonade Server, Embeddable Lemonade, or custom URL
+- Multiple server modes: system-installed Lemonade Server, Embeddable Lemonade, or Custom URL
+- Model management extras: pin loaded models against LRU eviction, backend configurations, UI filter mechanism, and group installed/downloadable models by capability
+- Documentation site and interactive mockup at <https://lanly-dev.github.io/vscode-chanh/>
 - Just another way to [integrate with VS Code](https://lemonade-server.ai/docs/integrations/ai-toolkit)
 
 <img src='https://github.com/lanly-dev/vscode-chanh/blob/main/media/sc.png?raw=true' width='600'/>
@@ -23,6 +25,10 @@ The `@chanh` chat participant supports the following slash commands:
 
 - `/fix` - Generate a fix for the selected code
 - `/explain` - Explain the selected code
+- `/test` - Generate unit tests for the selected code
+- `/doc` - Write documentation for the selected code
+- `/refactor` - Suggest a refactor of the selected code
+- `/reset` - Start a fresh conversation (clears the context sent to the model)
 
 ## Server Management
 The tree view in the sidebar shows the active server, its status and its models. You can pick different server modes, such as using the system-installed Lemonade Server or downloading the binary version.
@@ -47,10 +53,12 @@ Plain chat models (no `tool-calling` label) remain available through the `@chanh
 ## Release Notes
 
 ### 0.1.4
-- Improve `@chat`
+- Add Copy ID context menu options
+- Add `custom` model group
 - Add pinning model feature
-- Add custom group
-- Add walkthrough
+- Add website and mockup
+- Improve chat `@chanh`
+- New Get Started walkthrough
 
 ### 0.1.3
 - Add an eye button to toggle Installed and Downloadable sections
