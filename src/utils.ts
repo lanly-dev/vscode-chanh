@@ -149,6 +149,10 @@ export function openSetting(): void {
   vscode.commands.executeCommand('workbench.action.openSettings', '@ext:lanly-dev.chanh')
 }
 
+export function walkthrough() {
+  vscode.commands.executeCommand('workbench.action.openWalkthrough', 'lanly-dev.chanh#chanh.getStarted')
+}
+
 export function openUrl(item: vscode.TreeItem): void {
   const label = item?.label
   if (!label) return
@@ -170,7 +174,6 @@ export function openUrl(item: vscode.TreeItem): void {
     Logger.error(`openUrl: rejecting non-web URI scheme "${parsed.scheme}"`)
     return
   }
-
   vscode.env.openExternal(parsed)
 }
 

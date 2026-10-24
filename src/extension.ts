@@ -7,7 +7,7 @@ import { listenConfigsChange, ServerManager } from './serverManager'
 import { Logger } from './logger'
 import { ModelDecorationProvider } from './modelDecorations'
 import { ModelManager } from './modelManager'
-import { copyModelId, openLmConfigsFile, openSetting, openUrl, revealBinaryDir } from './utils'
+import { copyModelId, openLmConfigsFile, openSetting, openUrl, revealBinaryDir, walkthrough } from './utils'
 import { refreshEvents } from './events'
 import { ServerViewProvider } from './serverTreeview'
 
@@ -22,6 +22,7 @@ type CapGroupTreeItem = TreeItem & { capability: string, downloadable?: boolean 
 
 export async function activate(context: ExtensionContext) {
   const rc = commands.registerCommand
+  const ec = commands.executeCommand
 
   // Initialize managers and the tree view
   const binaryManager = new BinaryManager(context)
@@ -35,55 +36,54 @@ export async function activate(context: ExtensionContext) {
   lmcProvider.setModelManager(modelManager)
   const chatParticipant = new ChatParticipant(serverManager, modelManager, context)
 
-  const d1 = rc('chanh.downloadBinary', () => binaryManager.downloadBinary())
-  const d2 = rc('chanh.selectChatModel', () => modelManager.selectChatModel(chatParticipant))
-  const d3 = rc('chanh.setMaxLoadedModels', () => modelManager.setMaxLoadedModels())
+  const d1 = rc('chanh.openWalkthrough', walkthrough)
+  const d2 = rc('chanh.downloadBinary', () => binaryManager.downloadBinary())
+  const d3 = rc('chanh.selectChatModel', () => modelManager.selectChatModel(chatParticipant))
+  const d4 = rc('chanh.setMaxLoadedModels', () => modelManager.setMaxLoadedModels())
 
-  const d4 = rc('chanh.openLmConfigsFile', openLmConfigsFile)
-  const d5 = rc('chanh.openSettings', openSetting)
-  const d6 = rc('chanh.openServerUrl', openUrl)
+  const d5 = rc('chanh.openLmConfigsFile', openLmConfigsFile)
+  const d6 = rc('chanh.openSettings', openSetting)
+  const d7 = rc('chanh.openServerUrl', openUrl)
 
-  const d7 = rc('chanh.editServerPort', () => serverManager.editServerPort())
-  const d8 = rc('chanh.startServer', () => serverManager.start())
-  const d9 = rc('chanh.stopServer', () => serverManager.stop())
-  const d10 = rc('chanh.switchServer', () => serverManager.switchServer())
-  const d11 = rc('chanh.refreshServer', () => refreshEvents.fire())
+  const d8 = rc('chanh.editServerPort', () => serverManager.editServerPort())
+  const d9 = rc('chanh.startServer', () => serverManager.start())
+  const d10 = rc('chanh.stopServer', () => serverManager.stop())
+  const d11 = rc('chanh.switchServer', () => serverManager.switchServer())
+  const d12 = rc('chanh.refreshServer', () => refreshEvents.fire())
 
   // No command palette
   // Context menu
-  const d12 = rc('chanh.ncp.copyModelId', (item: ModelTreeItem) => copyModelId(item))
-  const d13 = rc('chanh.ncp.setModelContext', (item: ModelTreeItem) => modelManager.setModelContext(item))
-  const d14 = rc('chanh.ncp.pinModel', (item: ModelTreeItem) => modelManager.pinModel(item))
-  const d15 = rc('chanh.ncp.unpinModel', (item: ModelTreeItem) => modelManager.unpinModel(item))
+  const d13 = rc('chanh.ncp.copyModelId', (item: ModelTreeItem) => copyModelId(item))
+  const d14 = rc('chanh.ncp.setModelContext', (item: ModelTreeItem) => modelManager.setModelContext(item))
+  const d15 = rc('chanh.ncp.pinModel', (item: ModelTreeItem) => modelManager.pinModel(item))
+  const d16 = rc('chanh.ncp.unpinModel', (item: ModelTreeItem) => modelManager.unpinModel(item))
 
-  const d16 = rc('chanh.ncp.revealBinaryDir', () => revealBinaryDir(binaryManager.binaryDir))
-  const d17 = rc('chanh.ncp.downloadModel', (item: ModelTreeItem) => modelManager.downloadModel(item))
-  const d18 = rc('chanh.ncp.cancelDownload', (item: ModelTreeItem) => modelManager.cancelDownload(item.modelId))
-  const d19 = rc('chanh.ncp.loadModel', (item: ModelTreeItem) => modelManager.loadModel(item.modelId))
-  const d20 = rc('chanh.ncp.unloadModel', (item: ModelTreeItem) => modelManager.unloadModel(item.modelId))
-  const d21 = rc('chanh.ncp.showModelInfo', (item: ModelTreeItem) => modelManager.showModelInfo(item))
+  const d17 = rc('chanh.ncp.revealBinaryDir', () => revealBinaryDir(binaryManager.binaryDir))
+  const d18 = rc('chanh.ncp.downloadModel', (item: ModelTreeItem) => modelManager.downloadModel(item))
+  const d19 = rc('chanh.ncp.cancelDownload', (item: ModelTreeItem) => modelManager.cancelDownload(item.modelId))
+  const d20 = rc('chanh.ncp.loadModel', (item: ModelTreeItem) => modelManager.loadModel(item.modelId))
+  const d21 = rc('chanh.ncp.unloadModel', (item: ModelTreeItem) => modelManager.unloadModel(item.modelId))
+  const d22 = rc('chanh.ncp.showModelInfo', (item: ModelTreeItem) => modelManager.showModelInfo(item))
 
-  const d22 = rc('chanh.ncp.resetModelContext', (item: ModelTreeItem) => modelManager.resetModelContext(item))
-  const d23 = rc('chanh.ncp.removeModel', (item: ModelTreeItem) => modelManager.deleteModel(item.modelId))
+  const d23 = rc('chanh.ncp.resetModelContext', (item: ModelTreeItem) => modelManager.resetModelContext(item))
+  const d24 = rc('chanh.ncp.removeModel', (item: ModelTreeItem) => modelManager.deleteModel(item.modelId))
 
-  const d24 = rc('chanh.ncp.selectBackend', (item: ModelTreeItem) => modelManager.selectBackend(item))
-  const d25 = rc('chanh.ncp.uninstallBackend', (item: BackendTreeItem) => modelManager.uninstallBackend(item))
+  const d25 = rc('chanh.ncp.selectBackend', (item: ModelTreeItem) => modelManager.selectBackend(item))
+  const d26 = rc('chanh.ncp.uninstallBackend', (item: BackendTreeItem) => modelManager.uninstallBackend(item))
 
-  const d26 = rc('chanh.ncp.configLmEndpoint', (item: ModelTreeItem) => modelManager.configLmEndpoint(item.modelId))
-  const d27 = rc('chanh.ncp.toggleModelSectionsHide', () => svProvider.toggleModelSections())
-  const d28 = rc('chanh.ncp.toggleModelSectionsShow', () => svProvider.toggleModelSections())
+  const d27 = rc('chanh.ncp.configLmEndpoint', (item: ModelTreeItem) => modelManager.configLmEndpoint(item.modelId))
+  const d28 = rc('chanh.ncp.toggleModelSectionsHide', () => svProvider.toggleModelSections())
+  const d29 = rc('chanh.ncp.toggleModelSectionsShow', () => svProvider.toggleModelSections())
 
-  const d29 = rc('chanh.ncp.toggleModelGrouping', () => svProvider.toggleModelGrouping())
-  const d30 = rc('chanh.ncp.toggleDlModelGrouping', () => svProvider.toggleDlModelGrouping())
-  const d31 = rc('chanh.ncp.toggleHotModels', () => svProvider.toggleHotModels())
-  const d32 = rc('chanh.ncp.filterCapGroup', (item: CapGroupTreeItem) => svProvider.filterCapGroup(item))
-  const d33 = rc('chanh.ncp.clearCapFilter', (item: CapGroupTreeItem) => svProvider.clearCapFilter(item))
+  const d30 = rc('chanh.ncp.toggleModelGrouping', () => svProvider.toggleModelGrouping())
+  const d31 = rc('chanh.ncp.toggleDlModelGrouping', () => svProvider.toggleDlModelGrouping())
+  const d32 = rc('chanh.ncp.toggleHotModels', () => svProvider.toggleHotModels())
+  const d33 = rc('chanh.ncp.filterCapGroup', (item: CapGroupTreeItem) => svProvider.filterCapGroup(item))
+  const d34 = rc('chanh.ncp.clearCapFilter', (item: CapGroupTreeItem) => svProvider.clearCapFilter(item))
 
-  const d34 = listenConfigsChange(serverManager)
-  const d35 = lmcProvider.register()
-  const d36 = window.registerFileDecorationProvider(new ModelDecorationProvider())
-  const d37 = rc('chanh.openWalkthrough', () =>
-    commands.executeCommand('workbench.action.openWalkthrough', 'lanly-dev.chanh#chanh.getStarted'))
+  const d35 = listenConfigsChange(serverManager)
+  const d36 = lmcProvider.register()
+  const d37 = window.registerFileDecorationProvider(new ModelDecorationProvider())
 
   context.subscriptions.push(d1, d2, d3, d4, d5, d6, d7, d8, d9, d10, d11, d12, d13, d14, d15, d16, d17, d18, d19, d20,
     d21, d22, d23, d24, d25, d26, d27, d28, d29, d30, d31, d32, d33, d34, d35, d36, d37, serverManager, chatParticipant,
