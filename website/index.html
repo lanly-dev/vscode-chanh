@@ -51,6 +51,8 @@
     <symbol id="i-play" viewBox="0 0 24 24"><path d="M8 5v14l11-7z" style="fill:currentColor;stroke:none"/></symbol>
     <symbol id="i-lock" viewBox="0 0 24 24"><rect x="4" y="10" width="16" height="11" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></symbol>
     <symbol id="i-menu" viewBox="0 0 24 24"><path d="M4 7h16M4 12h16M4 17h16"/></symbol>
+    <symbol id="i-sun" viewBox="0 0 24 24"><circle cx="12" cy="12" r="5"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></symbol>
+    <symbol id="i-moon" viewBox="0 0 24 24"><path d="M12 3c-4.97 0-9 4.03-9 9s4.03 9 9 9 9-4.03 9-9c0-.46-.04-.92-.1-1.36-.98 1.37-2.58 2.26-4.4 2.26-3.3 0-6-2.7-6-6s2.7-6 6-6c1.82 0 3.42.89 4.5 2.26C17.06 3.04 16.04 3 12 3"/></symbol>
   </svg>
 
   <header class="topbar" id="top">
@@ -65,6 +67,10 @@
         <a href="https://marketplace.visualstudio.com/items?itemName=lanly-dev.chanh" target="_blank" rel="noopener">Marketplace</a>
         <a href="https://open-vsx.org/extension/lanly-dev/chanh" target="_blank" rel="noopener">Open VSX</a>
       </nav>
+      <button class="theme-toggle" id="theme-toggle" type="button" aria-label="Switch to dark mode" title="Switch to dark mode">
+        <span class="theme-icon theme-icon-sun"><svg class="icon"><use href="#i-sun"></use></svg></span>
+        <span class="theme-icon theme-icon-moon"><svg class="icon"><use href="#i-moon"></use></svg></span>
+      </button>
       <a class="topbar-install" href="https://marketplace.visualstudio.com/items?itemName=lanly-dev.chanh" target="_blank" rel="noopener">Install</a>
     </div>
   </header>

@@ -133,4 +133,37 @@
   /* Footer ----------------------------------------------------------- */
   const year = $('#year')
   if (year) year.textContent = String(new Date().getFullYear())
+
+  /* Theme toggle ----------------------------------------------------- */
+  const themeToggle = $('#theme-toggle')
+  const html = document.documentElement
+  const THEME_KEY = 'chanh.theme'
+
+  function getSavedTheme() {
+    try { return localStorage.getItem(THEME_KEY) } catch { return null }
+  }
+  function saveTheme(theme) {
+    try { localStorage.setItem(THEME_KEY, theme) } catch { /* ignore */ }
+  }
+  function applyTheme(theme) {
+    html.setAttribute('data-theme', theme)
+    if (themeToggle) {
+      const isLight = theme === 'light'
+      themeToggle.setAttribute('aria-label', isLight ? 'Switch to dark mode' : 'Switch to light mode')
+      themeToggle.setAttribute('title', isLight ? 'Switch to dark mode' : 'Switch to light mode')
+    }
+  }
+
+  const saved = getSavedTheme()
+  const initial = saved ?? 'light'
+  applyTheme(initial)
+
+  if (themeToggle) {
+    themeToggle.addEventListener('click', () => {
+      const current = html.getAttribute('data-theme') || 'light'
+      const next = current === 'light' ? 'dark' : 'light'
+      applyTheme(next)
+      saveTheme(next)
+    })
+  }
 })()
