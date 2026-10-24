@@ -287,7 +287,15 @@ button:focus-visible, input:focus-visible, textarea:focus-visible {
 }
 .tree-row .desc.muted { color: var(--fg-faint); }
 .tree-row .desc.accent { color: var(--accent-bright); }
-.tree-row .row-icon { width: 16px; height: 16px; flex: none; }
+.tree-row .row-icon {
+  width: 16px; height: 16px; flex: none;
+  /* Stroke-style sprite paths need these: without them SVG defaults to
+     fill=black + stroke=none, which renders stroke icons invisible on the
+     dark workbench (same rules as .icon above). Inline fill:currentColor
+     on play/stop/circle-fill still wins via the style attribute. */
+  fill: none; stroke: currentColor; stroke-width: 1.7;
+  stroke-linecap: round; stroke-linejoin: round; display: block;
+}
 .tree-row .row-icon.cap { opacity: 0.95; }
 .tree-row .row-icon.loaded { color: var(--green); }
 .tree-row .row-icon.idle { color: #8f8f8f; }
