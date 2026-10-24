@@ -93,23 +93,7 @@
   /* YouTube placeholder ---------------------------------------------- */
   const YOUTUBE_URL = ''
   const youtubeButtons = $$('[data-youtube]')
-  const youtubeBadges = $$('[data-youtube-badge]')
   const youtubeNote = $('#youtube-note')
-  const youtubeNoteText = $('#youtube-note-text')
-
-  if (YOUTUBE_URL) {
-    youtubeButtons.forEach(button => button.setAttribute('aria-label', 'Watch the Chanh demo on YouTube'))
-    youtubeBadges.forEach(badge => { badge.textContent = 'Watch on YouTube' })
-    if (youtubeNoteText) {
-      const link = document.createElement('a')
-      link.href = YOUTUBE_URL
-      link.target = '_blank'
-      link.rel = 'noopener'
-      link.textContent = 'YouTube'
-      youtubeNoteText.textContent = 'Watch the full UI walkthrough on '
-      youtubeNoteText.append(link, '.')
-    }
-  }
 
   function pulseDemoNote() {
     if (!youtubeNote) return
@@ -121,12 +105,8 @@
 
   youtubeButtons.forEach(button => {
     button.addEventListener('click', () => {
-      if (YOUTUBE_URL) {
-        window.open(YOUTUBE_URL, '_blank', 'noopener')
-      } else {
-        $('#demo')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
-        pulseDemoNote()
-      }
+      $('#demo')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+      pulseDemoNote()
     })
   })
 

@@ -8,9 +8,9 @@
   --bg-soft: #12171f;      /* softer surface */
   --panel: #151b23;        /* raised panels */
   --panel-2: #0f141b;      /* subtle inset */
-  --border: #2b3440;       /* visible but soft */
-  --border-soft: #1d242c;  /* de-emphasised border */
-  --border-code: #222a33;  /* subtle code border */
+  --border: #f2c744;         /* gold/orange borders */
+  --border-soft: #d9a92c;    /* softer gold/orange */
+  --border-code: #f2c744;    /* code border gold */
   --text: #c6d1dc;         /* soft text, lower contrast */
   --text-strong: #dde4ee;  /* weaker strong text */
   --text-strong-rgb: 221 228 238;
@@ -18,7 +18,7 @@
   --faint: #6d7680;        /* faint label */
   --gold: #f2c744;         /* muted warm accent */
   --gold-soft: #f2c74426;  /* 15% opacity gold tint */
-  --bg-gold-gradient: radial-gradient(1200px 600px at 0% 20%, #f2c74414, transparent 60%);
+  --bg-gold-gradient: radial-gradient(1200px 600px at 0% 20%, #f2c74414, #f2c74400 60%);
   --link: #7a9bc0;         /* softer link */
   --green: #6fbe74;       /* softer green */
   --red: #ff6b6b;          /* softer red */
@@ -40,16 +40,16 @@
   --bg-soft: #f7f8fa;
   --panel: #f0f2f5;
   --panel-2: #e9ecf0;
-  --border: #c9cfd6;
-  --border-soft: #dfe3e8;
-  --border-code: #c9cfd6;
+  --border: #e8c97a;         /* gold/orange borders */
+  --border-soft: #f0ddae;    /* softer gold/orange */
+  --border-code: #e8c97a;    /* code border gold */
   --text: #1a1a2e;
   --text-strong: #0f0f0f;
   --muted: #5f6b78;
   --faint: #8c97a2;
   --gold: #d9a92c;
   --gold-soft: #d9a92c26;  /* 15% opacity gold tint */
-  --bg-gold-gradient: radial-gradient(1200px 600px at 0% 20%, #d9a92c14, transparent 60%);
+  --bg-gold-gradient: radial-gradient(1200px 600px at 0% 20%, #d9a92c14, #d9a92c00 60%);
   --link: #1d65b0;
   --green: #1e7e34;
   --red: #c44545;
@@ -392,13 +392,10 @@ h2:hover .anchor, .anchor:focus { opacity: 1; text-decoration: none; }
   margin: 20px 0;
   padding: 13px 16px;
   border: 1px solid var(--border);
-  border-left: 2px solid var(--link);
+  border-left: 2px solid var(--gold);
   border-radius: 6px;
   background: var(--bg-soft);
 }
-.callout.note { border-left-color: var(--link); }
-.callout.tip { border-left-color: var(--green); }
-.callout.warn { border-left-color: var(--gold); }
 .callout-title {
   margin-bottom: 4px;
   font-family: var(--mono);
@@ -483,7 +480,6 @@ td code { white-space: nowrap; }
   cursor: pointer;
 }
 .code-head .copy:hover { color: var(--text); border-color: var(--border); background: var(--bg-hover); }
-[data-theme="light"] .code-head .copy:hover { background: var(--bg-hover); }
 .code-head .copy .icon { width: 12px; height: 12px; }
 .code-head .copy.copied { color: var(--green); }
 pre {
@@ -553,9 +549,6 @@ pre code {
   border-radius: 3px;
   background: var(--arch-items-bg);
   color: var(--muted);
-}
-[data-theme="light"] .arch-items span {
-  background: var(--arch-items-bg);
 }
 .arch-link {
   display: flex;
