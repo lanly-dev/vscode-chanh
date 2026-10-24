@@ -18,29 +18,6 @@ A VS Code extension that downloads, hosts, and runs the [Lemonade Server](https:
 
 <img src='https://github.com/lanly-dev/vscode-chanh/blob/main/media/sc.png?raw=true' width='600'/>
 
-## Website
-The project website lives in [`website/`](website/) and is set up for GitHub Pages. It is a one-page technical reference covering architecture, server modes, model lifecycle, configuration, commands and chat/agent integration, plus the demo preview and interactive mockup.
-
-Once the Pages workflow runs, it is published at <https://lanly-dev.github.io/lemond/>.
-
-To preview locally:
-
-```bash
-python -m http.server 8000 --directory website
-```
-
-Then open <http://localhost:8000/>. Deployment instructions are in [`website/README.md`](website/README.md).
-
-## Interactive mockup
-A standalone, clickable prototype of the extension UI lives in [`website/mockup/index.html`](website/mockup/index.html). Open it directly in a browser — no build or server needed — and click **Play demo** for a guided tour of server management, model downloads, context/backend settings, chat and the native model picker. All data is simulated.
-
-<img src='website/mockup/preview.png' width='720'/>
-
-### Demo video
-The 1:57 narrated walkthrough of the real extension UI is **not committed** to the repository — it will be published on YouTube. The website currently uses the poster frame ([`website/demo/Chanh-Demo-Poster.png`](website/demo/Chanh-Demo-Poster.png)) as a placeholder. Set `YOUTUBE_URL` in [`website/site.js`](website/site.js) when the video is live.
-
-The walkthrough covers server management, the model tree, model actions, Model Info, context/backend selection, the command palette and settings.
-
 ## Chat Commands
 The `@chanh` chat participant supports the following slash commands:
 
@@ -68,6 +45,12 @@ Plain chat models (no `tool-calling` label) remain available through the `@chanh
 | `chanh.systemSampleInterval` | `5` | Seconds between System group CPU/GPU/RAM samples |
 
 ## Release Notes
+
+### 0.1.4
+- Improve `@chat`
+- Add pinning model feature
+- Add custom group
+- Add walkthrough
 
 ### 0.1.3
 - Add an eye button to toggle Installed and Downloadable sections

@@ -272,3 +272,8 @@ Re-checked against the running Lemonade 11.8.1 server on 2026-09-30. Each of the
 - [ ] Add a test harness before the testing items above can be written: `package.json` defines no `test` script and the repository contains no test files. Any runner also needs a way to stand in for the `vscode` module, since `lmcProvider.ts`, `serverTreeview.ts`, and `modelManager.ts` all import it at module scope.
 - [ ] Need to check if memory leak, found many vscode processes
 - [ ] Description for capabilities just for reminder
+
+### Demo video
+The 1:57 narrated walkthrough of the real extension UI is **not committed** to the repository — it will be published on YouTube. The website currently uses the poster frame ([`website/demo/Chanh-Demo-Poster.png`](website/demo/Chanh-Demo-Poster.png)) as a placeholder. Set `YOUTUBE_URL` in [`website/site.js`](website/site.js) when the video is live.
+
+The walkthrough covers server management, the model tree, model actions, Model Info, context/backend selection, the command palette and settings.

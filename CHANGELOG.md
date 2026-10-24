@@ -10,10 +10,33 @@ Check [Keep a Changelog](https://keepachangelog.com/) for recommendations on how
 - Token stats logs
 
 ## [0.1.4]
+- Add Copy ID context menu options
 - Add custom model group
-- Add pin model
-- Improve chat
-- New Get Started walkthrough: 5-step in-editor checklist (start server → download a model → pick chat model → try @chanh /fix → agent mode), openable from the Welcome tab or via `Chanh: Open Get Started Walkthrough`
+- Add pinning model feature
+- Add website and mockup
+- Improve chat `@chanh`
+- New Get Started walkthrough
+
+### Notes
+- For the walkthrough: 5-step in-editor checklist (start server → download a model → pick chat model → try @chanh /fix → agent mode), openable from the Welcome tab or via `Chanh: Open Get Started Walkthrough`
+
+#### Website
+The project website lives in [`website/`](website/) and is set up for GitHub Pages. It is a one-page technical reference covering architecture, server modes, model lifecycle, configuration, commands and chat/agent integration, plus the demo preview and interactive mockup.
+
+Once the Pages workflow runs, it is published at <https://lanly-dev.github.io/vscode-chanh>.
+
+To preview locally:
+
+```bash
+python -m http.server 8000 --directory website
+```
+
+Then open <http://localhost:8000/>. Deployment instructions are in [`website/README.md`](website/README.md).
+
+#### Interactive mockup
+A standalone, clickable prototype of the extension UI lives in [`website/mockup/index.html`](website/mockup/index.html). Open it directly in a browser — no build or server needed — and click **Play demo** for a guided tour of server management, model downloads, context/backend settings, chat and the native model picker. All data is simulated.
+
+<img src='website/mockup/preview.png' width='720'/>
 
 ## [0.1.3] - 2026-10-18
 - New `System` tree group: live CPU, GPU and RAM utilization for the local

@@ -95,3 +95,17 @@ website/
 - `site.js` highlights the current section, adds copy buttons to code blocks and handles the YouTube placeholder.
 - Only the poster frame is committed; the demo MP4 stays out of git and is published on YouTube.
 - `mockup/` is fully self-contained and can be opened directly or served at `/mockup/`.
+
+## Design system
+
+The documentation theme uses a low-contrast palette with a reduced-contrast dark background (`#0f1217` in dark mode) and soft text colors (`#c6d1dc`) so the page never competes with content.
+
+A warm gold accent matching the logo (`#f2c744` dark mode / `#d9a92c` light mode) is applied to:
+
+- **Table headers** — gold background + gold bottom border (`var(--gold-soft)` at 15% opacity)
+- **Radial gradient glow** — subtle gold wash in the top-left corner behind the docs shell (`var(--bg-gold-gradient)`)
+- **Borders** — gold borders throughout (`var(--border)`, `var(--border-soft)`, `var(--border-code)`)
+- **Callout left borders** — gold accent bar (`var(--gold)`)
+- **Primary buttons** — gold background (`var(--gold)`)
+
+All colors are defined as CSS custom properties in `:root` (dark) and `[data-theme="light"]`, so the theme switches cleanly between modes without hard-coded colors.

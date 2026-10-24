@@ -22,7 +22,6 @@ type CapGroupTreeItem = TreeItem & { capability: string, downloadable?: boolean 
 
 export async function activate(context: ExtensionContext) {
   const rc = commands.registerCommand
-  const ec = commands.executeCommand
 
   // Initialize managers and the tree view
   const binaryManager = new BinaryManager(context)
