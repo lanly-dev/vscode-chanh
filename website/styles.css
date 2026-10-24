@@ -23,6 +23,12 @@
   --green: #6fbe74;       /* softer green */
   --red: #ff6b6b;          /* softer red */
   --code-bg: #0a0e12;
+  --bg-hover: rgba(255, 255, 255, 0.03);
+  --arch-items-bg: rgba(255, 255, 255, 0.025);
+  --asset-play-color: #1b160a;
+  --badge-bg: rgba(5, 8, 10, 0.82);
+  --badge-border: rgba(255, 255, 255, 0.14);
+  --badge-text: #d8dde4;
   --font: "Segoe UI Variable", "Segoe UI", -apple-system, BlinkMacSystemFont, "Inter", Roboto, Helvetica, Arial, sans-serif;
   --mono: "Cascadia Code", "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
   --topbar-h: 58px;
@@ -455,7 +461,7 @@ td code { white-space: nowrap; }
   gap: 12px;
   padding: 7px 12px;
   border-bottom: 1px solid var(--border-soft);
-  background: #0e1319;
+  background: var(--code-bg);
   font-family: var(--mono);
   font-size: 9.5px;
   letter-spacing: 0.09em;
@@ -477,15 +483,15 @@ td code { white-space: nowrap; }
   text-transform: none;
   cursor: pointer;
 }
-.code-head .copy:hover { color: var(--text); border-color: var(--border); background: rgba(255, 255, 255, 0.03); }
-[data-theme="light"] .code-head .copy:hover { background: rgba(33, 33, 33, 0.03); }
+.code-head .copy:hover { color: var(--text); border-color: var(--border); background: var(--bg-hover); }
+[data-theme="light"] .code-head .copy:hover { background: var(--bg-hover); }
 .code-head .copy .icon { width: 12px; height: 12px; }
 .code-head .copy.copied { color: var(--green); }
 pre {
   margin: 0;
   padding: 15px 16px;
   overflow-x: auto;
-  color: #c8d3df;
+  color: var(--text);
   font-family: var(--mono);
   font-size: 12.25px;
   line-height: 1.7;
@@ -504,7 +510,7 @@ pre code {
   border: 1px solid var(--border);
   border-radius: 6px;
   background: var(--panel-2);
-  color: #aab6c2;
+  color: var(--muted);
   font-size: 12px;
   line-height: 1.75;
 }
@@ -528,7 +534,7 @@ pre code {
   padding: 12px 14px;
   border: 1px solid var(--border);
   border-radius: 5px;
-  background: #0e1319;
+  background: var(--code-bg);
 }
 .arch-tier.muted { border-style: dashed; background: transparent; }
 .arch-tier-title {
@@ -546,11 +552,11 @@ pre code {
   padding: 2px 7px;
   border: 1px solid var(--border);
   border-radius: 3px;
-  background: rgba(255, 255, 255, 0.025);
+  background: var(--arch-items-bg);
   color: var(--muted);
 }
 [data-theme="light"] .arch-items span {
-  background: rgba(33, 33, 33, 0.025);
+  background: var(--arch-items-bg);
 }
 .arch-link {
   display: flex;
@@ -583,7 +589,7 @@ pre code {
   padding: 0;
   border: 0;
   border-bottom: 1px solid var(--border);
-  background: #050708;
+  background: var(--code-bg);
   overflow: hidden;
   cursor: pointer;
 }
@@ -600,7 +606,7 @@ pre code {
   transform: translate(-50%, -50%);
   border-radius: 50%;
   background: var(--gold);
-  color: #1b160a;
+  color: var(--asset-play-color);
   box-shadow: 0 8px 30px rgba(0, 0, 0, 0.5);
   transition: transform 0.15s ease;
 }
@@ -611,10 +617,10 @@ pre code {
   right: 9px;
   bottom: 9px;
   padding: 3px 7px;
-  border: 1px solid rgba(255, 255, 255, 0.14);
+  border: 1px solid var(--badge-border);
   border-radius: 3px;
-  background: rgba(5, 8, 10, 0.82);
-  color: #d8dde4;
+  background: var(--badge-bg);
+  color: var(--badge-text);
   font-family: var(--mono);
   font-size: 8.5px;
   letter-spacing: 0.06em;
