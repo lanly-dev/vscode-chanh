@@ -56,7 +56,7 @@
     makeModel('Qwen3.5-4B-MTP-GGUF', 3.41, ['chat', 'vision', 'tool-calling', 'mtp'], {
       loaded: true, ctx: 4096, maxCtx: 262144, savedCtx: 49152,
       checkpoint: 'unsloth/Qwen3.5-4B-MTP-GGUF:Qwen3.5-4B-UD-Q4_K_XL.gguf',
-      created: '2009-02-13', createdValue: 1234567890, backendUrl: 'http://127.0.0.1:8012/v1',
+      created: '2025-09-14', backendUrl: 'http://127.0.0.1:8012/v1',
       type: 'chat', registry: 'huggingface'
     }),
     makeModel('Bonsai-1.7B-gguf', 0.23, ['chat', 'tool-calling']),
@@ -64,7 +64,7 @@
     makeModel('Bonsai-8B-gguf', 1.08, ['chat', 'tool-calling']),
     makeModel('LFM2-1.2B-GGUF', 0.68, ['chat']),
     makeModel('LFM2.5-1.2B-Instruct-GGUF', 0.68, ['chat', 'tool-calling']),
-    makeModel('user.LMX-Omni-5.5B-Lite-Custom', 9.30, ['omni', 'chat', 'vision'], { recipe: 'collection.omni', type: 'omni', loaded: true }),
+    makeModel('user.LMX-Omni-5.5B-Lite-Custom', 9.30, ['omni', 'chat', 'vision'], { recipe: 'collection.omni', type: 'omni', loaded: true, components: ['LMX-Omni-Chat-5.5B', 'LMX-Omni-Vision-5.5B', 'LMX-Omni-Audio-5.5B'] }),
     makeModel('MiniCPM-V-4-GGUF', 2.04, ['chat', 'vision', 'image', 'tool-calling']),
     makeModel('MiniCPM-V-4.6-GGUF', 1.53, ['chat', 'vision', 'image', 'tool-calling'], { hot: true }),
     makeModel('Qwen3-0.6B-GGUF', 0.36, ['chat', 'tool-calling']),
@@ -151,6 +151,7 @@
     hotOnly: false,
     capFilters: {},
     pinnedBackend: 'Vulkan',
+    pinnedModels: {},
     showTokenStats: true,
     sampleInterval: 5,
     modelPickerOpen: false,
@@ -267,7 +268,7 @@
     state.status = 'RUNNING';
     if (mode === 'CUSTOM') state.customUrl = state.customUrl || SERVER_PRESETS.CUSTOM.url;
     renderTree();
-    updateStatusbar();
+    updateComposeFoot();
     if (state.activeTab === 'settings') renderSettings();
     if (announce) {
       const info = serverInfo();
@@ -285,7 +286,7 @@
       showToast('Server started', `Listening on <code>${esc(serverInfo().url.replace('http://', ''))}</code>`, 'success');
     }
     renderTree();
-    updateStatusbar();
+    updateComposeFoot();
   }
 
   /* ------------------------------------------------------------------ */
@@ -344,12 +345,10 @@
     const running = state.status === 'RUNNING';
     const icon = running ? rowIcon('play', 'loaded') : rowIcon('stop', 'idle');
     const color = running ? 'green' : '';
+    // The real Status row is just a label + colored icon: no description
+    // text and no inline start/stop action.
     return `<div class="tree-row" style="${pad(depth)}">${leafIndent}${icon}
       <span class="label ${color}">Status: ${running ? 'Running' : 'Stopped'}</span>
-      <span class="desc">${running ? 'healthy' : 'offline'}</span>
-      <span class="row-actions">
-        <button class="row-action" data-action="${running ? 'stopServer' : 'startServer'}" title="${running ? 'Stop Server' : 'Start Server'}">${svg(running ? 'stop' : 'play')}</button>
-      </span>
     </div>`;
   }
 
@@ -389,12 +388,19 @@
         }
       }
 
-      html += sectionRow({
-        key: 'pinned', depth: 1, open: state.expanded.pinned,
-        iconHtml: rowIcon('pin', 'idle'), label: 'Pinned Models (0)'
-      });
-      if (state.expanded.pinned) {
-        html += `<div class="tree-row" style="${pad(2)}">${leafIndent}${rowIcon('circle', 'idle')}<span class="label" style="color:#9d9d9d">No pinned models</span></div>`;
+      // The real tree only shows the Pinned section when at least one model
+      // is pinned; with an empty pinned map the section stays hidden.
+      const pinnedCount = Object.values(state.pinnedModels || {}).reduce((a, b) => a + (b || 0), 0);
+      if (pinnedCount > 0) {
+        html += sectionRow({
+          key: 'pinned', depth: 1, open: state.expanded.pinned,
+          iconHtml: rowIcon('pin', 'idle'), label: `Pinned Models (${pinnedCount})`
+        });
+        if (state.expanded.pinned) {
+          for (const [id, count] of Object.entries(state.pinnedModels)) {
+            html += `<div class="tree-row" style="${pad(2)}">${leafIndent}${rowIcon('pin', 'idle')}<span class="label">${esc(id)}</span><span class="desc">×${count}</span></div>`;
+          }
+        }
       }
     }
     return html;
@@ -682,6 +688,7 @@
     const status = loaded ? 'Loaded — idle' : downloaded ? 'Downloaded (not loaded)' : 'Not downloaded — pull to install';
     const rows = [
       ['Capabilities', labels.join(', ')],
+      ['Components', (model.components || []).join(', ')],
       ['Status', status],
       ['Size', fmtSize(model.size)],
       ['Context (effective)', fmtCtx(effective)],
@@ -695,7 +702,6 @@
       ['Type', model.type],
       ['Owned by', model.ownedBy],
       ['Created', model.created],
-      ['Created value', model.createdValue?.toString()],
       ['Backend', loaded ? model.backendUrl : '']
     ].filter(([, value]) => value);
 
@@ -834,7 +840,7 @@
     if (key === 'customUrl') {
       state.customUrl = el.value.trim() || SERVER_PRESETS.CUSTOM.url;
       renderTree();
-      updateStatusbar();
+      updateComposeFoot();
       showToast('Custom URL saved', `<code>${esc(state.customUrl)}</code>`, 'success');
       return;
     }
@@ -936,6 +942,7 @@
       {
         role: 'assistant',
         meta: 'Chanh 🍋',
+        followups: ['How does the model picker integration work?', 'What happens when the server stops mid-stream?', 'Show me how a tool call flows through the provider'],
         html: `<p><code>Chanh</code> is a thin VS Code layer over a local <strong>Lemonade Server</strong>. Three pieces do the work:</p>
           <ul>
             <li><strong>ServerManager</strong> owns the lifecycle — it starts the managed <code>lemond</code> binary, watches its health endpoint, and stops it on deactivate.</li>
@@ -1068,6 +1075,7 @@
           <div class="msg-meta"><span class="msg-author">${esc(m.meta || 'Chanh 🍋')}</span><span>${esc(state.chatModelId)}</span><span>${m.pending ? 'streaming' : 'just now'}</span></div>
           <div class="msg-bubble">${body}</div>
           ${m.pending ? '' : msgActions(i)}
+          ${m.pending || !m.followups?.length ? '' : `<div class="followups">${m.followups.map(f => `<button class="followup-chip" data-insert="${escAttr(f)}" title="Ask follow-up">${esc(f)}</button>`).join('')}</div>`}
         </div>
       </div>`;
     }).join('') || `<div style="text-align:center;color:#777;padding:40px 0">Start a conversation with your local model.</div>`;
@@ -1086,8 +1094,6 @@
     const foot = $('#composeFoot');
     if (foot) foot.classList.toggle('hidden', !state.showTokenStats);
     if (stats) stats.innerHTML = `<b>${fmtNumber(state.tokens.prompt)}</b> prompt · <b>${fmtNumber(state.tokens.completion)}</b> completion · ${state.tokens.tps.toFixed(1)} tok/s`;
-    const statusTokens = $('#statusTokens');
-    if (statusTokens) statusTokens.textContent = `${fmtNumber(state.tokens.prompt + state.tokens.completion)} tokens`;
   }
 
   function answerFor(text) {
@@ -1759,7 +1765,7 @@
     setTimeout(() => {
       btn?.classList.remove('spinning');
       renderTree();
-      updateStatusbar();
+      updateComposeFoot();
       showToast('Server refreshed', `${state.models.length} installed · ${state.downloadable.length} downloadable`, 'success');
     }, 550);
   }
@@ -1810,20 +1816,6 @@
   }
 
   /* ------------------------------------------------------------------ */
-  /* Status bar                                                          */
-  /* ------------------------------------------------------------------ */
-  function updateStatusbar() {
-    const info = serverInfo();
-    const text = $('#statusServerText');
-    const url = $('#statusServerUrl');
-    if (text) text.textContent = `Chanh: ${state.status === 'RUNNING' ? 'Running' : 'Stopped'}`;
-    if (url) url.textContent = info.url.replace('http://', '');
-    const model = $('#statusModel');
-    if (model) model.textContent = state.chatModelId || 'No model';
-    updateComposeFoot();
-  }
-
-  /* ------------------------------------------------------------------ */
   /* Tour                                                                */
   /* ------------------------------------------------------------------ */
   const TOUR_STEPS = [
@@ -1842,7 +1834,7 @@
         state.expanded.capIns.add('chat');
         state.hideSections = false;
         renderTree();
-        updateStatusbar();
+        updateComposeFoot();
         syncTreeActionIcons();
       }
     },
@@ -1886,9 +1878,9 @@
       }
     },
     {
-      target: '#statusServer',
+      target: '[data-tour="server"]',
       title: 'Private by design',
-      text: 'Once a model is downloaded, everything runs on <b>127.0.0.1</b> — no account, no cloud round-trip, no data leaving the machine. The status bar keeps the local endpoint in view.',
+      text: 'Once a model is downloaded, everything runs on <b>127.0.0.1</b> — no account, no cloud round-trip, no data leaving the machine. The sidebar keeps the local endpoint in view.',
       setup: () => { toggleModelPicker(false); }
     }
   ];
@@ -2213,11 +2205,6 @@
 
   $('#startTourBtn')?.addEventListener('click', startTour);
 
-  // Status bar interactions
-  $('#statusServer')?.addEventListener('click', () => showToast('Chanh server', `<code>${esc(serverInfo().url)}</code> · ${state.status.toLowerCase()}`, 'info'));
-  $('#statusModel')?.addEventListener('click', () => openTab('chat'));
-  $('#statusTokens')?.addEventListener('click', () => showToast('Token usage', `<b>${fmtNumber(state.tokens.prompt)}</b> prompt + <b>${fmtNumber(state.tokens.completion)}</b> completion tokens this turn.`, 'info'));
-
   // Activity bar: keep the mockup focused.
   $$('.activity').forEach(btn => {
     btn.addEventListener('click', () => {
@@ -2244,7 +2231,7 @@
     renderModelInfo();
     renderSettings();
     renderJson();
-    updateStatusbar();
+    updateComposeFoot();
     updateActiveView();
     setInterval(tickSystem, 2500);
     setInterval(tickDownloads, 700);
