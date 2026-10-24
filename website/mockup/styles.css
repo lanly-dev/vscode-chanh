@@ -923,6 +923,18 @@ kbd {
 }
 .msg-actions button:hover { background: #2e2e2e; color: #fff; }
 .msg-actions .icon { width: 13px; height: 13px; }
+.followups { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+.followup-chip {
+  padding: 4px 10px;
+  border-radius: 12px;
+  border: 1px solid #454545;
+  background: #262626;
+  color: #bdbdbd;
+  font-size: 11px;
+  cursor: pointer;
+  text-align: left;
+}
+.followup-chip:hover { background: #333; color: #fff; }
 
 .chat-compose {
   flex: none;
