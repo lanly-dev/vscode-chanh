@@ -6,7 +6,7 @@ import * as fs from 'fs'
 import * as path from 'path'
 
 import { ConfigurationTarget, Disposable, QuickPickItem, WorkspaceConfiguration } from 'vscode'
-import { window, workspace } from 'vscode'
+import { commands, window, workspace } from 'vscode'
 const { showErrorMessage, showInformationMessage, showInputBox, showQuickPick } = window
 
 import { BinaryManager } from './binaryManager'
@@ -602,6 +602,9 @@ export class ServerManager {
     if (this._status === status && this._statusError === message) return
     this._status = status
     this._statusError = message
+    // Success-state signal for the Get Started walkthrough (step 1) and any
+    // future when-clauses: true only while the server is actually running.
+    void commands.executeCommand('setContext', 'chanh.serverRunning', status === ServerStatus.RUNNING)
     for (const callback of this.statusChangeCallbacks) callback(status)
   }
 

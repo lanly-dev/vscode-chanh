@@ -1,5 +1,5 @@
 import { ConfigurationTarget, Disposable, ProgressLocation, QuickPickItem, ViewColumn } from 'vscode'
-import { window, workspace } from 'vscode'
+import { commands, window, workspace } from 'vscode'
 import * as fs from 'fs'
 
 import { formatSize, getCustomEndpointsPath } from './utils'
@@ -1014,6 +1014,8 @@ export class ModelManager {
       return
     }
     chatParticipant.setSelectedModel(selected)
+    // Success-state signal for the Get Started walkthrough (step 3).
+    void commands.executeCommand('setContext', 'chanh.chatModelSelected', true)
     showInformationMessage(`Selected model for chat: ${selected}`)
   }
 
@@ -1151,6 +1153,8 @@ export class ModelManager {
             `(~${rate}/s), byte counts reported: ${sawByteCounts ? 'yes' : 'no'}`
           )
           showInformationMessage(`Model '${modelId}' pulled successfully`)
+          // Success-state signal for the Get Started walkthrough (step 2).
+          void commands.executeCommand('setContext', 'chanh.modelDownloaded', true)
         } catch (err: unknown) {
           clearStallTimer()
           // Remove from the live list, then keep it as an incomplete download.

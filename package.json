@@ -104,6 +104,10 @@
         "title": "Chanh: Select Chat Model"
       },
       {
+        "command": "chanh.openWalkthrough",
+        "title": "Chanh: Open Get Started Walkthrough"
+      },
+      {
         "command": "chanh.setMaxLoadedModels",
         "title": "Chanh: Set Max Loaded Models"
       },
@@ -549,6 +553,73 @@
       {
         "command": "chanh.ncp.clearCapFilter",
         "when": "false"
+      }
+    ],
+    "walkthroughs": [
+      {
+        "id": "chanh.getStarted",
+        "title": "Get Started with Chanh",
+        "description": "Run local AI in VS Code, fully offline: start a server, download a model, and chat with it.",
+        "steps": [
+          {
+            "id": "start-server",
+            "title": "Start a local server",
+            "description": "Get a Lemonade server running, managed by Chanh or your own install.",
+            "media": {
+              "markdown": "media/walkthrough/01-start-server.md"
+            },
+            "completionEvents": [
+              "onContext:chanh.serverRunning",
+              "onCommand:chanh.refreshServer"
+            ]
+          },
+          {
+            "id": "download-model",
+            "title": "Download a starter model",
+            "description": "Grab a chat model from the Downloadable Models section.",
+            "media": {
+              "markdown": "media/walkthrough/02-download-model.md"
+            },
+            "completionEvents": [
+              "onContext:chanh.modelDownloaded",
+              "onCommand:chanh.ncp.downloadModel"
+            ]
+          },
+          {
+            "id": "select-chat-model",
+            "title": "Pick your chat model",
+            "description": "Make the downloaded model the @chanh chat model.",
+            "media": {
+              "markdown": "media/walkthrough/03-select-chat-model.md"
+            },
+            "completionEvents": [
+              "onContext:chanh.chatModelSelected",
+              "onCommand:chanh.selectChatModel"
+            ]
+          },
+          {
+            "id": "try-fix",
+            "title": "Try @chanh /fix",
+            "description": "Fix or explain selected code with your local model.",
+            "media": {
+              "markdown": "media/walkthrough/04-try-fix.md"
+            },
+            "completionEvents": [
+              "onCommand:workbench.action.chat.open"
+            ]
+          },
+          {
+            "id": "agent-mode",
+            "title": "Go Agent mode",
+            "description": "Use a Chanh model in VS Code's native agent mode.",
+            "media": {
+              "markdown": "media/walkthrough/05-agent-mode.md"
+            },
+            "completionEvents": [
+              "onContext:chanh.nativeModelUsed"
+            ]
+          }
+        ]
       }
     ]
   },
