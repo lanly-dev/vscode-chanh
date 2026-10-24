@@ -82,9 +82,11 @@ export async function activate(context: ExtensionContext) {
   const d34 = listenConfigsChange(serverManager)
   const d35 = lmcProvider.register()
   const d36 = window.registerFileDecorationProvider(new ModelDecorationProvider())
+  const d37 = rc('chanh.openWalkthrough', () =>
+    commands.executeCommand('workbench.action.openWalkthrough', 'lanly-dev.chanh#chanh.getStarted'))
 
   context.subscriptions.push(d1, d2, d3, d4, d5, d6, d7, d8, d9, d10, d11, d12, d13, d14, d15, d16, d17, d18, d19, d20,
-    d21, d22, d23, d24, d25, d26, d27, d28, d29, d30, d31, d32, d33, d34, d35, d36, serverManager, chatParticipant,
+    d21, d22, d23, d24, d25, d26, d27, d28, d29, d30, d31, d32, d33, d34, d35, d36, d37, serverManager, chatParticipant,
     lmcProvider, svProvider, Logger
   )
   binaryManager.checkForUpdates()

@@ -13,6 +13,7 @@ Check [Keep a Changelog](https://keepachangelog.com/) for recommendations on how
 - Add custom model group
 - Add pin model
 - Improve chat
+- New Get Started walkthrough: 5-step in-editor checklist (start server → download a model → pick chat model → try @chanh /fix → agent mode), openable from the Welcome tab or via `Chanh: Open Get Started Walkthrough`
 
 ## [0.1.3] - 2026-10-18
 - New `System` tree group: live CPU, GPU and RAM utilization for the local

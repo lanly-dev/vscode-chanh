@@ -419,6 +419,15 @@ class ChanhLmcProvider implements vscode.LanguageModelChatProvider, vscode.Dispo
           `usually lets the model correct them.`
         )
       }
+      // Success-state signal for the Get Started walkthrough (agent-mode
+      // step): only set once the stream actually delivered text or a valid
+      // tool call. Cancelled turns return early from the catch below and
+      // nothing-produced turns throw above, so neither can check the step
+      // off. The @chanh chat participant does not go through this provider,
+      // so this only fires for native-picker (Ask/Agent) usage.
+      if (reportedText || toolCalls.length > 0) {
+        void vscode.commands.executeCommand('setContext', 'chanh.nativeModelUsed', true)
+      }
       // `Required` is a contract, not a hint, but no local server enforces it:
       // llama.cpp's `--jinja` accepts `tool_choice` and still answers a prose
       // prompt with prose (measured: the same prompt returned the same text
