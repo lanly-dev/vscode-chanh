@@ -25,7 +25,7 @@ import { ServerManager } from './serverManager'
 import { ServerStatus } from './interfaces'
 
 import type { ChatFollowup, QuickPickItem } from 'vscode'
-import type { ChatMessage, ChatStreamStats, LemonadeModel } from './interfaces'
+import type { ChatStreamStats, LemonadeModel } from './interfaces'
 import {
   closeOpenMarkdownFence, contextBudget, estimateTokens, formatSize, formatTurnFooter, shouldShowTokenStats
 } from './utils'
@@ -48,7 +48,7 @@ export class ChatParticipant implements Disposable {
   constructor(
     private serverManager: ServerManager,
     private modelManager: ModelManager,
-    private readonly extensionContext: ExtensionContext
+    extensionContext: ExtensionContext
   ) {
     this.client = new LemonadeClient(serverManager.activeServerUrl)
 

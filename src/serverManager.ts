@@ -954,16 +954,6 @@ export class ServerManager {
   }
 
 
-  /** Check if the server is running and healthy. */
-  async isHealthy(): Promise<boolean> {
-    if (this._status !== ServerStatus.RUNNING) return false
-    try {
-      return await this.client.checkHealth()
-    } catch {
-      return false
-    }
-  }
-
   /** Dispose of resources. */
   dispose(): void {
     this.activeServerChangeCallbacks = []
