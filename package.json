@@ -449,6 +449,7 @@
         },
         "chanh.maxLoadedModels": {
           "type": "number",
+          "default": -1,
           "description": "Maximum number of loaded models (for each type?), Use -1 for unlimited."
         },
         "chanh.showTokenStats": {
