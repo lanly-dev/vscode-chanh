@@ -722,6 +722,18 @@ async function s5() {
 
 const SCENE_FNS = { s2, s3, s4, s5, s6, s7, s8, s9 };
 
+/** One-line description per scene, printed as each task starts. */
+const SCENE_DESCRIPTIONS = {
+  s2: 'download the lemond binary and start the server',
+  s3: 'tour the sidebar tree (screenshot)',
+  s4: 'download a model in one click',
+  s5: 'system monitor while a model generates',
+  s6: 'model info panel (screenshot)',
+  s7: 'fix the buggy greet() with @chanh /fix',
+  s8: 'slash-command menu (screenshot)',
+  s9: 'agent mode via the native model picker (money shot)',
+};
+
 // ---------------------------------------------------------------------------
 // Auto-detection: no env vars needed in the normal case.
 // ---------------------------------------------------------------------------
@@ -897,7 +909,7 @@ async function main() {
   log('recording is built in — keep the VS Code window visible and on top during the run');
 
   for (const scene of SCENES) {
-    log(`\n=== ${scene} ===`);
+    log(`\n=== ${scene} — ${SCENE_DESCRIPTIONS[scene]} ===`);
     try {
       await SCENE_FNS[scene]();
       results.push({ scene, ok: true });
