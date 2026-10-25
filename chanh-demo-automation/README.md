@@ -60,9 +60,13 @@ ones are substrings of the ids shown in the Chanh sidebar).
 
 ```powershell
 node demo.js           # all scenes in canonical order (s2 s3 s4 s6 s7 s8 s9 s5)
-node demo.js s7        # rerun a single failed scene
+node demo.js s7 --keep-state # rerun a single failed scene with the existing profile
 node demo.js --keep-open   # flag: leave VS Code open at the end
 ```
+
+For a single-scene rerun, the Lemonade server must already be running on
+port **10000**. `--keep-state` reuses the VS Code profile; it does not start
+the server.
 
 Exit code is 0 only if every requested scene succeeded. A failed scene
 saves `debug-<scene>.png` (what the screen looked like at the failure)
