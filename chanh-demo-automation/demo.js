@@ -56,6 +56,11 @@ const ARGS = process.argv.slice(2);
 const FLAGS = new Set(ARGS.filter((a) => a.startsWith('--')));
 const CANONICAL = ['s2', 's3', 's4', 's6', 's7', 's8', 's9', 's5'];
 const requested = ARGS.filter((a) => !a.startsWith('--')).map((a) => a.toLowerCase());
+const unknown = requested.filter((s) => s !== 'probe' && !CANONICAL.includes(s));
+if (unknown.length > 0) {
+  console.error(`Unknown scene names: ${unknown.join(', ')}. Valid options: ${[...CANONICAL, 'probe'].join(', ')}`);
+  process.exit(1);
+}
 const SCENES = CANONICAL.filter((s) => requested.length === 0 || requested.includes(s));
 
 // The demo project files, created by the script so the workspace is exact.
