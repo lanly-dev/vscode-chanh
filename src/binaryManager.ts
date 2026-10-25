@@ -14,6 +14,14 @@ const GITHUB_API = 'https://api.github.com/repos/lemonade-sdk/lemonade/releases/
 export class BinaryManager {
   constructor(private context: vscode.ExtensionContext) { }
 
+  /** Shared completion of the active binary download/extract/merge. */
+  private installPromise: Promise<void> | undefined
+
+  /** Whether a binary install is currently in progress. */
+  get isInstalling(): boolean {
+    return this.installPromise !== undefined
+  }
+
   /**
    * Directory where the binary is stored (user storage — survives extension updates).
    * Uses the non-deprecated {@link vscode.ExtensionContext.globalStorageUri} + `fsPath`.
@@ -37,11 +45,14 @@ export class BinaryManager {
 
   /** Check if the binary is installed. */
   isBinaryInstalled(): boolean {
-    if (fs.existsSync(this.binaryPath)) return true
+    // A failed or interrupted extraction can leave an executable and only
+    // some resources behind. Only a completed install clears this marker.
+    if (fs.existsSync(path.join(this.binaryDir, '.install-incomplete'))) return false
     // Check if the binary exists in a subdirectory (from a previous extraction)
     const isWindows = process.platform === 'win32'
     const lemondName = isWindows ? 'lemond.exe' : 'lemond'
-    return this.findFile(this.binaryDir, lemondName) !== null
+    const binary = fs.existsSync(this.binaryPath) ? this.binaryPath : this.findFile(this.binaryDir, lemondName)
+    return binary !== null && fs.existsSync(path.join(path.dirname(binary), 'resources'))
   }
 
   /** Get the installed version, or null if not installed. */
@@ -225,8 +236,26 @@ export class BinaryManager {
     await execAsync(`tar -xzf '${tarPath}' -C '${destDir}'`)
   }
 
-  /** Download and install the Lemonade Server binary. */
+  /**
+   * Download and install the Lemonade Server binary.
+   * A call while an install is already running awaits that install — see
+   * {@link ensureBinary} for why concurrent installs/starts are unsafe.
+   */
   async downloadBinary(): Promise<void> {
+    if (this.installPromise) {
+      Logger.info('Binary install already in progress; waiting for the active request')
+      return this.installPromise
+    }
+    this.installPromise = this.doDownloadBinary()
+    try {
+      await this.installPromise
+    } finally {
+      this.installPromise = undefined
+    }
+  }
+
+  /** The install itself; only ever run under the {@link downloadBinary} guard. */
+  private async doDownloadBinary(): Promise<void> {
     Logger.info('Fetching latest release...')
 
     const release = await this.getLatestRelease()
@@ -276,7 +305,18 @@ export class BinaryManager {
 
     Logger.info('Download complete. Extracting...')
 
+    const incompleteMarker = path.join(this.binaryDir, '.install-incomplete')
     try {
+      const retryingIncompleteInstall = fs.existsSync(incompleteMarker)
+      // Keep partial installs unusable across failures and extension restarts.
+      fs.writeFileSync(incompleteMarker, '')
+      if (retryingIncompleteInstall) {
+        // A previous merge may have copied the executable and partial resources.
+        // Rebuild these so relocation cannot skip them on retry.
+        fs.rmSync(this.binaryPath, { force: true })
+        fs.rmSync(path.join(this.binaryDir, 'resources'), { recursive: true, force: true })
+      }
+
       // Extract the archive
       if (assetName.endsWith('.zip')) await this.extractZip(archivePath, this.binaryDir)
       else await this.extractTarGz(archivePath, this.binaryDir)
@@ -286,6 +326,9 @@ export class BinaryManager {
 
       // The archive may extract into a subdirectory. Find the binary.
       this.locateBinaryFiles()
+      if (!fs.existsSync(this.binaryPath) || !fs.existsSync(path.join(this.binaryDir, 'resources'))) {
+        throw new Error('Extracted installation is missing the executable or resources')
+      }
 
       // Make the binary executable on Unix
       if (process.platform !== 'win32') {
@@ -296,13 +339,14 @@ export class BinaryManager {
       // Save the version
       const versionFile = path.join(this.binaryDir, '.version')
       fs.writeFileSync(versionFile, version, 'utf8')
+      fs.unlinkSync(incompleteMarker)
 
       Logger.info(`Lemonade Server v${version} installed successfully`)
       vscode.window.showInformationMessage('Lemonade Server binary downloaded successfully')
     } catch (err: unknown) {
       Logger.error('Failed to install Lemonade Server', err)
-      // Remove the archive on extraction/relocation failure so the user
-      // never sees "success" while the archive is left on disk.
+      // Leave the incomplete marker in place so a partial tree is never
+      // accepted, while preserving existing configuration and cached models.
       if (fs.existsSync(archivePath)) fs.unlinkSync(archivePath)
       vscode.window.showErrorMessage('Failed to install Lemonade Server after download.')
     }
@@ -378,6 +422,27 @@ export class BinaryManager {
 
   /** Ensure the binary is installed, downloading if necessary. */
   async ensureBinary(): Promise<boolean> {
+    // An install is already running (e.g. the user clicked Download on
+    // the missing-binary prompt, then asked to start the server): wait
+    // for it instead of judging the half-written tree on disk. The
+    // executable appears in a subdirectory BEFORE resources/ is merged
+    // next to it, and starting from that partial layout launches a
+    // broken server. Once the install settles, fall through — the
+    // binary is either installed (return true below) or it is not, in
+    // which case the prompt path runs and a failed/cancelled install
+    // is simply offered again.
+    if (this.installPromise) {
+      Logger.info('Binary install in progress; waiting for it to finish before continuing')
+      vscode.window.showInformationMessage(
+        'Lemonade Server is still installing — the start will continue when it finishes.'
+      )
+      try {
+        await this.installPromise
+      } catch (err) {
+        Logger.error('Active binary install failed', err)
+      }
+    }
+
     // If the binary exists in a subdirectory, move it to the right place
     if (this.isBinaryInstalled() && !fs.existsSync(this.binaryPath)) {
       Logger.info('Binary found in subdirectory, relocating...')
@@ -398,7 +463,7 @@ export class BinaryManager {
     if (action === 'Download') {
       try {
         await this.downloadBinary()
-        return true
+        return this.isBinaryInstalled()
       } catch (err) {
         Logger.error('Failed to download binary', err)
         vscode.window.showErrorMessage(`Failed to download Lemonade Server: ${err}`)
