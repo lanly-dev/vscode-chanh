@@ -1,7 +1,7 @@
 /**
  * Chanh demo — Playwright driver for the 8 capture assets in chanh-demo.md.
  *
- * Playwright launches Lan's real VS Code (Electron) as an Extension
+ * Playwright launches local real VS Code (Electron) as an Extension
  * Development Host for the vscode-chanh repo, with a fresh --user-data-dir
  * (the "blank profile": no settings, no other extensions, and — because
  * the lemond binary lives in the extension's globalStorage inside that
