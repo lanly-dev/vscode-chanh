@@ -734,6 +734,17 @@ const SCENE_DESCRIPTIONS = {
   s9: 'agent mode via the native model picker (money shot)',
 };
 
+/** The model each scene runs on ('' when the scene uses none). */
+function sceneModel(scene) {
+  switch (scene) {
+    case 's2': return '';
+    case 's4': return CONFIG.downloadModel;
+    case 's9': return CONFIG.toolModel;
+    case 's6': return CONFIG.toolModel || CONFIG.chatModel;
+    default: return CONFIG.chatModel; // s3, s5, s7, s8
+  }
+}
+
 // ---------------------------------------------------------------------------
 // Auto-detection: no env vars needed in the normal case.
 // ---------------------------------------------------------------------------
@@ -805,10 +816,13 @@ async function fetchCatalog(base) {
  * first, then a system install (:13305). Explicit env values always win.
  */
 let discoveryDone = false;
+let discoveryMissLogged = false;
 async function discoverModels() {
   if (discoveryDone) return;
-  discoveryDone = true;
-  if (CONFIG.chatModel && CONFIG.toolModel && CONFIG.downloadModel) return;
+  if (CONFIG.chatModel && CONFIG.toolModel && CONFIG.downloadModel) {
+    discoveryDone = true;
+    return;
+  }
   for (const base of [`http://localhost:${SETTINGS['chanh.lemondPort']}`, 'http://localhost:13305']) {
     const models = await fetchCatalog(base);
     if (!models) continue;
@@ -830,9 +844,15 @@ async function discoverModels() {
     }
     log(`    models (via ${base}): chat=${CONFIG.chatModel || '?'} ` +
         `tool=${CONFIG.toolModel || '?'} download=${CONFIG.downloadModel || '?'}`);
+    discoveryDone = true;
     return;
   }
-  log(`    model auto-detect: no Lemonade server answered on :${SETTINGS['chanh.lemondPort']} or :13305`);
+  // No latch on a miss: before Scene 2 no server is up yet, and a later
+  // scene must be allowed to retry once it is.
+  if (!discoveryMissLogged) {
+    discoveryMissLogged = true;
+    log(`    model auto-detect: no Lemonade server answered on :${SETTINGS['chanh.lemondPort']} or :13305`);
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -909,7 +929,12 @@ async function main() {
   log('recording is built in — keep the VS Code window visible and on top during the run');
 
   for (const scene of SCENES) {
+    // Resolve the model picks before announcing the scene (Scene 2 is
+    // what brings the server up, so it announces without one).
+    if (scene !== 's2') await discoverModels();
     log(`\n=== ${scene} — ${SCENE_DESCRIPTIONS[scene]} ===`);
+    const model = sceneModel(scene);
+    if (model) log(`    model: ${model}`);
     try {
       await SCENE_FNS[scene]();
       results.push({ scene, ok: true });
