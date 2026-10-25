@@ -976,12 +976,14 @@ async function main() {
   log(`\n=== summary: ${results.length - failed.length}/${results.length} scenes ok ===`);
   for (const r of results) log(`  ${r.ok ? '✓' : '✗'} ${r.scene}${r.ok ? '' : ' — ' + r.error}`);
 
-  if (!FLAGS.has('--keep-open')) await app.close();
-  process.exit(failed.length ? 1 : 0);
+  process.exitCode = failed.length ? 1 : 0;
+  if (FLAGS.has('--keep-open')) return;
+  await app.close();
+  process.exit(process.exitCode);
 }
 
 main().catch(async (err) => {
   console.error('FATAL:', err);
   try { if (app && !FLAGS.has('--keep-open')) await app.close(); } catch { /* ignore */ }
-  process.exit(2);
+  process.exitCode = 2;
 });

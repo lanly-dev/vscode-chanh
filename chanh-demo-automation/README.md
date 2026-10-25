@@ -34,11 +34,13 @@ own MP4.
 
 ## Setup (once)
 
+Requires **Node.js 18+** (the script uses the built-in `fetch` API).
+
 Put this folder **inside your vscode-chanh repo** (so it sits at
 `vscode-chanh/chanh-demo-automation/`), open PowerShell in it, and:
 
 ```powershell
-npm install        # playwright library only — no browser download needed
+npm install        # Playwright library only — does not download a browser or FFmpeg
 ```
 
 That's it — **no configuration**. The script finds everything itself:
