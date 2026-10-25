@@ -577,8 +577,19 @@ async function s4() {
   await rowInlineAction(CONFIG.downloadModel, 'Download Model');
   await pollUntil(async () => {
     if (await anyRowVisible('Downloading Models')) return false;
-    await expandSection('Installed Models');
-    return anyRowVisible(CONFIG.downloadModel);
+    const installed = await expandSection('Installed Models');
+    return installed.evaluate((header, model) => {
+      // Monaco renders a flat, virtualized tree; DOM order can be recycled.
+      const rows = [...header.closest('.monaco-list').querySelectorAll('.monaco-list-row')]
+        .sort((a, b) => Number(a.dataset.index) - Number(b.dataset.index));
+      const level = Number(header.getAttribute('aria-level'));
+      for (let i = rows.indexOf(header) + 1; i < rows.length; i++) {
+        const row = rows[i];
+        if (Number(row.getAttribute('aria-level')) <= level) break;
+        if ((row.textContent || '').includes(model) && row.getClientRects().length > 0) return true;
+      }
+      return false;
+    }, CONFIG.downloadModel).catch(() => false);
   }, 'the download to finish');
   await W(2000);
   await recorder.stop();
