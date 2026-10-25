@@ -9,5 +9,8 @@
   },
   "dependencies": {
     "playwright": "^1.48.0"
+  },
+  "engines": {
+    "node": ">=18"
   }
 }

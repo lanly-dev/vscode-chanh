@@ -620,6 +620,7 @@ async function s6() {
 
 /** Scene 7 — @chanh /fix on the buggy greet() selection. */
 async function s7() {
+  await ensureServerRunning();
   await ensureChatModelSelected();
   await openFileQuick('main.js');
   mark('s7', 'start');
@@ -814,6 +815,28 @@ function installComplete() {
   return fs.existsSync(path.join(binDir, exe)) && fs.existsSync(path.join(binDir, '.version'));
 }
 
+async function serverAvailable(base) {
+  try {
+    return (await fetch(`${base}/v1/health`)).ok;
+  } catch {
+    return false;
+  }
+}
+
+/** Prepare a standalone Scene 7 before model discovery or selection. */
+async function ensureServerRunning() {
+  const available = () => serverAvailable(discoveryBase);
+  if (await available()) return;
+  if (SETTINGS['chanh.serverMode'] === 'LEMOND') {
+    if (!installComplete()) {
+      await palette('Chanh: Download/Update Binary');
+      await pollUntil(() => installComplete(), 'the managed binary install to finish');
+    }
+    await palette('Chanh: Start Server');
+  }
+  await pollUntil(available, 'the selected server to become available');
+}
+
 async function fetchCatalog(base) {
   try {
     const res = await fetch(`${base}/v1/models?show_all=true`);
@@ -830,19 +853,24 @@ async function fetchCatalog(base) {
  * first downloaded tool-calling model -> Scene 9, first downloaded chat
  * model -> Scenes 3/6/7, smallest not-downloaded chat model -> Scene 4.
  * The managed server (LEMOND, on the demo-settings port) is tried
- * first, then a system install (:13305). Explicit env values always win.
+ * first, then a system install (:13305) unless Scene 2 needs LEMOND.
+ * Preflight pins the endpoint before writing the profile; later discovery
+ * stays on that server. Explicit model env values always win.
  */
+let discoveryBase = '';
 let discoveryDone = false;
 let discoveryMissLogged = false;
 async function discoverModels() {
   if (discoveryDone) return;
-  if (CONFIG.chatModel && CONFIG.toolModel && CONFIG.downloadModel) {
-    discoveryDone = true;
-    return;
-  }
-  for (const base of [`http://localhost:${SETTINGS['chanh.lemondPort']}`, 'http://localhost:13305']) {
+  const managedBase = `http://localhost:${SETTINGS['chanh.lemondPort']}`;
+  const bases = discoveryBase ? [discoveryBase] : [managedBase];
+  if (!discoveryBase && !SCENES.includes('s2')) bases.push('http://localhost:13305');
+  for (const base of bases) {
     const models = await fetchCatalog(base);
     if (!models) continue;
+    discoveryBase = base;
+    SETTINGS['chanh.serverMode'] = base === managedBase ? 'LEMOND' : 'LEMONADE';
+    if (SETTINGS['chanh.serverMode'] === 'LEMONADE') SETTINGS['chanh.lemonadePort'] = 13305;
     const has = (m, label) => (m.labels || []).some((l) => l.toLowerCase() === label);
     // The catalog ships an upstream smoke-test fixture, Tiny-Test-Model-GGUF
     // (a made-up alias for a 270M Gemma checkpoint): never a demo pick —
@@ -872,7 +900,7 @@ async function discoverModels() {
   // scene must be allowed to retry once it is.
   if (!discoveryMissLogged) {
     discoveryMissLogged = true;
-    log(`    model auto-detect: no Lemonade server answered on :${SETTINGS['chanh.lemondPort']} or :13305`);
+    log(`    model auto-detect: no Lemonade server answered at ${bases.join(' or ')}`);
   }
 }
 
@@ -907,13 +935,18 @@ async function preflight() {
   // A leftover lemond from an earlier (hung/killed) run can still hold the
   // demo port — the new server then dies binding it. Warn, don't kill:
   // ending processes on the user's machine is their call.
-  try {
-    const res = await fetch(`http://localhost:${SETTINGS['chanh.lemondPort']}/v1/health`);
-    if (res.ok) {
-      log(`  ! port ${SETTINGS['chanh.lemondPort']} already answers — a leftover lemond may be running;`);
-      log('    end stray lemond.exe processes (Task Manager) before recording, or starts will conflict');
-    }
-  } catch { /* nothing listening — the expected case */ }
+  const managedBase = `http://localhost:${SETTINGS['chanh.lemondPort']}`;
+  const managedAvailable = await serverAvailable(managedBase);
+  if (managedAvailable) {
+    log(`  ! port ${SETTINGS['chanh.lemondPort']} already answers — a leftover lemond may be running;`);
+    log('    end stray lemond.exe processes (Task Manager) before recording, or starts will conflict');
+  }
+  // Scene 2 must install/start the managed server on camera. Other runs
+  // can reuse a server, but its endpoint must reach settings before launch.
+  if (!SCENES.includes('s2') && (managedAvailable || await serverAvailable('http://localhost:13305'))) {
+    await discoverModels();
+  }
+  discoveryBase ||= managedBase;
   const userDir = path.join(CONFIG.userData, 'User');
   fs.mkdirSync(userDir, { recursive: true });
   fs.writeFileSync(path.join(userDir, 'settings.json'), JSON.stringify(SETTINGS, null, 2));
@@ -951,8 +984,8 @@ async function main() {
 
   for (const scene of SCENES) {
     // Resolve the model picks before announcing the scene (Scene 2 is
-    // what brings the server up, so it announces without one).
-    if (scene !== 's2') await discoverModels();
+    // what brings the server up; standalone Scene 7 prepares it itself).
+    if (scene !== 's2' && scene !== 's7') await discoverModels();
     log(`\n=== ${scene} — ${SCENE_DESCRIPTIONS[scene]} ===`);
     const model = sceneModel(scene);
     if (model) log(`    model: ${model}`);

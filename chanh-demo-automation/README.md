@@ -30,7 +30,10 @@ own MP4.
   start/end marks as a render reference. The 3 screenshots are saved
   directly as PNGs.
 - The demo profile sets `chanh.lemondPort` to **10000** (ports 8000 and
-  9000 are both unusable on Lan's machine).
+  9000 are both unusable on Lan's machine). When Scene 2 is omitted,
+  discovery tries this port, then the system server on **13305**, and
+  configures the profile to use the server that answered. Runs with
+  Scene 2 always use the managed server on **10000**.
 
 ## Setup (once)
 
@@ -66,9 +69,11 @@ node demo.js s7 --keep-state # rerun a single failed scene with the existing pro
 node demo.js --keep-open   # flag: leave VS Code open at the end
 ```
 
-For a single-scene rerun, the Lemonade server must already be running on
-port **10000**. `--keep-state` reuses the VS Code profile; it does not start
-the server.
+Scene 7 installs the managed binary if needed and starts the server before
+selecting a model, so it can run from a clean profile. If discovery selected
+an existing system server, Scene 7 uses that server. Other single-scene
+reruns require an already running server on **10000** or **13305**.
+`--keep-state` reuses the VS Code profile.
 
 Exit code is 0 only if every requested scene succeeded. A failed scene
 saves `debug-<scene>.png` (what the screen looked like at the failure)
