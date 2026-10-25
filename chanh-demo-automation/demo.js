@@ -84,7 +84,7 @@ const SETTINGS = {
   'workbench.colorTheme': 'Default Dark Modern',
   'workbench.startupEditor': 'none',
   'workbench.tips.enabled': false,
-  'window.zoomLevel': 2,
+  'window.zoomLevel': 0, // normal scale
   'editor.minimap.enabled': false,
   'telemetry.telemetryLevel': 'off',
   'update.mode': 'none',
