@@ -878,7 +878,12 @@ export class ServerViewProvider implements TreeDataProvider<TreeItem>, Disposabl
     // since these stats describe this machine and nothing else. The header and
     // its rows are stable instances, so each sample can repaint just the rows
     // whose text changed; expand state rides the persisted section map.
-    if (this.systemStatsRelevant()) {
+    // A stopped lemond hides it too: the model sections are already gone in
+    // that state, and leaving System behind makes the stopped tree look
+    // half-rendered. It comes back on its own once the server is running.
+    const lemondStopped =
+      displayServer?.id === ServerMode.LEMOND && displayServer?.status === ServerStatus.STOPPED
+    if (this.systemStatsRelevant() && !lemondStopped) {
       this.paintSystem(this._systemMonitor.snapshot)
       this._systemHeader.collapsibleState = this.sectionState('chanh:system')
       this._systemRendered = true
