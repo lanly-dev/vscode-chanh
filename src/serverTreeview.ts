@@ -647,6 +647,13 @@ export class ServerViewProvider implements TreeDataProvider<TreeItem>, Disposabl
     }
   }
 
+  /** Whether System stats are relevant and the managed lemond is not stopped. */
+  private systemSectionVisible(): boolean {
+    const lemondStopped =
+      this._activeServer?.id === ServerMode.LEMOND && this._activeServer?.status === ServerStatus.STOPPED
+    return this.systemStatsRelevant() && !lemondStopped
+  }
+
   /**
    * Whether the GPU rows can currently be seen: the sidebar view is visible,
    * the System section is on screen *and* expanded. Read live on every sample
@@ -655,7 +662,7 @@ export class ServerViewProvider implements TreeDataProvider<TreeItem>, Disposabl
    */
   private gpusOnScreen(): boolean {
     return (this._treeView?.visible ?? false) &&
-      this.systemStatsRelevant() &&
+      this.systemSectionVisible() &&
       this.systemSectionOpen()
   }
 
@@ -680,7 +687,7 @@ export class ServerViewProvider implements TreeDataProvider<TreeItem>, Disposabl
     if (!this._systemRendered) return
     // The section is only rendered while the server runs locally; while it is
     // hidden there is nothing to repaint.
-    if (!this.systemStatsRelevant()) return
+    if (!this.systemSectionVisible()) return
     const { changedIds, structureChanged, headerChanged } = this.paintSystem(this._systemMonitor.snapshot)
     // Rows appeared or disappeared (e.g. the GPU probe finished): only a full
     // refresh re-creates the row set.
@@ -874,16 +881,14 @@ export class ServerViewProvider implements TreeDataProvider<TreeItem>, Disposabl
     items.push(serverHeader)
 
     // System section - live CPU / GPU / RAM stats for this machine. Only shown
-    // while the configured server runs locally (see `systemStatsRelevant`),
+    // while the configured server runs locally (see `systemSectionVisible`),
     // since these stats describe this machine and nothing else. The header and
     // its rows are stable instances, so each sample can repaint just the rows
     // whose text changed; expand state rides the persisted section map.
     // A stopped lemond hides it too: the model sections are already gone in
     // that state, and leaving System behind makes the stopped tree look
     // half-rendered. It comes back on its own once the server is running.
-    const lemondStopped =
-      displayServer?.id === ServerMode.LEMOND && displayServer?.status === ServerStatus.STOPPED
-    if (this.systemStatsRelevant() && !lemondStopped) {
+    if (this.systemSectionVisible()) {
       this.paintSystem(this._systemMonitor.snapshot)
       this._systemHeader.collapsibleState = this.sectionState('chanh:system')
       this._systemRendered = true
