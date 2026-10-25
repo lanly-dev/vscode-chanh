@@ -827,7 +827,11 @@ async function discoverModels() {
     const models = await fetchCatalog(base);
     if (!models) continue;
     const has = (m, label) => (m.labels || []).some((l) => l.toLowerCase() === label);
-    const installed = models.filter((m) => m.downloaded);
+    // The catalog ships an upstream smoke-test fixture, Tiny-Test-Model-GGUF
+    // (a made-up alias for a 270M Gemma checkpoint): never a demo pick —
+    // and at 0.18 GB it would always win "smallest not-downloaded".
+    const real = (m) => !/test/i.test(m.id);
+    const installed = models.filter((m) => m.downloaded && real(m));
     if (!CONFIG.toolModel) {
       const m = installed.find((m) => has(m, 'tool-calling'));
       if (m) CONFIG.toolModel = m.id;
@@ -838,7 +842,7 @@ async function discoverModels() {
     }
     if (!CONFIG.downloadModel) {
       const pool = models
-        .filter((m) => !m.downloaded && has(m, 'chat'))
+        .filter((m) => !m.downloaded && real(m) && has(m, 'chat'))
         .sort((a, b) => (a.size ?? 999) - (b.size ?? 999));
       if (pool[0]) CONFIG.downloadModel = pool[0].id;
     }
