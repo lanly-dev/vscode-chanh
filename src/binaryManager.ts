@@ -14,6 +14,14 @@ const GITHUB_API = 'https://api.github.com/repos/lemonade-sdk/lemonade/releases/
 export class BinaryManager {
   constructor(private context: vscode.ExtensionContext) { }
 
+  /** True while a binary download/extract/merge is running in this process. */
+  private installing = false
+
+  /** Whether a binary install is currently in progress. */
+  get isInstalling(): boolean {
+    return this.installing
+  }
+
   /**
    * Directory where the binary is stored (user storage — survives extension updates).
    * Uses the non-deprecated {@link vscode.ExtensionContext.globalStorageUri} + `fsPath`.
@@ -225,8 +233,26 @@ export class BinaryManager {
     await execAsync(`tar -xzf '${tarPath}' -C '${destDir}'`)
   }
 
-  /** Download and install the Lemonade Server binary. */
+  /**
+   * Download and install the Lemonade Server binary.
+   * A call while an install is already running is ignored — see
+   * {@link ensureBinary} for why concurrent installs/starts are unsafe.
+   */
   async downloadBinary(): Promise<void> {
+    if (this.installing) {
+      Logger.info('Binary install already in progress; ignoring duplicate request')
+      return
+    }
+    this.installing = true
+    try {
+      await this.doDownloadBinary()
+    } finally {
+      this.installing = false
+    }
+  }
+
+  /** The install itself; only ever run under the {@link downloadBinary} guard. */
+  private async doDownloadBinary(): Promise<void> {
     Logger.info('Fetching latest release...')
 
     const release = await this.getLatestRelease()
@@ -378,6 +404,25 @@ export class BinaryManager {
 
   /** Ensure the binary is installed, downloading if necessary. */
   async ensureBinary(): Promise<boolean> {
+    // An install is already running (e.g. the user clicked Download on
+    // the missing-binary prompt, then asked to start the server): wait
+    // for it instead of judging the half-written tree on disk. The
+    // executable appears in a subdirectory BEFORE resources/ is merged
+    // next to it, and starting from that partial layout launches a
+    // broken server. Once the install settles, fall through — the
+    // binary is either installed (return true below) or it is not, in
+    // which case the prompt path runs and a failed/cancelled install
+    // is simply offered again.
+    if (this.installing) {
+      Logger.info('Binary install in progress; waiting for it to finish before continuing')
+      vscode.window.showInformationMessage(
+        'Lemonade Server is still installing — the start will continue when it finishes.'
+      )
+      while (this.installing) {
+        await new Promise((resolve) => setTimeout(resolve, 1000))
+      }
+    }
+
     // If the binary exists in a subdirectory, move it to the right place
     if (this.isBinaryInstalled() && !fs.existsSync(this.binaryPath)) {
       Logger.info('Binary found in subdirectory, relocating...')
