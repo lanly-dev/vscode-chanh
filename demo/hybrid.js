@@ -475,6 +475,56 @@ function removeBinary() {
   }
 }
 
+/**
+ * End this run's own server tree: lemond plus the llama-server children it
+ * spawns. Killing the extension host does NOT kill them — lemond is spawned by
+ * the extension, not by this script, so an interrupted run leaves both alive
+ * and holding the demo port.
+ *
+ * Scoped on purpose: only processes whose executable lives inside this run's
+ * --user-data-dir are touched, so an independent Lemonade install on the
+ * machine (or another profile's) is never hit. Windows-only; no-op elsewhere.
+ */
+function killDemoServer(reason) {
+  if (process.platform !== 'win32') return [];
+  const port = Number(SETTINGS['chanh.lemondPort']) || 0;
+  const script = `
+$userData = '${CONFIG.userData.replace(/'/g, "''")}'
+$pids = @()
+if (${port} -gt 0) {
+  try {
+    $owners = Get-NetTCPConnection -LocalPort ${port} -State Listen -ErrorAction Stop |
+      Select-Object -ExpandProperty OwningProcess -Unique
+    foreach ($p in $owners) {
+      $pr = Get-Process -Id $p -ErrorAction SilentlyContinue
+      if ($pr) { $exe = $null; try { $exe = $pr.Path } catch { }; if ($exe -and $exe.StartsWith($userData, 'OrdinalIgnoreCase')) { $pids += $p } }
+    }
+  } catch { }
+}
+foreach ($pr in (Get-Process -Name llama-server,lemond -ErrorAction SilentlyContinue)) {
+  $exe = $null; try { $exe = $pr.Path } catch { }
+  if ($exe -and $exe.StartsWith($userData, 'OrdinalIgnoreCase')) { $pids += $pr.Id }
+}
+$pids = @($pids | Sort-Object -Unique)
+foreach ($p in $pids) { taskkill /PID $p /T /F 2>&1 | Out-Null }
+Write-Output ($pids -join ',')
+`;
+  try {
+    const out = execFileSync('powershell', [
+      '-NoProfile', '-NonInteractive', '-EncodedCommand',
+      Buffer.from(script, 'utf16le').toString('base64'),
+    ], { encoding: 'utf8', timeout: 20000 });
+    const killed = String(out).trim().split(',').filter(Boolean);
+    if (killed.length > 0) {
+      log(`  server cleanup${reason ? ` (${reason})` : ''}: killed PID(s) ${killed.join(', ')}`);
+    }
+    return killed;
+  } catch (err) {
+    log(`  server cleanup failed: ${(err && err.message) || err}`);
+    return [];
+  }
+}
+
 async function preflight() {
   await ensureFfmpeg();
   CONFIG.codePath = detectCodePath();
@@ -507,6 +557,10 @@ async function preflight() {
   const userDir = path.join(CONFIG.userData, 'User');
   fs.mkdirSync(userDir, { recursive: true });
   fs.writeFileSync(path.join(userDir, 'settings.json'), JSON.stringify(SETTINGS, null, 2));
+  // A leftover lemond from an interrupted run still holds the demo port, and
+  // its llama-server children keep the GPU busy. Kill this run's own tree
+  // before launching — scoped to executables under our --user-data-dir.
+  killDemoServer('stale before launch');
   log('workspace:', CONFIG.workspace);
   log('scenes:', SCENES.join(', '));
 }
@@ -614,11 +668,23 @@ async function main() {
     await ask('\nPress Enter to close VS Code and finish… ');
     await app.close().catch(() => {});
   }
+  killDemoServer('run end');
   rl.close();
+}
+
+for (const sig of ['SIGINT', 'SIGTERM', 'SIGHUP']) {
+  process.on(sig, async () => {
+    log(`\n${sig} — closing VS Code and ending the demo server…`);
+    try { if (app) await app.close(); } catch { /* ignore */ }
+    killDemoServer('interrupted');
+    process.exit(130);
+  });
 }
 
 main().catch((err) => {
   console.error('\nFAILED:', err && err.message ? err.message : err);
+  try { if (app && !FLAGS.has('--keep-open')) app.close().catch(() => {}); } catch { /* ignore */ }
+  killDemoServer('fatal');
   rl.close();
   process.exit(1);
 });
