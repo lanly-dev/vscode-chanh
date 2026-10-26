@@ -38,7 +38,7 @@ const { _electron } = require('playwright');
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
-const { execFile } = require('child_process');
+const { execFile, execFileSync } = require('child_process');
 
 const env = process.env;
 const WORKSPACE = env.DEMO_WORKSPACE || path.join(os.homedir(), 'demo-workspace');
@@ -170,7 +170,21 @@ async function openChanhSidebar() {
 async function treeRow(text) {
   const rows = win.locator('.sidebar .monaco-list-row', { hasText: text });
   let found = null;
+  // Guard against an infinite hang: if we've scrolled to the bottom of the
+  // tree without ever seeing a matching row, give up with a clear error.
+  let lastScrollTop = -1;
+  let stuckPolls = 0;
   await pollUntil(async () => {
+    // A view with no provider renders a placeholder and zero rows. The
+    // scroll-bottom guard below can never arm in that state (max scroll is 0),
+    // so surface the actual cause instead of polling until the run is killed.
+    const placeholder = await win
+      .locator('.sidebar', { hasText: 'no data provider registered' })
+      .count().catch(() => 0);
+    if (placeholder > 0) {
+      throw new Error(
+        `the Chanh sidebar has no data provider (VS Code's "no data provider registered" placeholder) — reload the window, re-open the view, then re-run ${text}`);
+    }
     const n = await rows.count().catch(() => 0);
     for (let i = 0; i < n; i++) {
       if (await rows.nth(i).isVisible().catch(() => false)) {
@@ -178,12 +192,29 @@ async function treeRow(text) {
         return true;
       }
     }
-    // Nudge the tree to virtualize more rows into the DOM.
-    const box = await win.locator('.sidebar .monaco-list').first()
-      .boundingBox().catch(() => null);
-    if (box) await win.mouse.wheel(0, 500);
+    // Nudge the tree to virtualize more rows into the DOM. Scroll the
+    // treeview element directly (reliable regardless of where the mouse
+    // happens to be), then also move the mouse over the tree and wheel
+    // as a fallback for VS Code builds where the list isn't the scroller.
+    const tree = win.locator('.sidebar .monaco-list').first();
+    const box = await tree.boundingBox().catch(() => null);
+    if (box) {
+      const st = await tree.evaluate((el) => {
+        const before = el.scrollTop;
+        el.scrollTop = Math.min(el.scrollTop + 500, el.scrollHeight - el.clientHeight);
+        return { before, after: el.scrollTop, max: el.scrollHeight - el.clientHeight };
+      }).catch(() => ({ before: 0, after: 0, max: 0 }));
+      if (st.after === lastScrollTop) stuckPolls++;
+      else stuckPolls = 0;
+      lastScrollTop = st.after;
+      if (st.max > 0 && st.after >= st.max && stuckPolls >= 2) {
+        throw new Error(`tree row "${text}" not found in the sidebar tree (scrolled to bottom)`);
+      }
+      await win.mouse.move(box.x + box.width / 2, box.y + box.height / 2).catch(() => {});
+      await win.mouse.wheel(0, 500).catch(() => {});
+    }
     return false;
-  }, `tree row "${text}"`);
+  }, `tree row "${text}"`, 120000);
   return found;
 }
 
@@ -322,11 +353,14 @@ async function screenshot(name) {
  * dead. A wrong selector therefore hangs visibly instead of failing
  * on an arbitrary number: fix the selector, not a timeout.
  */
-async function pollUntil(check, what) {
+async function pollUntil(check, what, deadlineMs) {
   const started = Date.now();
   let polls = 0;
   for (;;) {
     if (await check()) return;
+    if (deadlineMs && Date.now() - started > deadlineMs) {
+      throw new Error(`timed out after ${Math.round(deadlineMs / 1000)}s waiting for ${what}`);
+    }
     polls++;
     if (polls % 10 === 0) {
       log(`    ... still waiting for ${what} (${Math.round((Date.now() - started) / 1000)}s)`);
@@ -571,6 +605,17 @@ async function s4() {
     throw new Error('no not-downloaded chat model found (or set DEMO_DOWNLOAD_MODEL)');
   }
   await expandSection('Downloadable Models');
+  // The downloadable model is listed at the end of the section, below the
+  // fold of the virtualized treeview. Scroll the treeview down a bit so it
+  // comes into view before we try to click its "Download Model" action.
+  await win
+    .locator('.sidebar .monaco-list')
+    .first()
+    .evaluate((el) => {
+      el.scrollTop = Math.min(el.scrollTop + 400, el.scrollHeight - el.clientHeight);
+    })
+    .catch(() => {});
+  await W(500);
   mark('s4', 'start');
   await recorder.start('s4', 's4-download.mp4');
   await W(2000);
@@ -800,6 +845,56 @@ function removeBinary() {
 }
 
 /**
+ * End this run's own server tree: lemond plus the llama-server children it
+ * spawns. Killing the extension host does NOT kill them — lemond is spawned by
+ * the extension, not by this script, so an interrupted run leaves both alive
+ * and holding the demo port.
+ *
+ * Scoped on purpose: only processes whose executable lives inside this run's
+ * --user-data-dir are touched, so an independent Lemonade install on the
+ * machine (or another profile's) is never hit. Windows-only; no-op elsewhere.
+ */
+function killDemoServer(reason) {
+  if (process.platform !== 'win32') return [];
+  const port = Number(SETTINGS['chanh.lemondPort']) || 0;
+  const script = `
+$userData = '${CONFIG.userData.replace(/'/g, "''")}'
+$pids = @()
+if (${port} -gt 0) {
+  try {
+    $owners = Get-NetTCPConnection -LocalPort ${port} -State Listen -ErrorAction Stop |
+      Select-Object -ExpandProperty OwningProcess -Unique
+    foreach ($p in $owners) {
+      $pr = Get-Process -Id $p -ErrorAction SilentlyContinue
+      if ($pr) { $exe = $null; try { $exe = $pr.Path } catch { }; if ($exe -and $exe.StartsWith($userData, 'OrdinalIgnoreCase')) { $pids += $p } }
+    }
+  } catch { }
+}
+foreach ($pr in (Get-Process -Name llama-server,lemond -ErrorAction SilentlyContinue)) {
+  $exe = $null; try { $exe = $pr.Path } catch { }
+  if ($exe -and $exe.StartsWith($userData, 'OrdinalIgnoreCase')) { $pids += $pr.Id }
+}
+$pids = @($pids | Sort-Object -Unique)
+foreach ($p in $pids) { taskkill /PID $p /T /F 2>&1 | Out-Null }
+Write-Output ($pids -join ',')
+`;
+  try {
+    const out = execFileSync('powershell', [
+      '-NoProfile', '-NonInteractive', '-EncodedCommand',
+      Buffer.from(script, 'utf16le').toString('base64'),
+    ], { encoding: 'utf8', timeout: 20000 });
+    const killed = String(out).trim().split(',').filter(Boolean);
+    if (killed.length > 0) {
+      log(`  server cleanup${reason ? ` (${reason})` : ''}: killed PID(s) ${killed.join(', ')}`);
+    }
+    return killed;
+  } catch (err) {
+    log(`  server cleanup failed: ${(err && err.message) || err}`);
+    return [];
+  }
+}
+
+/**
  * Has the binary install FULLY completed? The extension extracts the
  * archive, then merges the layout (resources/, config, …) next to the
  * executable, and only then writes `.version` — so lemond.exe at the
@@ -932,14 +1027,14 @@ async function preflight() {
     log('wiped .vscode-user-data (blank profile; pass --keep-state to reuse)');
   }
   if (SCENES.includes('s2')) removeBinary();
-  // A leftover lemond from an earlier (hung/killed) run can still hold the
-  // demo port — the new server then dies binding it. Warn, don't kill:
-  // ending processes on the user's machine is their call.
+  // A leftover lemond from an interrupted run still holds the demo port, and
+  // its llama-server children keep the GPU busy. Kill this run's own tree
+  // before launching — scoped to executables under our --user-data-dir.
+  killDemoServer('stale before launch');
   const managedBase = `http://localhost:${SETTINGS['chanh.lemondPort']}`;
   const managedAvailable = await serverAvailable(managedBase);
   if (managedAvailable) {
-    log(`  ! port ${SETTINGS['chanh.lemondPort']} already answers — a leftover lemond may be running;`);
-    log('    end stray lemond.exe processes (Task Manager) before recording, or starts will conflict');
+    log(`  ! port ${SETTINGS['chanh.lemondPort']} still answers after cleanup — something else owns it`);
   }
   // Scene 2 must install/start the managed server on camera. Other runs
   // can reuse a server, but its endpoint must reach settings before launch.
@@ -1012,11 +1107,25 @@ async function main() {
   process.exitCode = failed.length ? 1 : 0;
   if (FLAGS.has('--keep-open')) return;
   await app.close();
+  killDemoServer('run end');
   process.exit(process.exitCode);
+}
+
+// Ctrl+C kills this process but NOT the extension host's children: lemond is
+// spawned by the extension, and lemond spawns llama-server. Close the window
+// first, then end the leftover tree so the next run can bind the demo port.
+for (const sig of ['SIGINT', 'SIGTERM', 'SIGHUP']) {
+  process.on(sig, async () => {
+    log(`\n${sig} — closing VS Code and ending the demo server…`);
+    try { if (app) await app.close(); } catch { /* ignore */ }
+    killDemoServer('interrupted');
+    process.exit(130);
+  });
 }
 
 main().catch(async (err) => {
   console.error('FATAL:', err);
   try { if (app && !FLAGS.has('--keep-open')) await app.close(); } catch { /* ignore */ }
+  killDemoServer('fatal');
   process.exitCode = 2;
 });
