@@ -900,6 +900,7 @@ function killDemoServer(reason) {
   const port = Number(SETTINGS['chanh.lemondPort']) || 0;
   const script = `
 $userData = '${CONFIG.userData.replace(/'/g, "''")}'
+$ProgressPreference = 'SilentlyContinue'
 $pids = @()
 if (${port} -gt 0) {
   try {

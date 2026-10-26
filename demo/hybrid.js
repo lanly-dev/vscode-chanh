@@ -32,7 +32,7 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 const readline = require('readline');
-const { execFile } = require('child_process');
+const { execFile, execFileSync } = require('child_process');
 
 const env = process.env;
 const WORKSPACE = env.DEMO_WORKSPACE || path.join(os.homedir(), 'demo-workspace');
@@ -490,6 +490,7 @@ function killDemoServer(reason) {
   const port = Number(SETTINGS['chanh.lemondPort']) || 0;
   const script = `
 $userData = '${CONFIG.userData.replace(/'/g, "''")}'
+$ProgressPreference = 'SilentlyContinue'
 $pids = @()
 if (${port} -gt 0) {
   try {
