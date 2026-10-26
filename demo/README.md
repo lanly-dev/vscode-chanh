@@ -41,7 +41,7 @@ the automated path and doubles as a test harness.
   start/end marks as a render reference. The 3 screenshots are saved
   directly as PNGs.
 - The demo profile sets `chanh.lemondPort` to **10000** (ports 8000 and
-  9000 are both unusable on Lan's machine). When Scene 2 is omitted,
+  9000 are both unusable on local machine). When Scene 2 is omitted,
   discovery tries this port, then the system server on **13305**, and
   configures the profile to use the server that answered. Runs with
   Scene 2 always use the managed server on **10000**.

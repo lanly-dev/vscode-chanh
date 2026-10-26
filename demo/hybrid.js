@@ -95,7 +95,7 @@ const SETTINGS = {
   'extensions.autoUpdate': false,
   'chanh.showTokenStats': true,
   'chanh.serverMode': 'LEMOND',
-  'chanh.lemondPort': 10000, // 8000 and 9000 are both unusable on Lan's machine
+  'chanh.lemondPort': 10000,
 };
 
 const log = (...a) => console.log(...a);
