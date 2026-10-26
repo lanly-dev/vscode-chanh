@@ -48,7 +48,7 @@ const CONFIG = {
 
 // Captures (recordings, screenshots, timeline.json) land here so they are
 // co-located with the driver scripts rather than in demo-workspace.
-const OUTPUT_DIR = path.join(__dirname, 'output');
+const OUTPUT_DIR = path.join(__dirname, 'output-hybrid');
 fs.mkdirSync(OUTPUT_DIR, { recursive: true });
 
 const ARGS = process.argv.slice(2);
