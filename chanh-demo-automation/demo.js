@@ -162,60 +162,100 @@ async function openChanhSidebar() {
   await W(600);
 }
 
-/** Find a sidebar tree row by text, polling while scrolling the
- *  (virtualized) tree so off-screen rows render into the DOM. Returns
- *  the first match that is actually visible — the tree recycles row
- *  elements, so the first DOM match can be a parked spare that never
- *  reports visible while its twin is on screen. */
+/** The Chanh view renders this placeholder when no TreeDataProvider is
+ *  attached — the state that used to wedge the tree scenes. */
+function sidebarPlaceholder() {
+  return win.locator('.sidebar', { hasText: 'no data provider registered' });
+}
+
+/**
+ * Recover from "no data provider registered": the view lost its provider (the
+ * extension registers it through createTreeView, so a recreated view comes back
+ * unowned). A window reload re-runs activation and re-attaches it.
+ *
+ * Refuses while a scene is recording: reloading mid-take would put a blank
+ * window in the video, so the take fails and should simply be re-run.
+ */
+async function recoverSidebar(what) {
+  if ((await sidebarPlaceholder().count().catch(() => 0)) === 0) return false;
+  if (recorder.session) {
+    throw new Error(`the Chanh view lost its data provider while recording (${what}) — take discarded, re-run this scene`);
+  }
+  log(`  ! the Chanh view lost its provider (${what}) — reloading the window`);
+  await palette('Developer: Reload Window');
+  await waitVisible(win.locator('.monaco-workbench'), 'the workbench after reload', 60000);
+  await W(4000);
+  await openChanhSidebar();
+  await pollUntil(
+    async () => (await sidebarPlaceholder().count().catch(() => 0)) === 0,
+    'the Chanh tree provider after reload', 30000);
+  log('  ✓ sidebar provider restored');
+  return true;
+}
+
+/** Find a sidebar tree row by text, scrolling the (virtualized) tree in
+ *  VIEWPORT-SIZED jumps so off-screen rows render into the DOM. Returns the
+ *  first match that is actually visible — the tree recycles row elements, so
+ *  the first DOM match can be a parked spare that never reports visible while
+ *  its twin is on screen.
+ *
+ *  Scrolling is a page per step (clientHeight minus two rows of overlap) with
+ *  a short settle wait, not a fixed 500px nudge on the 3s poll cadence: the
+ *  Downloadable section is >100 rows, so inching cost more time than the whole
+ *  rest of the scene. */
 async function treeRow(text) {
   const rows = win.locator('.sidebar .monaco-list-row', { hasText: text });
-  let found = null;
-  // Guard against an infinite hang: if we've scrolled to the bottom of the
-  // tree without ever seeing a matching row, give up with a clear error.
-  let lastScrollTop = -1;
-  let stuckPolls = 0;
-  await pollUntil(async () => {
-    // A view with no provider renders a placeholder and zero rows. The
-    // scroll-bottom guard below can never arm in that state (max scroll is 0),
-    // so surface the actual cause instead of polling until the run is killed.
-    const placeholder = await win
-      .locator('.sidebar', { hasText: 'no data provider registered' })
-      .count().catch(() => 0);
-    if (placeholder > 0) {
-      throw new Error(
-        `the Chanh sidebar has no data provider (VS Code's "no data provider registered" placeholder) — reload the window, re-open the view, then re-run ${text}`);
+  const tree = win.locator('.sidebar .monaco-list').first();
+  const placeholder = win.locator('.sidebar', { hasText: 'no data provider registered' });
+  const deadline = Date.now() + 45000;
+  let stalled = 0;
+
+  for (;;) {
+    // A view with no provider renders a placeholder and zero rows; the
+    // scroll-bottom guard below can never arm there (max scroll is 0).
+    if ((await placeholder.count().catch(() => 0)) > 0) {
+      await recoverSidebar(`while looking for "${text}"`);
+      continue; // re-check the fresh view
     }
+    if ((await tree.count().catch(() => 0)) === 0) {
+      if (Date.now() > deadline) throw new Error(`tree row "${text}": the sidebar has no tree list`);
+      await W(250);
+      continue;
+    }
+
     const n = await rows.count().catch(() => 0);
     for (let i = 0; i < n; i++) {
-      if (await rows.nth(i).isVisible().catch(() => false)) {
-        found = rows.nth(i);
-        return true;
-      }
+      if (await rows.nth(i).isVisible().catch(() => false)) return rows.nth(i);
     }
-    // Nudge the tree to virtualize more rows into the DOM. Scroll the
-    // treeview element directly (reliable regardless of where the mouse
-    // happens to be), then also move the mouse over the tree and wheel
-    // as a fallback for VS Code builds where the list isn't the scroller.
-    const tree = win.locator('.sidebar .monaco-list').first();
-    const box = await tree.boundingBox().catch(() => null);
-    if (box) {
-      const st = await tree.evaluate((el) => {
-        const before = el.scrollTop;
-        el.scrollTop = Math.min(el.scrollTop + 500, el.scrollHeight - el.clientHeight);
-        return { before, after: el.scrollTop, max: el.scrollHeight - el.clientHeight };
-      }).catch(() => ({ before: 0, after: 0, max: 0 }));
-      if (st.after === lastScrollTop) stuckPolls++;
-      else stuckPolls = 0;
-      lastScrollTop = st.after;
-      if (st.max > 0 && st.after >= st.max && stuckPolls >= 2) {
+
+    if (Date.now() > deadline) {
+      throw new Error(`tree row "${text}" not found within 45s (tree may be filtered or not rendered)`);
+    }
+
+    const st = await tree.evaluate((el) => {
+      const before = el.scrollTop;
+      const page = Math.max(320, el.clientHeight - 64);
+      el.scrollTop = Math.min(before + page, el.scrollHeight - el.clientHeight);
+      return { before, after: el.scrollTop, max: el.scrollHeight - el.clientHeight, page };
+    }).catch(() => null);
+    if (!st) throw new Error(`tree row "${text}": could not read the sidebar scroll state`);
+
+    if (st.after === st.before) {
+      if (st.after >= st.max) {
         throw new Error(`tree row "${text}" not found in the sidebar tree (scrolled to bottom)`);
       }
-      await win.mouse.move(box.x + box.width / 2, box.y + box.height / 2).catch(() => {});
-      await win.mouse.wheel(0, 500).catch(() => {});
+      // scrollTop assignment ignored — this build scrolls via the wheel.
+      const box = await tree.boundingBox().catch(() => null);
+      if (box) {
+        await win.mouse.move(box.x + box.width / 2, box.y + box.height / 2).catch(() => {});
+        await win.mouse.wheel(0, st.page).catch(() => {});
+      }
+      if (++stalled > 3) throw new Error(`tree row "${text}": the sidebar tree does not scroll`);
+    } else {
+      stalled = 0;
     }
-    return false;
-  }, `tree row "${text}"`, 120000);
-  return found;
+    await W(160); // let the virtualized list render the new window of rows
+  }
 }
 
 /**
@@ -323,7 +363,7 @@ async function waitChatIdle() {
     // reliable: generation takes a beat to start).
     hiddenStreak++;
     return seenGenerating || hiddenStreak >= 2;
-  }, 'the chat turn to finish');
+  }, 'the chat turn to finish', 300000);
   await W(1500);
 }
 
@@ -369,9 +409,11 @@ async function pollUntil(check, what, deadlineMs) {
   }
 }
 
-/** Poll every 3s until `locator` is visible — the locator form of pollUntil. */
-async function waitVisible(locator, what) {
-  await pollUntil(() => locator.isVisible().catch(() => false), what);
+/** Poll every 3s until `locator` is visible — the locator form of pollUntil.
+ *  Bounded by default: an element that never appears must fail the scene, not
+ *  hang it (the s4 stall was a hover whose action button never rendered). */
+async function waitVisible(locator, what, deadlineMs = 30000) {
+  await pollUntil(() => locator.isVisible().catch(() => false), what, deadlineMs);
 }
 
 // ---------------------------------------------------------------------------
@@ -579,7 +621,7 @@ async function s2() {
       log(`    (diagnostic: ${n} row(s) match "Installed Models", none on screen yet)`);
     }
     return false;
-  }, 'the server sections to appear');
+  }, 'the server sections to appear', 180000);
   // Sections only populate once the server is actually running.
   await treeRow('Downloadable Models');
   await W(2000);
@@ -605,16 +647,10 @@ async function s4() {
     throw new Error('no not-downloaded chat model found (or set DEMO_DOWNLOAD_MODEL)');
   }
   await expandSection('Downloadable Models');
-  // The downloadable model is listed at the end of the section, below the
-  // fold of the virtualized treeview. Scroll the treeview down a bit so it
-  // comes into view before we try to click its "Download Model" action.
-  await win
-    .locator('.sidebar .monaco-list')
-    .first()
-    .evaluate((el) => {
-      el.scrollTop = Math.min(el.scrollTop + 400, el.scrollHeight - el.clientHeight);
-    })
-    .catch(() => {});
+  // Locate the row BEFORE recording: the Downloadable section is >100 rows, so
+  // the page-scroll search happens off-camera and the take opens on the row
+  // already in view (rowInlineAction then just hovers and clicks).
+  await treeRow(CONFIG.downloadModel);
   await W(500);
   mark('s4', 'start');
   await recorder.start('s4', 's4-download.mp4');
@@ -635,7 +671,7 @@ async function s4() {
       }
       return false;
     }, CONFIG.downloadModel).catch(() => false);
-  }, 'the download to finish');
+  }, 'the download to finish', 240000);
   await W(2000);
   await recorder.stop();
   mark('s4', 'end');
@@ -655,7 +691,7 @@ async function s6() {
       if (/capabilit/i.test(text)) return true;
     }
     return false;
-  }, 'the model-info webview');
+  }, 'the model-info webview', 60000);
   await W(1500);
   await screenshot('s6-modelinfo.png');
   // Close the info editor again if it is the active tab.
@@ -925,11 +961,11 @@ async function ensureServerRunning() {
   if (SETTINGS['chanh.serverMode'] === 'LEMOND') {
     if (!installComplete()) {
       await palette('Chanh: Download/Update Binary');
-      await pollUntil(() => installComplete(), 'the managed binary install to finish');
+      await pollUntil(() => installComplete(), 'the managed binary install to finish', 300000);
     }
     await palette('Chanh: Start Server');
   }
-  await pollUntil(available, 'the selected server to become available');
+  await pollUntil(available, 'the selected server to become available', 120000);
 }
 
 async function fetchCatalog(base) {
@@ -1052,8 +1088,16 @@ async function preflight() {
 async function main() {
   await preflight();
   log('launching VS Code (dev host)…');
+  // ELECTRON_RUN_AS_NODE makes Code.exe behave as plain node: it rejects every
+  // VS Code flag ("bad option: --remote-debugging-port=0") and Playwright's
+  // launch dies. It is inherited from Electron-based terminals/tools, so strip
+  // it (and the attach-console flag) from the child environment.
+  const launchEnv = { ...process.env };
+  delete launchEnv.ELECTRON_RUN_AS_NODE;
+  delete launchEnv.ELECTRON_NO_ATTACH_CONSOLE;
   app = await _electron.launch({
     executablePath: CONFIG.codePath,
+    env: launchEnv,
     args: [
       `--user-data-dir=${CONFIG.userData}`,
       `--extensions-dir=${path.join(CONFIG.userData, 'extensions')}`,
@@ -1082,6 +1126,7 @@ async function main() {
     // what brings the server up; standalone Scene 7 prepares it itself).
     if (scene !== 's2' && scene !== 's7') await discoverModels();
     log(`\n=== ${scene} — ${SCENE_DESCRIPTIONS[scene]} ===`);
+    await recoverSidebar(`before ${scene}`).catch((err) => log(`  ! sidebar check: ${err.message}`));
     const model = sceneModel(scene);
     if (model) log(`    model: ${model}`);
     try {
