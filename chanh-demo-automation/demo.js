@@ -52,6 +52,11 @@ const CONFIG = {
   downloadModel: env.DEMO_DOWNLOAD_MODEL || '',
 };
 
+// Captures (recordings, screenshots, timeline.json, debug PNGs) land here so
+// they are co-located with the driver scripts rather than in demo-workspace.
+const OUTPUT_DIR = path.join(__dirname, 'output');
+fs.mkdirSync(OUTPUT_DIR, { recursive: true });
+
 const ARGS = process.argv.slice(2);
 const FLAGS = new Set(ARGS.filter((a) => a.startsWith('--')));
 const CANONICAL = ['s2', 's3', 's4', 's6', 's7', 's8', 's9', 's5'];
@@ -119,7 +124,7 @@ function mark(scene, event) {
 function writeTimeline() {
   try {
     fs.writeFileSync(
-      path.join(CONFIG.workspace, 'timeline.json'),
+      path.join(OUTPUT_DIR, 'timeline.json'),
       JSON.stringify({ recordedAt: new Date().toISOString(), marks: timeline }, null, 2)
     );
   } catch { /* workspace may not exist yet during preflight */ }
@@ -381,7 +386,7 @@ async function ensureChatModelSelected() {
 }
 
 async function screenshot(name) {
-  const file = path.join(CONFIG.workspace, name);
+  const file = path.join(OUTPUT_DIR, name);
   await win.screenshot({ path: file });
   log(`  saved ${name}`);
 }
@@ -503,7 +508,7 @@ const recorder = {
     if (!ffmpegPath) throw new Error('ffmpeg was not resolved (preflight should have done it)');
     if (this.session) await this.abort();
     this.outName = outName;
-    this.framesDir = path.join(CONFIG.workspace, `.frames-${scene}`);
+    this.framesDir = path.join(OUTPUT_DIR, `.frames-${scene}`);
     fs.rmSync(this.framesDir, { recursive: true, force: true });
     fs.mkdirSync(this.framesDir, { recursive: true });
     this.frames = [];
@@ -532,7 +537,7 @@ const recorder = {
     await this.writing;
     const frames = this.frames;
     const dir = this.framesDir;
-    const out = path.join(CONFIG.workspace, this.outName);
+    const out = path.join(OUTPUT_DIR, this.outName);
     this.frames = [];
     if (frames.length < 2) {
       throw new Error(`recording ${this.outName}: only ${frames.length} frame(s) captured`);
@@ -1138,7 +1143,7 @@ async function main() {
       results.push({ scene, ok: false, error: String((err && err.message) || err) });
       log(`✗ ${scene} FAILED: ${(err && err.message) || err}`);
       await win.screenshot({
-        path: path.join(CONFIG.workspace, `debug-${scene}.png`),
+        path: path.join(OUTPUT_DIR, `debug-${scene}.png`),
       }).catch(() => {});
       if (FLAGS.has('--stop-on-error')) break;
     }

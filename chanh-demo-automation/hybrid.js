@@ -46,6 +46,11 @@ const CONFIG = {
   downloadModel: env.DEMO_DOWNLOAD_MODEL || '',
 };
 
+// Captures (recordings, screenshots, timeline.json) land here so they are
+// co-located with the driver scripts rather than in demo-workspace.
+const OUTPUT_DIR = path.join(__dirname, 'output');
+fs.mkdirSync(OUTPUT_DIR, { recursive: true });
+
 const ARGS = process.argv.slice(2);
 const FLAGS = new Set(ARGS.filter((a) => a.startsWith('--')));
 const CANONICAL = ['s2', 's3', 's4', 's6', 's7', 's8', 's9', 's5'];
@@ -386,7 +391,7 @@ const recorder = {
     if (!ffmpegPath) throw new Error('ffmpeg was not resolved (preflight should have done it)');
     if (this.session) await this.abort();
     this.outName = outName;
-    this.framesDir = path.join(CONFIG.workspace, `.frames-${scene}`);
+    this.framesDir = path.join(OUTPUT_DIR, `.frames-${scene}`);
     fs.rmSync(this.framesDir, { recursive: true, force: true });
     fs.mkdirSync(this.framesDir, { recursive: true });
     this.frames = [];
@@ -415,7 +420,7 @@ const recorder = {
     await this.writing;
     const frames = this.frames;
     const dir = this.framesDir;
-    const out = path.join(CONFIG.workspace, this.outName);
+    const out = path.join(OUTPUT_DIR, this.outName);
     this.frames = [];
     if (frames.length < 2) {
       throw new Error(`recording ${this.outName}: only ${frames.length} frame(s) captured`);
@@ -577,7 +582,7 @@ async function main() {
         timeline.push({ scene, file: g.file, recordStart, recordEnd: (Date.now() - t0) / 1000 });
       } else {
         await ask('\n  Arrange the shot, then press Enter to take the screenshot… ');
-        await win.screenshot({ path: path.join(CONFIG.workspace, g.file) });
+        await win.screenshot({ path: path.join(OUTPUT_DIR, g.file) });
         log(`  ■ saved ${g.file}`);
         if (scene === 's8') {
           // Clear the half-typed slash so the window is clean for later scenes.
@@ -596,12 +601,12 @@ async function main() {
   }
 
   fs.writeFileSync(
-    path.join(CONFIG.workspace, 'timeline.json'),
+    path.join(OUTPUT_DIR, 'timeline.json'),
     JSON.stringify({ startedAt: new Date(t0).toISOString(), entries: timeline }, null, 2)
   );
   log('\n=== summary ===');
   for (const r of results) log(`  ${r.scene}: ${r.ok ? 'captured' : 'FAILED — ' + r.error}`);
-  log(`captures are in ${CONFIG.workspace}`);
+  log(`captures are in ${OUTPUT_DIR}`);
 
   if (FLAGS.has('--keep-open')) {
     log('leaving VS Code open (--keep-open)');
