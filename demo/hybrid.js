@@ -575,7 +575,7 @@ async function main() {
     try {
       if (g.kind === 'video') {
         await ask('\n  Press Enter to START recording, then do the steps above… ');
-        const recStart = (Date.now() - t0) / 1000;
+        const recordStart = (Date.now() - t0) / 1000;
         await recorder.start(scene, g.file);
         await ask('  ● recording — do the steps now; press Enter here when the take is complete… ');
         await recorder.stop();
