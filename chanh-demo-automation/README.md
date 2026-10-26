@@ -6,6 +6,17 @@ waits on real UI state. Recording is built in too — no OBS: each video
 scene is captured through Chromium's own screencast and saved as its
 own MP4.
 
+## Hybrid mode (`hybrid.js`) — you perform, it stage-manages
+
+If the full automation misbehaves on your machine, run `node hybrid.js`
+instead. It does everything except the UI steps: same blank profile,
+workspace files, scene order and filenames; it launches VS Code, then
+for each scene prints numbered instructions (and the model to use) and
+handles the capture — recording starts/stops on your Enter for video
+scenes, and screenshots are grabbed at your Enter. `node hybrid.js
+--list` prints all instructions without launching. `demo.js` remains
+the automated path and doubles as a test harness.
+
 ## How it works
 
 - Playwright launches your installed VS Code as an **Extension
