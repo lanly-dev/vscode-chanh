@@ -5,7 +5,8 @@
   "description": "Playwright driver that performs and records the Chanh demo scenes in a dev-host VS Code window (built-in recording, no OBS)",
   "main": "demo.js",
   "scripts": {
-    "demo": "node demo.js"
+    "demo": "node demo.js",
+    "hybrid": "node hybrid.js"
   },
   "dependencies": {
     "playwright": "^1.48.0"
