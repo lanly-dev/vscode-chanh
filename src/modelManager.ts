@@ -1016,7 +1016,9 @@ export class ModelManager {
     chatParticipant.setSelectedModel(selected)
     // Success-state signal for the Get Started walkthrough (step 3).
     void commands.executeCommand('setContext', 'chanh.chatModelSelected', true)
-    showInformationMessage(`Selected model for chat: ${selected}`)
+    // Loaded-models state changed, so re-query the server before repainting.
+    this.treeViewProvider.refreshServer()
+    showInformationMessage(`Selected model '${selected}' loaded successfully`)
   }
 
   /** Show a quick pick of the available models and return the selected model name. */

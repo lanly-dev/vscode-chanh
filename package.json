@@ -101,7 +101,7 @@
       },
       {
         "command": "chanh.selectChatModel",
-        "title": "Chanh: Select Chat Model"
+        "title": "Chanh: Select Chat Model for @chat"
       },
       {
         "command": "chanh.openWalkthrough",
