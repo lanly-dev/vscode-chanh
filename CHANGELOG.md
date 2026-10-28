@@ -14,24 +14,51 @@ Check [Keep a Changelog](https://keepachangelog.com/) for recommendations on how
 - Add custom model group
 - Add pinning model feature
 - Add website and mockup
+- Add demo scripts
 - Improve chat `@chanh`
 - New Get Started walkthrough
+- 27 files, 89.87 KB, 1.144.0, req1.140.0
+```
+chanh-0.1.4.vsix
+├─ [Content_Types].xml
+├─ extension.vsixmanifest
+└─ extension/
+   ├─ LICENSE.txt [1.06 KB]
+   ├─ changelog.md [12.48 KB]
+   ├─ package.json [20.39 KB]
+   ├─ readme.md [4.35 KB]
+   ├─ dist/
+   │  └─ extension.js [120.27 KB]
+   └─ media/
+      ├─ chanh.png [31.65 KB]
+      ├─ chanh.svg [3.83 KB]
+      ├─ capabilities/
+      │  ├─ 3d.svg [0.36 KB]
+      │  ├─ audio-generation.svg [0.32 KB]
+      │  ├─ chat.svg [0.46 KB]
+      │  ├─ classification.svg [0.4 KB]
+      │  ├─ custom.svg [0.28 KB]
+      │  ├─ embeddings.svg [0.45 KB]
+      │  ├─ hot.svg [0.44 KB]
+      │  ├─ image.svg [0.33 KB]
+      │  ├─ omni.svg [0.52 KB]
+      │  ├─ reranking.svg [0.3 KB]
+      │  ├─ tool-calling.svg [0.29 KB]
+      │  ├─ transcription.svg [0.3 KB]
+      │  └─ tts.svg [0.29 KB]
+      └─ walkthrough/
+         ├─ 01-start-server.md [0.45 KB]
+         ├─ 02-download-model.md [0.27 KB]
+         ├─ 03-select-chat-model.md [0.16 KB]
+         ├─ 04-try-fix.md [0.23 KB]
+         └─ 05-agent-mode.md [0.37 KB]
+```
 
 ### Notes
 - For the walkthrough: 5-step in-editor checklist (start server → download a model → pick chat model → try @chanh /fix → agent mode), openable from the Welcome tab or via `Chanh: Open Get Started Walkthrough`
 
 #### Website
 The project website lives in [`website/`](website/) and is set up for GitHub Pages. It is a one-page technical reference covering architecture, server modes, model lifecycle, configuration, commands and chat/agent integration, plus the demo preview and interactive mockup.
-
-Once the Pages workflow runs, it is published at <https://lanly-dev.github.io/vscode-chanh>.
-
-To preview locally:
-
-```bash
-python -m http.server 8000 --directory website
-```
-
-Then open <http://localhost:8000/>. Deployment instructions are in [`website/README.md`](website/README.md).
 
 #### Interactive mockup
 A standalone, clickable prototype of the extension UI lives in [`website/mockup/index.html`](website/mockup/index.html). Open it directly in a browser — no build or server needed — and click **Play demo** for a guided tour of server management, model downloads, context/backend settings, chat and the native model picker. All data is simulated.

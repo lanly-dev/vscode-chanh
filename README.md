@@ -12,7 +12,7 @@ A VS Code extension that downloads, hosts, and runs the [Lemonade Server](https:
 ## Features
 - Managing/downloading Lemonade models
 - Chat integration: `@chanh` chat participant for quick Q&A, plus chat models with tool-calling support in the native VS Code model picker (agent mode, streaming, and vision)
-- Everything runs locally and works offline
+- The models runs locally
 - Multiple server modes: system-installed Lemonade Server, Embeddable Lemonade, or Custom URL
 - Model management extras: pin loaded models against LRU eviction, backend configurations, UI filter mechanism, and group installed/downloadable models by capability
 - Documentation site and interactive mockup at <https://lanly-dev.github.io/vscode-chanh/>

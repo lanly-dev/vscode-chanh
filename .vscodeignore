@@ -5,13 +5,14 @@ DEV.md
 esbuild.js
 eslint.config.mjs
 media/sc.png
-website/
 tsconfig.json
 vsc-extension-quickstart.md
 
+.github/
 .vscode/
 bin/
+demo/
 media/old/
 node_modules/
 src/
-.github/
+website/
