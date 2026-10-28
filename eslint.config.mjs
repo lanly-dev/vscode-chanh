@@ -2,7 +2,7 @@ import typescriptEslint from 'typescript-eslint'
 import stylistic from '@stylistic/eslint-plugin'
 
 export default [{
-  ignores: ['node_modules', 'dist', 'out', 'chanh-demo-automation']
+  ignores: ['node_modules', 'dist', 'out', 'demo']
 }, {
   files: ['**/*.ts', '**/*.mjs']
 }, {
