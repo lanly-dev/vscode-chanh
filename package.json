@@ -3,7 +3,7 @@
   "displayName": "Chanh 🍋 - run your free local AI",
   "description": "Run a local AI server powered by Lemonade Server directly in VS Code",
   "publisher": "lanly-dev",
-  "version": "0.1.4",
+  "version": "0.1.5",
   "sponsor": {
     "url": "https://github.com/sponsors/lanly-dev"
   },

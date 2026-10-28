@@ -8,6 +8,7 @@ Check [Keep a Changelog](https://keepachangelog.com/) for recommendations on how
 - Omni integration in vscode agent - it is not a real model
 - System over limit icon color change, and drives
 - Token stats logs
+- Effort level
 
 ## [0.1.4] - 2026-10-28
 - Add Copy ID context menu options
