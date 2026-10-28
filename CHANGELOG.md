@@ -9,7 +9,7 @@ Check [Keep a Changelog](https://keepachangelog.com/) for recommendations on how
 - System over limit icon color change, and drives
 - Token stats logs
 
-## [0.1.4] - 2026-10-
+## [0.1.4] - 2026-10-28
 - Add Copy ID context menu options
 - Add custom model group
 - Add pinning model feature
@@ -17,16 +17,16 @@ Check [Keep a Changelog](https://keepachangelog.com/) for recommendations on how
 - Add demo scripts
 - Improve chat `@chanh`
 - New Get Started walkthrough
-- 27 files, 89.87 KB, 1.144.0, req1.140.0
+- 27 files, 89.79 KB, 1.144.0, req1.140.0
 ```
 chanh-0.1.4.vsix
 ├─ [Content_Types].xml
 ├─ extension.vsixmanifest
 └─ extension/
    ├─ LICENSE.txt [1.06 KB]
-   ├─ changelog.md [12.48 KB]
+   ├─ changelog.md [12.38 KB]
    ├─ package.json [20.39 KB]
-   ├─ readme.md [4.35 KB]
+   ├─ readme.md [4.34 KB]
    ├─ dist/
    │  └─ extension.js [120.27 KB]
    └─ media/
@@ -58,12 +58,10 @@ chanh-0.1.4.vsix
 - For the walkthrough: 5-step in-editor checklist (start server → download a model → pick chat model → try @chanh /fix → agent mode), openable from the Welcome tab or via `Chanh: Open Get Started Walkthrough`
 
 #### Website
-The project website lives in [`website/`](website/) and is set up for GitHub Pages. It is a one-page technical reference covering architecture, server modes, model lifecycle, configuration, commands and chat/agent integration, plus the demo preview and interactive mockup.
+The project website lives in `website` and is set up for GitHub Pages. It is a one-page technical reference covering architecture, server modes, model lifecycle, configuration, commands and chat/agent integration, plus the demo preview and interactive mockup.
 
 #### Interactive mockup
-A standalone, clickable prototype of the extension UI lives in [`website/mockup/index.html`](website/mockup/index.html). Open it directly in a browser — no build or server needed — and click **Play demo** for a guided tour of server management, model downloads, context/backend settings, chat and the native model picker. All data is simulated.
-
-<img src='website/mockup/preview.png' width='720'/>
+A standalone, clickable prototype of the extension UI lives in `website/mockup/index.html`. Open it directly in a browser — no build or server needed — and click **Play demo** for a guided tour of server management, model downloads, context/backend settings, chat and the native model picker. All data is simulated.
 
 ## [0.1.3] - 2026-10-18
 - New `System` tree group: live CPU, GPU and RAM utilization for the local
