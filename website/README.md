@@ -6,7 +6,7 @@ A static, one-page technical reference for the Chanh VS Code extension. It cover
 
 ## Content
 
-The page is organized into twelve anchored sections:
+The page is organized into thirteen anchored sections:
 
 1. Overview
 2. Architecture
@@ -19,7 +19,8 @@ The page is organized into twelve anchored sections:
 9. Commands
 10. Demo and mockup
 11. Development
-12. License
+12. Audio lab
+13. License
 
 The contents sidebar, mobile contents block and section anchors are all in [`index.html`](index.html). If you add or rename a section, update both contents lists in that file.
 

@@ -91,7 +91,8 @@
           <a href="#commands"><span class="toc-num">09</span>Commands</a>
           <a href="#demo"><span class="toc-num">10</span>Demo &amp; mockup</a>
           <a href="#development"><span class="toc-num">11</span>Development</a>
-          <a href="#license"><span class="toc-num">12</span>License</a>
+          <a href="#audio-lab"><span class="toc-num">12</span>Audio lab</a>
+          <a href="#license"><span class="toc-num">13</span>License</a>
         </nav>
         <div class="sidebar-footer">
           <a href="https://github.com/lanly-dev/lemond/edit/main/website/index.html" target="_blank" rel="noopener">Edit this page</a>
@@ -115,6 +116,7 @@
           <a href="#commands">Commands</a>
           <a href="#demo">Demo &amp; mockup</a>
           <a href="#development">Development</a>
+          <a href="#audio-lab">Audio lab</a>
           <a href="#license">License</a>
         </nav>
       </details>
@@ -560,8 +562,47 @@ website/
 └─ mockup/               interactive UI mockup</code></pre>
         </section>
 
+        <section class="doc-section" id="audio-lab">
+          <div class="section-head"><span class="section-num">12</span><h2>Audio lab <a class="anchor" href="#audio-lab" aria-label="Link to Audio lab">#</a></h2></div>
+          <p>
+            <strong>Audio Lab</strong> (<code>lanly-dev.audio-lab</code>) is a companion VS Code extension that brings speech-to-text (STT) and text-to-speech (TTS) into the editor, powered by the same Lemonade Server that Chanh runs locally. Where Chanh downloads, hosts and manages the local models, Audio Lab consumes them: it transcribes audio files, generates subtitles (SRT/VTT), and turns text into spoken audio — all without leaving VS Code.
+          </p>
+
+          <h3>How it depends on Chanh's models</h3>
+          <ul>
+            <li><strong>Local models via Chanh.</strong> Chanh downloads and loads the STT/TTS models (for example Whisper for transcription, Kokoro and MOSS for speech generation) and serves them through Lemonade Server. Audio Lab reads those same installed models.</li>
+            <li><strong>Shared server endpoint.</strong> Audio Lab connects to the running Lemonade server (<code>audio-lab.lemonadeServerUrl</code>, default <code>http://localhost:13305</code>) — the server Chanh starts and manages in <code>LEMONADE</code> or <code>LEMOND</code> mode.</li>
+            <li><strong>Model eligibility.</strong> Chanh's <strong>Installed Models</strong> tree exposes STT/TTS-capable models; Audio Lab surfaces them under its <strong>STT / Subgen</strong> and <strong>TTS</strong> groups, so you pick a Whisper model to transcribe or a Kokoro/MOSS model to speak.</li>
+          </ul>
+
+          <h3>What you can do with it</h3>
+          <ul>
+            <li>Transcribe audio files (MP3, WAV, OGG, M4A, FLAC, AAC, WMA, WebM, Opus, AMR, AU, AIFF) straight from the Media Files tree view.</li>
+            <li>Generate SRT or VTT subtitles from audio, listed next to the source file.</li>
+            <li>Generate a speech audio file from text using TTS (Kokoro or MOSS models).</li>
+            <li>Clone a voice with MOSS: right-click an audio file and choose <em>Set as Voice Reference</em>.</li>
+          </ul>
+
+          <h3>Using them together</h3>
+          <ol>
+            <li>Install Chanh and <a href="https://marketplace.visualstudio.com/items?itemName=lanly-dev.audio-lab" target="_blank" rel="noopener">Audio Lab</a> from the Marketplace.</li>
+            <li>In Chanh, start Lemonade Server and download a transcription model (for example <code>whisper-large-v3t</code>) and a TTS model (for example <code>kokoro-v1</code>).</li>
+            <li>Open the Audio Lab activity bar, pick your STT/TTS model, then transcribe an audio file or generate speech from text.</li>
+          </ol>
+
+          <div class="callout note">
+            <div class="callout-title">Default server URL</div>
+            <p>Audio Lab defaults to <code>http://localhost:13305</code>, Chanh's <code>chanh.lemonadePort</code> for the system-installed Lemonade Server. If you run the managed <code>lemond</code> binary instead, set <code>audio-lab.lemonadeServerUrl</code> to <code>http://localhost:8000</code> (or your server's URL).</p>
+          </div>
+
+          <div class="doc-actions">
+            <a class="button" href="https://github.com/lanly-dev/vscode-audio-lab" target="_blank" rel="noopener"><svg class="icon"><use href="#i-github"></use></svg>Audio Lab on GitHub</a>
+            <a class="button ghost" href="https://marketplace.visualstudio.com/items?itemName=lanly-dev.audio-lab" target="_blank" rel="noopener"><svg class="icon"><use href="#i-arrow"></use></svg>Install from Marketplace</a>
+          </div>
+        </section>
+
         <section class="doc-section" id="license">
-          <div class="section-head"><span class="section-num">12</span><h2>License <a class="anchor" href="#license" aria-label="Link to License">#</a></h2></div>
+          <div class="section-head"><span class="section-num">13</span><h2>License <a class="anchor" href="#license" aria-label="Link to License">#</a></h2></div>
           <p>Chanh is released under the <a href="https://github.com/lanly-dev/lemond/blob/main/LICENSE" target="_blank" rel="noopener">MIT License</a>. Model weights and third-party runtimes keep their own licenses.</p>
           <p class="muted">Chanh is not affiliated with Microsoft. VS Code is a trademark of Microsoft Corporation.</p>
         </section>
