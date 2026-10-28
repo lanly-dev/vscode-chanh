@@ -354,7 +354,9 @@ export class ChatParticipant implements Disposable {
       Logger.error('Chat completion failed', err)
       // Offer a one-click fix when the model's context size is too small.
       await this.modelManager.offerContextIncrease(model, err)
-      response.markdown(`\n\n**Error:** ${message}`)
+      // Show a short warning in chat; full details are in the extension log.
+      const shortMessage = message.length > 160 ? message.slice(0, 160) + '…' : message
+      response.markdown(`\n\n**Error:** ${shortMessage}`)
       return { errorDetails: { message } }
     } finally {
       clearTimeout(prefillTimer)
