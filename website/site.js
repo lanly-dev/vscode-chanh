@@ -90,8 +90,8 @@
     }
   })
 
-  /* YouTube placeholder ---------------------------------------------- */
-  const YOUTUBE_URL = ''
+  /* YouTube ------------------------------------------------------------ */
+  const YOUTUBE_URL = 'https://youtu.be/o5Q3DKd6uXA'
   const youtubeButtons = $$('[data-youtube]')
   const youtubeNote = $('#youtube-note')
 
@@ -105,6 +105,10 @@
 
   youtubeButtons.forEach(button => {
     button.addEventListener('click', () => {
+      if (YOUTUBE_URL) {
+        window.open(YOUTUBE_URL, '_blank', 'noopener')
+        return
+      }
       $('#demo')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
       pulseDemoNote()
     })
