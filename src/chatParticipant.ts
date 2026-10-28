@@ -357,7 +357,7 @@ export class ChatParticipant implements Disposable {
       // Show a short warning in chat; full details are in the extension log.
       const shortMessage = message.length > 160 ? message.slice(0, 160) + '…' : message
       response.markdown(`\n\n**Error:** ${shortMessage}`)
-      return { errorDetails: { message } }
+      return { errorDetails: { message: shortMessage } }
     } finally {
       clearTimeout(prefillTimer)
       // Dispose cancellation listeners so they cannot fire after the request

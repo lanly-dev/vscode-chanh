@@ -539,9 +539,12 @@ async function preflight() {
   log('code:', CONFIG.codePath);
   log('repo:', CONFIG.chanhRepo);
   fs.mkdirSync(CONFIG.workspace, { recursive: true });
+  // Reset the demo project files every run so edits from a previous take
+  // (e.g. the agent modifying main.js) don't carry over.
   for (const [name, content] of [['main.js', MAIN_JS], ['helpers.js', HELPERS_JS]]) {
     const file = path.join(CONFIG.workspace, name);
-    if (!fs.existsSync(file)) { fs.writeFileSync(file, content); log(`created ${name}`); }
+    fs.writeFileSync(file, content);
+    log(`reset ${name}`);
   }
   if (!FLAGS.has('--keep-state')) {
     fs.rmSync(CONFIG.userData, { recursive: true, force: true });
