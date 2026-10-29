@@ -413,7 +413,6 @@ class ChanhLmcProvider implements vscode.LanguageModelChatProvider, vscode.Dispo
         progress.report(new vscode.LanguageModelTextPart(`\n\n---\n${footer}`))
         Logger.info(`Agent token footer: ${footer}`)
       }
-      recordTokenUsage(model.id, 'agent', stats)
       if (droppedCalls > 0 && toolCalls.length === 0 && !reportedText) {
         throw new Error(
           `The model returned ${droppedCalls} tool call(s) with arguments that could not be parsed ` +
@@ -421,6 +420,7 @@ class ChanhLmcProvider implements vscode.LanguageModelChatProvider, vscode.Dispo
           `usually lets the model correct them.`
         )
       }
+      recordTokenUsage(model.id, 'agent', stats)
       // Success-state signal for the Get Started walkthrough (agent-mode
       // step): only set once the stream actually delivered text or a valid
       // tool call. Cancelled turns return early from the catch below and

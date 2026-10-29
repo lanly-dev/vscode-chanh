@@ -23,8 +23,12 @@ function loadModule() {
     createOutputChannel: () => ({ appendLine() {}, dispose() {} }),
     createWebviewPanel: () => ({
       webview: {
-        set html(value) { captured.html = value },
-        get html() { return captured.html }
+        set html(value) {
+          captured.html = value
+        },
+        get html() {
+          return captured.html
+        }
       }
     })
   }
@@ -33,6 +37,7 @@ function loadModule() {
     module,
     exports: module.exports,
     require: name => name === 'vscode' ? { window, ViewColumn: { Active: 1 } } : require(name),
+    Buffer,
     console
   })
   return { api: module.exports, captured }
@@ -66,7 +71,9 @@ test('parseTokenUsageLog keeps valid records and skips corrupt lines', () => {
     'not json at all',
     JSON.stringify({ ts: 'x', model: 'm', source: 'chat', promptTokens: 1, completionTokens: 2, totalTokens: 3 }),
     JSON.stringify({ ts: good1.ts, model: 'm', source: 'other', promptTokens: 1, completionTokens: 2, totalTokens: 3 }),
-    JSON.stringify({ ts: good1.ts, model: 'm', source: 'chat', promptTokens: '1', completionTokens: 2, totalTokens: 3 }),
+    JSON.stringify({
+      ts: good1.ts, model: 'm', source: 'chat', promptTokens: '1', completionTokens: 2, totalTokens: 3
+    }),
     '',
     JSON.stringify(good2)
   ].join('\n')
@@ -128,6 +135,22 @@ test('recordTokenUsage appends complete-usage turns and survives a corrupt line'
   assert.equal(records[0].source, 'chat')
   assert.equal(records[0].totalTokens, 150)
   assert.equal(records[1].source, 'agent')
+})
+
+test('recordTokenUsage appends a parseable record after an unterminated partial line', (t) => {
+  const { api } = loadModule()
+  const storage = fs.mkdtempSync(path.join(os.tmpdir(), 'chanh-token-stats-'))
+  t.after(() => fs.rmSync(storage, { recursive: true, force: true }))
+  api.initTokenStatsLog({ globalStorageUri: { fsPath: storage } })
+
+  const logFile = path.join(storage, 'token-usage.jsonl')
+  fs.writeFileSync(logFile, '{"ts":"2026-10-28T12:00:00.000Z","model":"brok')
+  const stats = { promptTokens: 120, completionTokens: 30, totalTokens: 150 }
+  api.recordTokenUsage('model-a', 'agent', stats)
+
+  const records = plain(api.parseTokenUsageLog(fs.readFileSync(logFile, 'utf8')))
+  assert.equal(records.length, 1)
+  assert.deepEqual(records[0], { ts: records[0].ts, model: 'model-a', source: 'agent', ...stats })
 })
 
 test('recordTokenUsage before init is a no-op, and the empty summary renders', async (t) => {

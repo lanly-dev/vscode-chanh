@@ -83,7 +83,19 @@ export function recordTokenUsage(model: string, source: TokenUsageSource, stats:
   }
   try {
     fs.mkdirSync(path.dirname(logFilePath), { recursive: true })
-    fs.appendFileSync(logFilePath, `${JSON.stringify(record)}\n`, 'utf8')
+    const fd = fs.openSync(logFilePath, 'a+')
+    try {
+      const size = fs.fstatSync(fd).size
+      let separator = ''
+      if (size > 0) {
+        const lastByte = Buffer.alloc(1)
+        fs.readSync(fd, lastByte, 0, 1, size - 1)
+        if (lastByte[0] !== 0x0a) separator = '\n'
+      }
+      fs.appendFileSync(fd, `${separator}${JSON.stringify(record)}\n`, 'utf8')
+    } finally {
+      fs.closeSync(fd)
+    }
   } catch (err) {
     Logger.error('Failed to record token usage', err)
   }
