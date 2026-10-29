@@ -4,6 +4,7 @@ import { BinaryManager } from './binaryManager'
 import { ChanhLmcProvider } from './lmcProvider'
 import { ChatParticipant } from './chatParticipant'
 import { listenConfigsChange, ServerManager } from './serverManager'
+import { draftReleaseNotes } from './releaseNotes'
 import { Logger } from './logger'
 import { ModelDecorationProvider } from './modelDecorations'
 import { ModelManager } from './modelManager'
@@ -83,9 +84,11 @@ export async function activate(context: ExtensionContext) {
   const d35 = listenConfigsChange(serverManager)
   const d36 = lmcProvider.register()
   const d37 = window.registerFileDecorationProvider(new ModelDecorationProvider())
+  const d38 = rc('chanh.draftReleaseNotes', () => draftReleaseNotes(serverManager, chatParticipant))
 
   context.subscriptions.push(d1, d2, d3, d4, d5, d6, d7, d8, d9, d10, d11, d12, d13, d14, d15, d16, d17, d18, d19, d20,
-    d21, d22, d23, d24, d25, d26, d27, d28, d29, d30, d31, d32, d33, d34, d35, d36, d37, serverManager, chatParticipant,
+    d21, d22, d23, d24, d25, d26, d27, d28, d29, d30, d31, d32, d33, d34, d35, d36, d37, d38, serverManager,
+    chatParticipant,
     lmcProvider, svProvider, Logger
   )
   binaryManager.checkForUpdates()
