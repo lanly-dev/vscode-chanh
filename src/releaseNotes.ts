@@ -1,4 +1,5 @@
 import { execFile } from 'child_process'
+import { randomUUID } from 'crypto'
 import * as fs from 'fs'
 import * as path from 'path'
 import { promisify } from 'util'
@@ -34,6 +35,23 @@ const MAX_PACKAGE_COMMITS = 80
 
 /** Commit range used when no version bump exists in the walked history. */
 const FALLBACK_COMMIT_COUNT = 50
+
+/** Replace a document only after its complete contents have been written. */
+function writeDocumentAtomically(file: string, content: string): void {
+  const temporaryPath = path.join(path.dirname(file), `.${path.basename(file)}.${randomUUID()}.tmp`)
+  try {
+    fs.writeFileSync(temporaryPath, content, {
+      encoding: 'utf8', flag: 'wx', mode: fs.statSync(file).mode
+    })
+    fs.renameSync(temporaryPath, file)
+  } finally {
+    try {
+      fs.rmSync(temporaryPath, { force: true })
+    } catch (err) {
+      Logger.error('Draft Release Notes: could not remove temporary file', err)
+    }
+  }
+}
 
 /** Run git in the workspace root; any failure becomes a thrown Error. */
 async function runGit(cwd: string, args: string[]): Promise<string> {
@@ -138,7 +156,7 @@ export async function draftReleaseNotes(
   } catch (err) {
     Logger.error('Draft Release Notes: git history unavailable', err)
     window.showErrorMessage(
-      'Could not read the git history (git unavailable or not a repository). No files were changed.'
+      `Could not read the git history: ${err instanceof Error ? err.message : String(err)}. No files were changed.`
     )
     return
   }
@@ -169,11 +187,22 @@ export async function draftReleaseNotes(
   try {
     const { system, user } = buildDraftMessages(version, subjects, fileSummary)
     const text = await window.withProgress(
-      { location: ProgressLocation.Notification, title: `Drafting release notes for ${version}…` },
-      () => chatParticipant.completeWithChatModel([
-        { role: 'system', content: system },
-        { role: 'user', content: user }
-      ])
+      { location: ProgressLocation.Notification, title: `Drafting release notes for ${version}…`, cancellable: true },
+      async (_progress, token) => {
+        const controller = new AbortController()
+        const cancellation = token.onCancellationRequested(() => controller.abort())
+        try {
+          if (token.isCancellationRequested) controller.abort()
+          const result = await chatParticipant.completeWithChatModel([
+            { role: 'system', content: system },
+            { role: 'user', content: user }
+          ], controller.signal)
+          controller.signal.throwIfAborted()
+          return result
+        } finally {
+          cancellation.dispose()
+        }
+      }
     )
     bullets = extractBullets(text)
   } catch (err) {
@@ -192,10 +221,20 @@ export async function draftReleaseNotes(
     ? `Drafted from the last ${FALLBACK_COMMIT_COUNT} commits — ` +
       'no package.json version bump was found in the walked history.'
     : undefined
-  const changelog = insertChangelogSection(
-    fs.readFileSync(changelogPath, 'utf8'), version, date, bullets, fallbackNote
-  )
-  const readme = applyReadmeSection(fs.readFileSync(readmePath, 'utf8'), version, bullets)
+  let originalChangelog: string
+  let originalReadme: string
+  try {
+    originalChangelog = fs.readFileSync(changelogPath, 'utf8')
+    originalReadme = fs.readFileSync(readmePath, 'utf8')
+  } catch (err) {
+    Logger.error('Draft Release Notes: could not read release-note files', err)
+    window.showErrorMessage(
+      `Could not read release-note files: ${err instanceof Error ? err.message : String(err)}. No files were changed.`
+    )
+    return
+  }
+  const changelog = insertChangelogSection(originalChangelog, version, date, bullets, fallbackNote)
+  const readme = applyReadmeSection(originalReadme, version, bullets)
 
   if (changelog.outcome === 'exists' || readme.outcome === 'exists') {
     const blockers = [
@@ -217,8 +256,29 @@ export async function draftReleaseNotes(
     return
   }
 
-  fs.writeFileSync(changelogPath, changelog.content, 'utf8')
-  fs.writeFileSync(readmePath, readme.content, 'utf8')
+  let changelogReplaced = false
+  try {
+    writeDocumentAtomically(changelogPath, changelog.content)
+    changelogReplaced = true
+    writeDocumentAtomically(readmePath, readme.content)
+  } catch (err) {
+    Logger.error('Draft Release Notes: could not update release-note files', err)
+    let recovery = 'No files were changed.'
+    if (changelogReplaced) {
+      try {
+        writeDocumentAtomically(changelogPath, originalChangelog)
+        recovery = 'The original CHANGELOG.md was restored.'
+      } catch (restoreError) {
+        Logger.error('Draft Release Notes: could not restore CHANGELOG.md', restoreError)
+        recovery = `Could not restore CHANGELOG.md: ${restoreError instanceof Error
+          ? restoreError.message : String(restoreError)}. Please restore it manually.`
+      }
+    }
+    window.showErrorMessage(
+      `Could not update release-note files: ${err instanceof Error ? err.message : String(err)}. ${recovery}`
+    )
+    return
+  }
   Logger.info(`Drafted ${version} release notes (${bullets.length} bullets) in CHANGELOG.md and README.md`)
 
   const doc = await workspace.openTextDocument(Uri.file(changelogPath))

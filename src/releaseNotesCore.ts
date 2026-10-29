@@ -140,7 +140,8 @@ export function insertChangelogSection(
   bullets: string[],
   fallbackNote?: string
 ): SectionResult {
-  const lines = content.split('\n')
+  const eol = content.match(/\r?\n/)?.[0] ?? '\n'
+  const lines = content.split(/\r?\n/)
   const boundary = /^##\s/
   const headingRe = new RegExp(`^## \\[${escapeRegExp(version)}\\](\\s|$)`)
   const existing = findHeading(lines, headingRe)
@@ -150,7 +151,7 @@ export function insertChangelogSection(
     const fill = [...bullets]
     if (end < lines.length) fill.push('')
     lines.splice(existing + 1, end - existing - 1, ...fill)
-    return { content: lines.join('\n'), outcome: 'filled' }
+    return { content: lines.join(eol), outcome: 'filled' }
   }
 
   const block: string[] = []
@@ -164,11 +165,11 @@ export function insertChangelogSection(
   if (insertAt < 0 && todoIdx < 0) insertAt = findHeading(lines, /^## \[/)
   if (insertAt < 0) {
     const tail = lines[lines.length - 1] === '' ? lines.slice(0, -1) : lines
-    return { content: [...tail, '', ...block].join('\n'), outcome: 'inserted' }
+    return { content: [...tail, '', ...block].join(eol), outcome: 'inserted' }
   }
   if (insertAt > 0 && lines[insertAt - 1].trim()) block.unshift('')
   lines.splice(insertAt, 0, ...block)
-  return { content: lines.join('\n'), outcome: 'inserted' }
+  return { content: lines.join(eol), outcome: 'inserted' }
 }
 
 /**
@@ -182,7 +183,8 @@ export function applyReadmeSection(
   version: string,
   bullets: string[]
 ): SectionResult {
-  const lines = content.split('\n')
+  const eol = content.match(/\r?\n/)?.[0] ?? '\n'
+  const lines = content.split(/\r?\n/)
   const boundary = /^#{2,3}\s/
   const headingRe = new RegExp(`^### ${escapeRegExp(version)}(\\s|$)`)
   const existing = findHeading(lines, headingRe)
@@ -192,14 +194,14 @@ export function applyReadmeSection(
     const fill = [...bullets]
     if (end < lines.length) fill.push('')
     lines.splice(existing + 1, end - existing - 1, ...fill)
-    return { content: lines.join('\n'), outcome: 'filled' }
+    return { content: lines.join(eol), outcome: 'filled' }
   }
 
   const block = [`### ${version}`, ...bullets, '']
   const releaseIdx = findHeading(lines, /^## Release Notes\s*$/)
   if (releaseIdx < 0) {
     const tail = lines[lines.length - 1] === '' ? lines.slice(0, -1) : lines
-    return { content: [...tail, '', '## Release Notes', '', ...block].join('\n'), outcome: 'inserted' }
+    return { content: [...tail, '', '## Release Notes', '', ...block].join(eol), outcome: 'inserted' }
   }
   // Newest version goes first: directly above the first existing `### `
   // heading under Release Notes, or right after the heading when none exist.
@@ -209,5 +211,5 @@ export function applyReadmeSection(
   if (insertAt === releaseIdx + 1 && lines[insertAt]?.trim()) block.unshift('')
   if (insertAt > 0 && lines[insertAt - 1].trim()) block.unshift('')
   lines.splice(insertAt, 0, ...block)
-  return { content: lines.join('\n'), outcome: 'inserted' }
+  return { content: lines.join(eol), outcome: 'inserted' }
 }

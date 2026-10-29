@@ -173,10 +173,12 @@ export class ChatParticipant implements Disposable {
    * (release notes) rather than a chat turn: same model resolution — config,
    * picker, load — and the same client as the participant itself.
    */
-  async completeWithChatModel(messages: ChatMessage[]): Promise<string> {
+  async completeWithChatModel(messages: ChatMessage[], signal?: AbortSignal): Promise<string> {
+    signal?.throwIfAborted()
     const model = await this.getModel()
+    signal?.throwIfAborted()
     if (!model) throw new Error('No chat model selected.')
-    return this.client.chatCompletionStream({ model, messages }, () => { })
+    return this.client.chatCompletionStream({ model, messages }, () => { }, signal)
   }
 
   /**
