@@ -20,6 +20,7 @@ import {
 
 import { LemonadeClient } from './lemonadeClient'
 import { Logger } from './logger'
+import { recordTokenUsage } from './tokenStatsLog'
 import { ModelManager } from './modelManager'
 import { ServerManager } from './serverManager'
 import { ServerStatus } from './interfaces'
@@ -342,6 +343,7 @@ export class ChatParticipant implements Disposable {
         response.markdown(`${closeOpenMarkdownFence(fullResponse)}\n\n---\n${footer}`)
         Logger.info(`Token footer: ${footer}`)
       }
+      if (model) recordTokenUsage(model, 'chat', stats)
       return {}
     } catch (err) {
       // A cancelled turn is the user's own doing, not a failure — exit quietly

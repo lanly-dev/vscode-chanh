@@ -3,6 +3,7 @@ import {
   closeOpenMarkdownFence, contextBudget, estimateTokens, formatTurnFooter, outputTokenBudget, shouldShowTokenStats
 } from './utils'
 import { Logger } from './logger'
+import { recordTokenUsage } from './tokenStatsLog'
 import { ServerStatus } from './interfaces'
 import { ModelManager } from './modelManager'
 import type { ChatCompletionRequest, ChatContentPart, ChatMessage, OpenAIMessageToolCall } from './interfaces'
@@ -412,6 +413,7 @@ class ChanhLmcProvider implements vscode.LanguageModelChatProvider, vscode.Dispo
         progress.report(new vscode.LanguageModelTextPart(`\n\n---\n${footer}`))
         Logger.info(`Agent token footer: ${footer}`)
       }
+      recordTokenUsage(model.id, 'agent', stats)
       if (droppedCalls > 0 && toolCalls.length === 0 && !reportedText) {
         throw new Error(
           `The model returned ${droppedCalls} tool call(s) with arguments that could not be parsed ` +
