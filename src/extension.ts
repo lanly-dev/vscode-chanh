@@ -3,6 +3,7 @@ import { commands, ExtensionContext, TreeItem, window } from 'vscode'
 import { BinaryManager } from './binaryManager'
 import { ChanhLmcProvider } from './lmcProvider'
 import { ChatParticipant } from './chatParticipant'
+import { GhostTextProvider } from './completionProvider'
 import { listenConfigsChange, ServerManager } from './serverManager'
 import { Logger } from './logger'
 import { ModelDecorationProvider } from './modelDecorations'
@@ -84,8 +85,13 @@ export async function activate(context: ExtensionContext) {
   const d36 = lmcProvider.register()
   const d37 = window.registerFileDecorationProvider(new ModelDecorationProvider())
 
+  // Ghost-text (inline) completions; inert unless chanh.completions.enabled
+  const ghostTextProvider = new GhostTextProvider(serverManager)
+  const d38 = ghostTextProvider.register()
+
   context.subscriptions.push(d1, d2, d3, d4, d5, d6, d7, d8, d9, d10, d11, d12, d13, d14, d15, d16, d17, d18, d19, d20,
-    d21, d22, d23, d24, d25, d26, d27, d28, d29, d30, d31, d32, d33, d34, d35, d36, d37, serverManager, chatParticipant,
+    d21, d22, d23, d24, d25, d26, d27, d28, d29, d30, d31, d32, d33, d34, d35, d36, d37, d38, serverManager,
+    chatParticipant, ghostTextProvider,
     lmcProvider, svProvider, Logger
   )
   binaryManager.checkForUpdates()
