@@ -115,6 +115,10 @@
         "command": "chanh.showTokenUsage",
         "title": "Chanh: Show Token Usage"
       },
+      {
+        "command": "chanh.draftReleaseNotes",
+        "title": "Chanh: Draft Release Notes"
+      },
             {
         "command": "chanh.ncp.copyModelId",
         "title": "Copy Model ID"
