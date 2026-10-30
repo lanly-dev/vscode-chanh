@@ -3,6 +3,7 @@ import {
   closeOpenMarkdownFence, contextBudget, estimateTokens, formatTurnFooter, outputTokenBudget, shouldShowTokenStats
 } from './utils'
 import { Logger } from './logger'
+import { recordTokenUsage } from './tokenStatsLog'
 import { ServerStatus } from './interfaces'
 import { ModelManager } from './modelManager'
 import type { ChatCompletionRequest, ChatContentPart, ChatMessage, OpenAIMessageToolCall } from './interfaces'
@@ -419,6 +420,7 @@ class ChanhLmcProvider implements vscode.LanguageModelChatProvider, vscode.Dispo
           `usually lets the model correct them.`
         )
       }
+      recordTokenUsage(model.id, 'agent', stats)
       // Success-state signal for the Get Started walkthrough (agent-mode
       // step): only set once the stream actually delivered text or a valid
       // tool call. Cancelled turns return early from the catch below and

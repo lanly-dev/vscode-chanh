@@ -236,7 +236,8 @@ test('populated release sections open a draft without modifying either document'
 
 const { ChatParticipant } = loadSource('chatParticipant', {
   vscode: {}, './lemonadeClient': {}, './logger': {}, './utils': {},
-  './interfaces': {}, './modelManager': {}, './serverManager': {}
+  './interfaces': {}, './modelManager': {}, './serverManager': {},
+  './tokenStatsLog': { recordTokenUsage: () => {} }
 })
 
 test('completeWithChatModel forwards its signal to the streaming request', async () => {
