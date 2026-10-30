@@ -471,6 +471,16 @@
           "minimum": 1,
           "maximum": 600,
           "description": "How often (in seconds) the System group samples CPU/GPU/RAM utilization. GPU sampling only runs while the System group is visible and expanded."
+        },
+        "chanh.completions.enabled": {
+          "type": "boolean",
+          "default": false,
+          "description": "Show inline (ghost text) code completions from the active Lemonade server as you type. Opt-in: while enabled, code around the cursor from any open file is sent to the active Lemonade server as you type (debounced, with a ~3 second cap per request). In CUSTOM mode, the destination is chanh.customServerUrl and may be remote. Completions only appear while the server is running and a chat model is loaded."
+        },
+        "chanh.completions.model": {
+          "type": "string",
+          "default": "",
+          "description": "Model to use for inline completions. Leave empty to use the chat model (`chanh.chatModel`), or the currently loaded chat model when no chat model is set. The model is never loaded automatically — it must already be loaded on the server. Small coder models work best."
         }
       }
     },
