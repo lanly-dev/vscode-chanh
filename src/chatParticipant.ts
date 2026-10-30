@@ -20,12 +20,13 @@ import {
 
 import { LemonadeClient } from './lemonadeClient'
 import { Logger } from './logger'
+import { recordTokenUsage } from './tokenStatsLog'
 import { ModelManager } from './modelManager'
 import { ServerManager } from './serverManager'
 import { ServerStatus } from './interfaces'
 
 import type { ChatFollowup, QuickPickItem } from 'vscode'
-import type { ChatStreamStats, LemonadeModel } from './interfaces'
+import type { ChatMessage, ChatStreamStats, LemonadeModel } from './interfaces'
 import {
   closeOpenMarkdownFence, contextBudget, estimateTokens, formatSize, formatTurnFooter, shouldShowTokenStats
 } from './utils'
@@ -165,6 +166,20 @@ export class ChatParticipant implements Disposable {
   setSelectedModel(model: string): void {
     this.selectedModel = model
     Logger.info(`Selected model for chat: ${model}`)
+  }
+
+  /**
+   * Run a one-shot completion through the resolved chat model and return the
+   * full response text. For commands that need a single generated draft
+   * (release notes) rather than a chat turn: same model resolution — config,
+   * picker, load — and the same client as the participant itself.
+   */
+  async completeWithChatModel(messages: ChatMessage[], signal?: AbortSignal): Promise<string> {
+    signal?.throwIfAborted()
+    const model = await this.getModel()
+    signal?.throwIfAborted()
+    if (!model) throw new Error('No chat model selected.')
+    return this.client.chatCompletionStream({ model, messages }, () => { }, signal)
   }
 
   /**
@@ -342,6 +357,7 @@ export class ChatParticipant implements Disposable {
         response.markdown(`${closeOpenMarkdownFence(fullResponse)}\n\n---\n${footer}`)
         Logger.info(`Token footer: ${footer}`)
       }
+      if (model) recordTokenUsage(model, 'chat', stats)
       return {}
     } catch (err) {
       // A cancelled turn is the user's own doing, not a failure — exit quietly

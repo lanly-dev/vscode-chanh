@@ -5,10 +5,12 @@ import { ChanhLmcProvider } from './lmcProvider'
 import { ChatParticipant } from './chatParticipant'
 import { GhostTextProvider } from './completionProvider'
 import { listenConfigsChange, ServerManager } from './serverManager'
+import { draftReleaseNotes } from './releaseNotes'
 import { Logger } from './logger'
 import { ModelDecorationProvider } from './modelDecorations'
 import { ModelManager } from './modelManager'
 import { copyModelId, openLmConfigsFile, openSetting, openUrl, revealBinaryDir, walkthrough } from './utils'
+import { initTokenStatsLog, showTokenUsage } from './tokenStatsLog'
 import { refreshEvents } from './events'
 import { ServerViewProvider } from './serverTreeview'
 
@@ -35,6 +37,7 @@ export async function activate(context: ExtensionContext) {
   const modelManager = new ModelManager(serverManager, svProvider, lmcProvider)
   lmcProvider.setModelManager(modelManager)
   const chatParticipant = new ChatParticipant(serverManager, modelManager, context)
+  initTokenStatsLog(context)
 
   const d1 = rc('chanh.openWalkthrough', walkthrough)
   const d2 = rc('chanh.downloadBinary', () => binaryManager.downloadBinary())
@@ -50,6 +53,7 @@ export async function activate(context: ExtensionContext) {
   const d10 = rc('chanh.stopServer', () => serverManager.stop())
   const d11 = rc('chanh.switchServer', () => serverManager.switchServer())
   const d12 = rc('chanh.refreshServer', () => refreshEvents.fire())
+  const d38 = rc('chanh.showTokenUsage', () => showTokenUsage())
 
   // No command palette
   // Context menu
@@ -84,13 +88,14 @@ export async function activate(context: ExtensionContext) {
   const d35 = listenConfigsChange(serverManager)
   const d36 = lmcProvider.register()
   const d37 = window.registerFileDecorationProvider(new ModelDecorationProvider())
+  const d39 = rc('chanh.draftReleaseNotes', () => draftReleaseNotes(serverManager, chatParticipant))
 
   // Ghost-text (inline) completions; inert unless chanh.completions.enabled
   const ghostTextProvider = new GhostTextProvider(serverManager)
-  const d38 = ghostTextProvider.register()
+  const d40 = ghostTextProvider.register()
 
   context.subscriptions.push(d1, d2, d3, d4, d5, d6, d7, d8, d9, d10, d11, d12, d13, d14, d15, d16, d17, d18, d19, d20,
-    d21, d22, d23, d24, d25, d26, d27, d28, d29, d30, d31, d32, d33, d34, d35, d36, d37, d38, serverManager,
+    d21, d22, d23, d24, d25, d26, d27, d28, d29, d30, d31, d32, d33, d34, d35, d36, d37, d38, d39, d40, serverManager,
     chatParticipant, ghostTextProvider,
     lmcProvider, svProvider, Logger
   )
