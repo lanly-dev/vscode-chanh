@@ -15,6 +15,24 @@ import type {
 } from './interfaces'
 
 /**
+ * A chat completion response body that JSON.parse rejected. `emptyBody`
+ * separates a 200 with no body at all — a transient server hiccup — from
+ * a body that arrived but was not JSON, a real protocol problem. Callers
+ * that retry (ghost text) key on the flag, never on message text.
+ */
+export class ChatResponseParseError extends Error {
+  constructor(
+    readonly emptyBody: boolean,
+    cause: unknown
+  ) {
+    super(emptyBody
+      ? 'Failed to parse chat completion response: empty response body'
+      : `Failed to parse chat completion response: ${cause}`)
+    this.name = 'ChatResponseParseError'
+  }
+}
+
+/**
  * HTTP client for the Lemonade Server API.
  * Communicates with the local Lemonade Server using OpenAI-compatible endpoints.
  */
@@ -464,7 +482,7 @@ export class LemonadeClient {
               // insertable text in it for a completion caller.
               finish(typeof content === 'string' ? content : '')
             } catch (err) {
-              fail(new Error(`Failed to parse chat completion response: ${err}`))
+              fail(new ChatResponseParseError(data.trim().length === 0, err))
             }
           })
           res.on('error', (err) => fail(new Error(`Response error: ${err.message}`)))

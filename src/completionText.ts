@@ -49,3 +49,41 @@ export function cleanCompletion(raw: string, linePrefix: string, fullLine: strin
   text = text.replace(/\s+$/, '')
   return text.trim() ? text : undefined
 }
+
+/** How a completion-model pick was made. */
+export type CompletionModelSource = 'configured' | 'fallback' | 'none'
+
+export interface CompletionModelPick {
+  /** The model to serve completions, or undefined when none can. */
+  model: string | undefined
+  source: CompletionModelSource
+}
+
+/**
+ * Decide which model serves ghost-text completions. Pure so the decision
+ * can be unit-tested; the provider feeds it live server state.
+ *
+ * A configured candidate (the completions model first, then the chat
+ * model — the caller passes them in priority order) wins when it is
+ * chat-capable AND already loaded. When no configured candidate is
+ * usable, the first loaded chat-capable model in server list order
+ * serves instead: a stale configured model must not silently disable
+ * completions while another chat model sits loaded. With nothing
+ * configured, that same first-loaded pick is simply the normal path.
+ * Nothing chat-capable loaded → no pick. This NEVER loads a model; it
+ * only chooses among what the server already has running.
+ */
+export function pickCompletionModel(
+  configured: readonly string[],
+  chatCapableIds: readonly string[],
+  loaded: ReadonlySet<string>
+): CompletionModelPick {
+  const capable = new Set(chatCapableIds)
+  for (const id of configured) {
+    if (capable.has(id) && loaded.has(id)) return { model: id, source: 'configured' }
+  }
+  for (const id of chatCapableIds) {
+    if (loaded.has(id)) return { model: id, source: 'fallback' }
+  }
+  return { model: undefined, source: 'none' }
+}

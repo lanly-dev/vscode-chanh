@@ -14,12 +14,12 @@ import {
   WorkspaceConfiguration
 } from 'vscode'
 
-import { LemonadeClient } from './lemonadeClient'
+import { ChatResponseParseError, LemonadeClient } from './lemonadeClient'
 import { Logger } from './logger'
 import { ModelManager } from './modelManager'
 import { ServerManager } from './serverManager'
 import { ServerStatus } from './interfaces'
-import { cleanCompletion } from './completionText'
+import { cleanCompletion, pickCompletionModel } from './completionText'
 
 import type { ChatMessage } from './interfaces'
 
@@ -70,8 +70,8 @@ export class GhostTextProvider implements InlineCompletionItemProvider, Disposab
   private lastSkipReason: string | undefined
   /** Why the latest fresh model resolution found nothing (facts included). */
   private noModelReason: string | undefined
-  /** Model the latest fresh resolution picked; logged when it changes. */
-  private lastResolvedModel: string | undefined
+  /** Log line of the latest fresh resolution's pick; logged when it changes. */
+  private lastResolvedNote: string | undefined
   /** Model behind the last logged success line. */
   private lastSuccessModel: string | undefined
 
@@ -208,23 +208,30 @@ export class GhostTextProvider implements InlineCompletionItemProvider, Disposab
   }
 
   /**
-   * Which model serves completions, or undefined when none should.
-   * Priority: `chanh.completions.model`, then the chat model setting —
-   * but a candidate only counts when it is chat-capable AND already loaded
-   * on the server (see the class comment: never load on a keystroke). With
-   * nothing configured, the first loaded chat model wins. Cached briefly
-   * because resolution costs two server round trips; `fresh` bypasses the
-   * cache read (the self-test command uses it) and refreshes the cache.
+   * Which model serves completions, or undefined when none can.
+   * Candidates come from `chanh.completions.model`, then the chat model
+   * setting, but a candidate only counts when it is chat-capable AND
+   * already loaded on the server (see the class comment: never load on a
+   * keystroke). When no configured candidate is usable, the first loaded
+   * chat-capable model serves as a fallback — a configured model that is
+   * not loaded must not silently disable completions while another chat
+   * model sits loaded. The decision itself is pickCompletionModel (pure,
+   * unit-tested). Cached briefly because resolution costs two server
+   * round trips; `fresh` bypasses the cache read (the self-test command
+   * uses it) and refreshes the cache.
    *
    * A fresh resolution records its outcome for the log: the picked model
-   * (logged when it changes) or, when there is none, a one-line reason
-   * carrying the configured candidates, the chat-capable count, and the
-   * loaded list — provide() surfaces that reason through skip().
+   * (logged when the pick or its basis changes — the fallback serving
+   * over a configured-but-unloaded candidate is part of the line) or,
+   * when there is none, a one-line reason carrying the configured
+   * candidates, the chat-capable count, and the loaded list — provide()
+   * surfaces that reason through skip().
    */
   private async resolveModel(config: WorkspaceConfiguration, fresh = false): Promise<string | undefined> {
     const now = Date.now()
     if (!fresh && this.modelCache && now - this.modelCache.at < MODEL_CACHE_MS) return this.modelCache.model
     let model: string | undefined
+    let note: string | undefined
     let reason: string | undefined
     try {
       const wanted = [
@@ -235,9 +242,14 @@ export class GhostTextProvider implements InlineCompletionItemProvider, Disposab
       const chatModels = models.filter((m) => ModelManager.capabilityFor(m, 'chat'))
       const health = await this.client.getHealth().catch(() => undefined)
       const loaded = new Set(health?.all_models_loaded.map((m) => m.model_name) ?? [])
-      model = wanted.find((id) => chatModels.some((m) => m.id === id) && loaded.has(id))
-        ?? (wanted.length === 0 ? chatModels.find((m) => loaded.has(m.id))?.id : undefined)
-      if (!model) {
+      const pick = pickCompletionModel(wanted, chatModels.map((m) => m.id), loaded)
+      model = pick.model
+      if (model) {
+        note = `Ghost text: model resolved to ${model}`
+        if (pick.source === 'fallback' && wanted.length > 0) {
+          note += ` (configured ${wanted.join(', ')} not loaded — first loaded chat model serves instead)`
+        }
+      } else {
         reason = 'no model resolved'
           + ` (configured: ${wanted.length ? wanted.join(', ') : 'none'};`
           + ` ${chatModels.length} chat-capable on server;`
@@ -248,13 +260,13 @@ export class GhostTextProvider implements InlineCompletionItemProvider, Disposab
     }
     this.modelCache = { model, at: now }
     if (model) {
-      if (this.lastResolvedModel !== model) {
-        this.lastResolvedModel = model
-        Logger.info(`Ghost text: model resolved to ${model}`)
+      if (this.lastResolvedNote !== note) {
+        this.lastResolvedNote = note
+        Logger.info(note as string)
       }
       this.noModelReason = undefined
     } else {
-      this.lastResolvedModel = undefined
+      this.lastResolvedNote = undefined
       this.noModelReason = reason
     }
     return model
@@ -308,13 +320,37 @@ export class GhostTextProvider implements InlineCompletionItemProvider, Disposab
     ]
   }
 
-  /** One bounded completion request; the single model-call code path. */
-  private async requestCompletion(model: string, messages: ChatMessage[], signal: AbortSignal): Promise<string> {
-    return this.client.chatCompletionOnce(
+  /**
+   * One bounded completion request; the single model-call code path.
+   *
+   * A 200 with an empty body fails JSON parsing in the client — a
+   * transient server hiccup, seen in the wild — so that one failure is
+   * retried once on a fresh request before it surfaces. Timeouts, aborts,
+   * HTTP errors, and non-empty unparseable bodies are NOT retried: they
+   * are the caller giving up or a real protocol problem. The retry runs
+   * under the caller's signal, so the overall budget never grows.
+   * `onEmptyBodyRetry` lets the self-test command show the retry in its
+   * stage output; the passive path stays with its deduped skip/success
+   * lines (the retried outcome is logged like any other).
+   */
+  private async requestCompletion(
+    model: string,
+    messages: ChatMessage[],
+    signal: AbortSignal,
+    onEmptyBodyRetry?: () => void
+  ): Promise<string> {
+    const attempt = (): Promise<string> => this.client.chatCompletionOnce(
       { model, messages, temperature: 0.2, max_tokens: MAX_COMPLETION_TOKENS },
       signal,
       REQUEST_TIMEOUT_MS
     )
+    try {
+      return await attempt()
+    } catch (err) {
+      if (!(err instanceof ChatResponseParseError) || !err.emptyBody || signal.aborted) throw err
+      onEmptyBodyRetry?.()
+      return attempt()
+    }
   }
 
   /**
@@ -393,7 +429,8 @@ export class GhostTextProvider implements InlineCompletionItemProvider, Disposab
       let raw: string
       try {
         raw = await this.requestCompletion(
-          model, this.buildMessages(document.languageId, prefix, suffix), controller.signal)
+          model, this.buildMessages(document.languageId, prefix, suffix), controller.signal,
+          () => Logger.info('Ghost text test: empty response body — retrying the request once'))
       } catch (err) {
         const elapsed = Date.now() - started
         if (timedOut) return fail('request', `timed out after ${REQUEST_TIMEOUT_MS}ms.`)
