@@ -188,7 +188,7 @@ export class GhostTextProvider implements InlineCompletionItemProvider, Disposab
       if (token.isCancellationRequested) return this.skip('superseded during the request (cancelled)')
       const cleaned = cleanCompletion(raw, linePrefix, line.text)
       if (!cleaned) {
-        return this.skip(`response unusable (raw ${raw.length} chars, nothing left after cleanup)`)
+        return this.skip('response unusable (nothing left after cleanup)')
       }
       this.logSuccess(model, raw.length, cleaned.length)
       this.cache = { key: cacheKey, text: cleaned }
