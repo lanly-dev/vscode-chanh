@@ -23,7 +23,7 @@ function loadHelpers() {
   }
 }
 
-const { cleanCompletion, stripCodeFences } = loadHelpers()
+const { cleanCompletion, stripCodeFences, pickCompletionModel } = loadHelpers()
 
 test('stripCodeFences removes a wrapping fence with a language tag', () => {
   assert.equal(stripCodeFences('```ts\nconst a = 1\n```'), 'const a = 1')
@@ -72,4 +72,46 @@ test('cleanCompletion returns undefined when only a fence remains', () => {
 
 test('cleanCompletion trims trailing blank lines but keeps inner structure', () => {
   assert.equal(cleanCompletion('a()\n\nb()\n\n\n', '', ''), 'a()\n\nb()')
+})
+
+test('pickCompletionModel prefers a configured loaded model over an earlier loaded one', () => {
+  // A is first in server order and loaded, but the configured B wins.
+  const pick = pickCompletionModel(['B'], ['A', 'B'], new Set(['A', 'B']))
+  assert.deepEqual(pick, { model: 'B', source: 'configured' })
+})
+
+test('pickCompletionModel honors configured priority order', () => {
+  // X is configured first but not loaded; Y (second) is usable.
+  const pick = pickCompletionModel(['X', 'Y'], ['X', 'Y'], new Set(['Y']))
+  assert.deepEqual(pick, { model: 'Y', source: 'configured' })
+})
+
+test('pickCompletionModel falls back to a loaded chat model when the configured one is not loaded', () => {
+  const pick = pickCompletionModel(['X'], ['X', 'A'], new Set(['A']))
+  assert.deepEqual(pick, { model: 'A', source: 'fallback' })
+})
+
+test('pickCompletionModel with nothing configured picks the first loaded chat model', () => {
+  const pick = pickCompletionModel([], ['A', 'B'], new Set(['B']))
+  assert.deepEqual(pick, { model: 'B', source: 'fallback' })
+})
+
+test('pickCompletionModel falls back when the configured model is not chat-capable', () => {
+  // V is loaded but has no chat capability; it must not serve, A does.
+  const pick = pickCompletionModel(['V'], ['A'], new Set(['V', 'A']))
+  assert.deepEqual(pick, { model: 'A', source: 'fallback' })
+})
+
+test('pickCompletionModel never picks a loaded model that is not chat-capable', () => {
+  const pick = pickCompletionModel([], ['A'], new Set(['Z']))
+  assert.deepEqual(pick, { model: undefined, source: 'none' })
+})
+
+test('pickCompletionModel returns no pick when nothing chat-capable is loaded', () => {
+  assert.deepEqual(
+    pickCompletionModel(['X'], ['X', 'A'], new Set()),
+    { model: undefined, source: 'none' })
+  assert.deepEqual(
+    pickCompletionModel([], ['A'], new Set()),
+    { model: undefined, source: 'none' })
 })
