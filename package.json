@@ -119,6 +119,10 @@
         "command": "chanh.draftReleaseNotes",
         "title": "Chanh: Draft Release Notes"
       },
+      {
+        "command": "chanh.testGhostText",
+        "title": "Chanh: Test Ghost Text Completion"
+      },
             {
         "command": "chanh.ncp.copyModelId",
         "title": "Copy Model ID"
