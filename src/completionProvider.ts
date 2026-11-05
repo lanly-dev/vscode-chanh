@@ -14,7 +14,7 @@ import {
   WorkspaceConfiguration
 } from 'vscode'
 
-import { ChatResponseParseError, LemonadeClient } from './lemonadeClient'
+import { LemonadeClient } from './lemonadeClient'
 import { Logger } from './logger'
 import { ModelManager } from './modelManager'
 import { ServerManager } from './serverManager'
@@ -183,7 +183,7 @@ export class GhostTextProvider implements InlineCompletionItemProvider, Disposab
     }, REQUEST_TIMEOUT_MS)
     const cancellation = token.onCancellationRequested(() => controller.abort())
     try {
-      const raw = await this.requestCompletion(
+      const { text: raw } = await this.requestCompletion(
         model, this.buildMessages(document.languageId, prefix, suffix), controller.signal)
       if (token.isCancellationRequested) return this.skip('superseded during the request (cancelled)')
       const cleaned = cleanCompletion(raw, linePrefix, line.text)
@@ -194,8 +194,9 @@ export class GhostTextProvider implements InlineCompletionItemProvider, Disposab
       this.cache = { key: cacheKey, text: cleaned }
       return new InlineCompletionList([new InlineCompletionItem(cleaned, new Range(position, position))])
     } catch (err) {
-      // chatCompletionOnce rejects on abort/timeout/HTTP errors; name which
-      // one fired so the log distinguishes giving up from being superseded.
+      // The streaming request rejects on abort/timeout/HTTP errors; name
+      // which one fired so the log distinguishes giving up from being
+      // superseded.
       if (timedOut) return this.skip(`request timed out after ${REQUEST_TIMEOUT_MS}ms`)
       if (token.isCancellationRequested) return this.skip('superseded during the request (cancelled)')
       if (controller.signal.aborted) return this.skip('request aborted (superseded by a newer request)')
@@ -323,34 +324,32 @@ export class GhostTextProvider implements InlineCompletionItemProvider, Disposab
   /**
    * One bounded completion request; the single model-call code path.
    *
-   * A 200 with an empty body fails JSON parsing in the client — a
-   * transient server hiccup, seen in the wild — so that one failure is
-   * retried once on a fresh request before it surfaces. Timeouts, aborts,
-   * HTTP errors, and non-empty unparseable bodies are NOT retried: they
-   * are the caller giving up or a real protocol problem. The retry runs
-   * under the caller's signal, so the overall budget never grows.
-   * `onEmptyBodyRetry` lets the self-test command show the retry in its
-   * stage output; the passive path stays with its deduped skip/success
-   * lines (the retried outcome is logged like any other).
+   * Rides the client's streaming chat completion — the transport the
+   * chat participant and the release-notes drafter already exercise
+   * against this server. (The bespoke non-streaming call it replaces
+   * deterministically drew HTTP 200s with empty bodies from the user's
+   * server.) The stream resolves with the full assembled content, which
+   * is all a completion needs, and rejects when the stream produced no
+   * content at all — the reasoning-model budget case names itself in
+   * its message. The caller's AbortSignal bounds the call, so the hard
+   * timeout and supersede aborts apply exactly as before; the stream's
+   * own inactivity guard (120s) never fires first. The streamed chunk
+   * count rides along so the self-test can prove tokens actually moved.
    */
   private async requestCompletion(
     model: string,
     messages: ChatMessage[],
-    signal: AbortSignal,
-    onEmptyBodyRetry?: () => void
-  ): Promise<string> {
-    const attempt = (): Promise<string> => this.client.chatCompletionOnce(
+    signal: AbortSignal
+  ): Promise<{ text: string, chunks: number }> {
+    let chunks = 0
+    const text = await this.client.chatCompletionStream(
       { model, messages, temperature: 0.2, max_tokens: MAX_COMPLETION_TOKENS },
-      signal,
-      REQUEST_TIMEOUT_MS
+      () => {
+        chunks++
+      },
+      signal
     )
-    try {
-      return await attempt()
-    } catch (err) {
-      if (!(err instanceof ChatResponseParseError) || !err.emptyBody || signal.aborted) throw err
-      onEmptyBodyRetry?.()
-      return attempt()
-    }
+    return { text, chunks }
   }
 
   /**
@@ -427,10 +426,10 @@ export class GhostTextProvider implements InlineCompletionItemProvider, Disposab
       }, REQUEST_TIMEOUT_MS)
       const started = Date.now()
       let raw: string
+      let chunks: number
       try {
-        raw = await this.requestCompletion(
-          model, this.buildMessages(document.languageId, prefix, suffix), controller.signal,
-          () => Logger.info('Ghost text test: empty response body — retrying the request once'))
+        ({ text: raw, chunks } = await this.requestCompletion(
+          model, this.buildMessages(document.languageId, prefix, suffix), controller.signal))
       } catch (err) {
         const elapsed = Date.now() - started
         if (timedOut) return fail('request', `timed out after ${REQUEST_TIMEOUT_MS}ms.`)
@@ -441,8 +440,8 @@ export class GhostTextProvider implements InlineCompletionItemProvider, Disposab
       const elapsed = Date.now() - started
       const cleaned = cleanCompletion(raw, linePrefix, line.text)
       Logger.info(
-        `Ghost text test: raw response ${raw.length} chars in ${elapsed}ms,`
-        + ` cleaned ${cleaned?.length ?? 0} chars`)
+        `Ghost text test: streamed ${chunks} chunks in ${elapsed}ms;`
+        + ` raw response ${raw.length} chars, cleaned ${cleaned?.length ?? 0} chars`)
       if (!cleaned) {
         Logger.info(`Ghost text test: raw response was:\n${raw}`)
         return fail('cleanup', 'the response was empty or unusable after cleanup — raw text logged above.')

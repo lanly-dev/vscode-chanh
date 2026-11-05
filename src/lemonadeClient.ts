@@ -15,24 +15,6 @@ import type {
 } from './interfaces'
 
 /**
- * A chat completion response body that JSON.parse rejected. `emptyBody`
- * separates a 200 with no body at all — a transient server hiccup — from
- * a body that arrived but was not JSON, a real protocol problem. Callers
- * that retry (ghost text) key on the flag, never on message text.
- */
-export class ChatResponseParseError extends Error {
-  constructor(
-    readonly emptyBody: boolean,
-    cause: unknown
-  ) {
-    super(emptyBody
-      ? 'Failed to parse chat completion response: empty response body'
-      : `Failed to parse chat completion response: ${cause}`)
-    this.name = 'ChatResponseParseError'
-  }
-}
-
-/**
  * HTTP client for the Lemonade Server API.
  * Communicates with the local Lemonade Server using OpenAI-compatible endpoints.
  */
@@ -432,87 +414,6 @@ export class LemonadeClient {
     const { status, data } = await this.request('POST', '/internal/set', config)
     if (status !== 200) throw new Error(`Failed to update config: ${status} ${data}`)
     Logger.info('Server configuration updated successfully')
-  }
-
-  /**
-   * Send a non-streaming chat completion and return the message content.
-   * Built for latency-sensitive callers (inline completions): the caller
-   * supplies the AbortSignal and the inactivity timeout, and any failure
-   * rejects — callers that must fail silent (ghost text) catch it themselves.
-   */
-  async chatCompletionOnce(
-    request: ChatCompletionRequest,
-    signal?: AbortSignal,
-    timeoutMs: number = LemonadeClient.REQUEST_TIMEOUT_MS
-  ): Promise<string> {
-    return new Promise((resolve, reject) => {
-      let settled = false
-      const finish = (content: string): void => {
-        if (settled) return
-        settled = true
-        resolve(content)
-      }
-      const fail = (error: Error): void => {
-        if (settled) return
-        settled = true
-        reject(error)
-      }
-      const body = JSON.stringify({ ...request, stream: false })
-      const headers: Record<string, string> = {
-        'Content-Type': 'application/json',
-        'Content-Length': Buffer.byteLength(body).toString()
-      }
-
-      const req = this.httpClient.request(
-        `${this.baseUrl}/v1/chat/completions`,
-        { method: 'POST', headers },
-        (res) => {
-          let data = ''
-          res.setEncoding('utf8')
-          res.on('data', (chunk: string) => data += chunk)
-          res.on('end', () => {
-            if (res.statusCode !== 200) {
-              fail(new Error(`Chat completion failed: ${res.statusCode} ${data}`))
-              return
-            }
-            try {
-              const parsed = JSON.parse(data) as ChatCompletionResponse
-              const content = parsed.choices?.[0]?.message?.content
-              // A parts-array content is a multimodal response; there is no
-              // insertable text in it for a completion caller.
-              finish(typeof content === 'string' ? content : '')
-            } catch (err) {
-              fail(new ChatResponseParseError(data.trim().length === 0, err))
-            }
-          })
-          res.on('error', (err) => fail(new Error(`Response error: ${err.message}`)))
-        }
-      )
-
-      req.on('error', (err) => fail(new Error(`Request error: ${err.message}`)))
-      // Inactivity guard: a hung server must not stall the caller.
-      req.setTimeout(timeoutMs, () => {
-        fail(new Error(`Chat completion timed out after ${timeoutMs}ms`))
-        req.destroy()
-      })
-
-      if (signal) {
-        if (signal.aborted) {
-          fail(new Error('Request aborted'))
-          req.destroy()
-          return
-        }
-        signal.addEventListener('abort', () => {
-          // Fail BEFORE destroy: destroy() fires an ECONNRESET 'error' event
-          // that would otherwise report "socket hang up" instead.
-          fail(new Error('Request aborted'))
-          req.destroy()
-        }, { once: true })
-      }
-
-      req.write(body)
-      req.end()
-    })
   }
 
   /**
