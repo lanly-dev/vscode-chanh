@@ -3,14 +3,14 @@ import { commands, ExtensionContext, TreeItem, window } from 'vscode'
 import { BinaryManager } from './binaryManager'
 import { ChanhLmcProvider } from './lmcProvider'
 import { ChatParticipant } from './chatParticipant'
-import { GhostTextProvider } from './completionProvider'
-import { listenConfigsChange, ServerManager } from './serverManager'
+import { copyModelId, openLmConfigsFile, openSetting, openUrl, revealBinaryDir, walkthrough } from './utils'
 import { draftReleaseNotes } from './releaseNotes'
+import { GhostTextProvider } from './completionProvider'
+import { initTokenStatsLog, showTokenUsage } from './tokenStatsLog'
+import { listenConfigsChange, ServerManager } from './serverManager'
 import { Logger } from './logger'
 import { ModelDecorationProvider } from './modelDecorations'
 import { ModelManager } from './modelManager'
-import { copyModelId, openLmConfigsFile, openSetting, openUrl, revealBinaryDir, walkthrough } from './utils'
-import { initTokenStatsLog, showTokenUsage } from './tokenStatsLog'
 import { refreshEvents } from './events'
 import { ServerViewProvider } from './serverTreeview'
 
@@ -38,67 +38,62 @@ export async function activate(context: ExtensionContext) {
   lmcProvider.setModelManager(modelManager)
   const chatParticipant = new ChatParticipant(serverManager, modelManager, context)
   initTokenStatsLog(context)
-
-  const d1 = rc('chanh.openWalkthrough', walkthrough)
-  const d2 = rc('chanh.downloadBinary', () => binaryManager.downloadBinary())
-  const d3 = rc('chanh.selectChatModel', () => modelManager.selectChatModel(chatParticipant))
-  const d4 = rc('chanh.setMaxLoadedModels', () => modelManager.setMaxLoadedModels())
-
-  const d5 = rc('chanh.openLmConfigsFile', openLmConfigsFile)
-  const d6 = rc('chanh.openSettings', openSetting)
-  const d7 = rc('chanh.openServerUrl', openUrl)
-
-  const d8 = rc('chanh.editServerPort', () => serverManager.editServerPort())
-  const d9 = rc('chanh.startServer', () => serverManager.start())
-  const d10 = rc('chanh.stopServer', () => serverManager.stop())
-  const d11 = rc('chanh.switchServer', () => serverManager.switchServer())
-  const d12 = rc('chanh.refreshServer', () => refreshEvents.fire())
-  const d38 = rc('chanh.showTokenUsage', () => showTokenUsage())
-
-  // No command palette
-  // Context menu
-  const d13 = rc('chanh.ncp.copyModelId', (item: ModelTreeItem) => copyModelId(item))
-  const d14 = rc('chanh.ncp.setModelContext', (item: ModelTreeItem) => modelManager.setModelContext(item))
-  const d15 = rc('chanh.ncp.pinModel', (item: ModelTreeItem) => modelManager.pinModel(item))
-  const d16 = rc('chanh.ncp.unpinModel', (item: ModelTreeItem) => modelManager.unpinModel(item))
-
-  const d17 = rc('chanh.ncp.revealBinaryDir', () => revealBinaryDir(binaryManager.binaryDir))
-  const d18 = rc('chanh.ncp.downloadModel', (item: ModelTreeItem) => modelManager.downloadModel(item))
-  const d19 = rc('chanh.ncp.cancelDownload', (item: ModelTreeItem) => modelManager.cancelDownload(item.modelId))
-  const d20 = rc('chanh.ncp.loadModel', (item: ModelTreeItem) => modelManager.loadModel(item.modelId))
-  const d21 = rc('chanh.ncp.unloadModel', (item: ModelTreeItem) => modelManager.unloadModel(item.modelId))
-  const d22 = rc('chanh.ncp.showModelInfo', (item: ModelTreeItem) => modelManager.showModelInfo(item))
-
-  const d23 = rc('chanh.ncp.resetModelContext', (item: ModelTreeItem) => modelManager.resetModelContext(item))
-  const d24 = rc('chanh.ncp.removeModel', (item: ModelTreeItem) => modelManager.deleteModel(item.modelId))
-
-  const d25 = rc('chanh.ncp.selectBackend', (item: ModelTreeItem) => modelManager.selectBackend(item))
-  const d26 = rc('chanh.ncp.uninstallBackend', (item: BackendTreeItem) => modelManager.uninstallBackend(item))
-
-  const d27 = rc('chanh.ncp.configLmEndpoint', (item: ModelTreeItem) => modelManager.configLmEndpoint(item.modelId))
-  const d28 = rc('chanh.ncp.toggleModelSectionsHide', () => svProvider.toggleModelSections())
-  const d29 = rc('chanh.ncp.toggleModelSectionsShow', () => svProvider.toggleModelSections())
-
-  const d30 = rc('chanh.ncp.toggleModelGrouping', () => svProvider.toggleModelGrouping())
-  const d31 = rc('chanh.ncp.toggleDlModelGrouping', () => svProvider.toggleDlModelGrouping())
-  const d32 = rc('chanh.ncp.toggleHotModels', () => svProvider.toggleHotModels())
-  const d33 = rc('chanh.ncp.filterCapGroup', (item: CapGroupTreeItem) => svProvider.filterCapGroup(item))
-  const d34 = rc('chanh.ncp.clearCapFilter', (item: CapGroupTreeItem) => svProvider.clearCapFilter(item))
-
-  const d35 = listenConfigsChange(serverManager)
-  const d36 = lmcProvider.register()
-  const d37 = window.registerFileDecorationProvider(new ModelDecorationProvider())
-  const d39 = rc('chanh.draftReleaseNotes', () => draftReleaseNotes(serverManager, chatParticipant))
-
-  // Ghost-text (inline) completions; inert unless chanh.completions.enabled
   const ghostTextProvider = new GhostTextProvider(serverManager)
-  const d40 = ghostTextProvider.register()
-  const d41 = rc('chanh.testGhostText', () => ghostTextProvider.testGhostText())
+  ghostTextProvider.register()
+  context.subscriptions.push(
+    rc('chanh.openWalkthrough', walkthrough),
+    rc('chanh.downloadBinary', () => binaryManager.downloadBinary()),
+    rc('chanh.selectChatModel', () => modelManager.selectChatModel(chatParticipant)),
+    rc('chanh.setMaxLoadedModels', () => modelManager.setMaxLoadedModels()),
 
-  context.subscriptions.push(d1, d2, d3, d4, d5, d6, d7, d8, d9, d10, d11, d12, d13, d14, d15, d16, d17, d18, d19, d20,
-    d21, d22, d23, d24, d25, d26, d27, d28, d29, d30, d31, d32, d33, d34, d35, d36, d37, d38, d39, d40, d41,
-    serverManager, chatParticipant, ghostTextProvider,
-    lmcProvider, svProvider, Logger
+    rc('chanh.openLmConfigsFile', openLmConfigsFile),
+    rc('chanh.openSettings', openSetting),
+    rc('chanh.openServerUrl', openUrl),
+
+    rc('chanh.editServerPort', () => serverManager.editServerPort()),
+    rc('chanh.startServer', () => serverManager.start()),
+    rc('chanh.stopServer', () => serverManager.stop()),
+    rc('chanh.switchServer', () => serverManager.switchServer()),
+    rc('chanh.refreshServer', () => refreshEvents.fire()),
+    rc('chanh.showTokenUsage', () => showTokenUsage()),
+    // No command palette
+    // Context menu
+    rc('chanh.ncp.copyModelId', (item: ModelTreeItem) => copyModelId(item)),
+    rc('chanh.ncp.setModelContext', (item: ModelTreeItem) => modelManager.setModelContext(item)),
+    rc('chanh.ncp.pinModel', (item: ModelTreeItem) => modelManager.pinModel(item)),
+    rc('chanh.ncp.unpinModel', (item: ModelTreeItem) => modelManager.unpinModel(item)),
+
+    rc('chanh.ncp.revealBinaryDir', () => revealBinaryDir(binaryManager.binaryDir)),
+    rc('chanh.ncp.downloadModel', (item: ModelTreeItem) => modelManager.downloadModel(item)),
+    rc('chanh.ncp.cancelDownload', (item: ModelTreeItem) => modelManager.cancelDownload(item.modelId)),
+    rc('chanh.ncp.loadModel', (item: ModelTreeItem) => modelManager.loadModel(item.modelId)),
+    rc('chanh.ncp.unloadModel', (item: ModelTreeItem) => modelManager.unloadModel(item.modelId)),
+    rc('chanh.ncp.showModelInfo', (item: ModelTreeItem) => modelManager.showModelInfo(item)),
+
+    rc('chanh.ncp.resetModelContext', (item: ModelTreeItem) => modelManager.resetModelContext(item)),
+    rc('chanh.ncp.removeModel', (item: ModelTreeItem) => modelManager.deleteModel(item.modelId)),
+
+    rc('chanh.ncp.selectBackend', (item: ModelTreeItem) => modelManager.selectBackend(item)),
+    rc('chanh.ncp.uninstallBackend', (item: BackendTreeItem) => modelManager.uninstallBackend(item)),
+
+    rc('chanh.ncp.configLmEndpoint', (item: ModelTreeItem) => modelManager.configLmEndpoint(item.modelId)),
+    rc('chanh.ncp.toggleModelSectionsHide', () => svProvider.toggleModelSections()),
+    rc('chanh.ncp.toggleModelSectionsShow', () => svProvider.toggleModelSections()),
+
+    rc('chanh.ncp.toggleModelGrouping', () => svProvider.toggleModelGrouping()),
+    rc('chanh.ncp.toggleDlModelGrouping', () => svProvider.toggleDlModelGrouping()),
+    rc('chanh.ncp.toggleHotModels', () => svProvider.toggleHotModels()),
+    rc('chanh.ncp.filterCapGroup', (item: CapGroupTreeItem) => svProvider.filterCapGroup(item)),
+    rc('chanh.ncp.clearCapFilter', (item: CapGroupTreeItem) => svProvider.clearCapFilter(item)),
+
+    listenConfigsChange(serverManager),
+    lmcProvider.register(),
+    window.registerFileDecorationProvider(new ModelDecorationProvider()),
+    rc('chanh.draftReleaseNotes', () => draftReleaseNotes(serverManager, chatParticipant)),
+
+    // Ghost-text (inline) completions; inert unless chanh.completions.enabled
+    rc('chanh.test.ghostText', () => ghostTextProvider.testGhostText()),
+    serverManager, chatParticipant, ghostTextProvider, lmcProvider, svProvider, Logger
   )
   binaryManager.checkForUpdates()
 }

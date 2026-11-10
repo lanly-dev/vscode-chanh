@@ -120,10 +120,10 @@
         "title": "Chanh: Draft Release Notes"
       },
       {
-        "command": "chanh.testGhostText",
+        "command": "chanh.test.ghostText",
         "title": "Chanh: Test Ghost Text Completion"
       },
-            {
+      {
         "command": "chanh.ncp.copyModelId",
         "title": "Copy Model ID"
       },
@@ -131,7 +131,7 @@
         "command": "chanh.ncp.setModelContext",
         "title": "Set Context Size"
       },
-            {
+      {
         "command": "chanh.ncp.pinModel",
         "title": "Pin Model"
       },
@@ -661,13 +661,13 @@
   "devDependencies": {
     "@stylistic/eslint-plugin": "^5.10.0",
     "@types/node": "26.x",
-    "@types/vscode": "^1.140.0",
+    "@types/vscode": "^1.145.0",
     "esbuild": "^0.28.2",
-    "eslint": "^10.13.0",
+    "eslint": "^10.14.0",
     "npm-run-all": "^4.1.5",
-    "ovsx": "^1.3.0",
+    "ovsx": "^1.4.0",
     "typescript": "^6.0.3",
-    "typescript-eslint": "^8.72.1"
+    "typescript-eslint": "^8.72.2"
   },
   "repository": {
     "type": "git",
