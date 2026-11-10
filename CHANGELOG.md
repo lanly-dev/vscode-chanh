@@ -3,18 +3,24 @@ All notable changes to the "Chanh" extension will be documented in this file.\
 Check [Keep a Changelog](https://keepachangelog.com/) for recommendations on how to structure this file.
 
 ## [TODO]
+- @Chat deprecation
+- Chat participant deprecation
+- Config levels
+- Custom - need research
+- Effort level
 - Explore and add functionality for different types of models, e.g. image
+- Filter model name
+- Generate commit message
+- Ghost inline
+- Green icon for lime
+- Internal commands
 - Omni integration in vscode agent - it is not a real model
+- RAG - need research
+- Remind the changes
 - System over limit icon color change, and drives
 - Token stats logs
-- Filter model name
-- Chat participant deprecation
-- Ghost inline
-- Generate commit message
-- Remind the changes
-- RAG - need research
-- Green icon
-- Effort level
+
+## [0.1.5] - 2026-
 
 ## [0.1.4] - 2026-10-28
 - Add Copy ID context menu options
