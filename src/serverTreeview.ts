@@ -966,7 +966,8 @@ export class ServerViewProvider implements TreeDataProvider<TreeItem>, Disposabl
     completionsItem.contextValue = CHANH_SETTINGS_COMPLETIONS
     completionsItem.command = { command: 'chanh.ncp.toggleCompletions', title: 'Chanh: Toggle Inline Completions' }
     completionsItem.iconPath = new ThemeIcon(completionsEnabled ? 'check' : 'circle-slash')
-    completionsItem.description = `model: ${modelLabel}`
+    // The model only matters while completions are on; an Off row stays clean.
+    completionsItem.description = completionsEnabled ? `model: ${modelLabel}` : undefined
     items.push(completionsItem)
 
     const copilotInstalled = this.isCopilotInstalled()
