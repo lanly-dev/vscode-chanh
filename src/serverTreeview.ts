@@ -425,14 +425,13 @@ export class ServerViewProvider implements TreeDataProvider<TreeItem>, Disposabl
   }
 
   /**
-   * Whether Copilot is installed. Current VS Code ships Copilot as the
+   * Whether Copilot is present. Current VS Code ships Copilot as the
    * built-in GitHub Copilot Chat extension (`GitHub.copilot-chat`), which
-   * also provides inline completions; the standalone `GitHub.copilot`
-   * extension is deprecated — accept either id.
+   * also provides inline completions — that is the only id checked; the
+   * standalone `GitHub.copilot` extension is deprecated and ignored.
    */
   isCopilotInstalled(): boolean {
-    return extensions.getExtension('GitHub.copilot') !== undefined ||
-      extensions.getExtension('GitHub.copilot-chat') !== undefined
+    return extensions.getExtension('GitHub.copilot-chat') !== undefined
   }
 
   /** Flip the Installed/Downloadable model sections visibility, persist, and refresh. */
@@ -986,8 +985,8 @@ export class ServerViewProvider implements TreeDataProvider<TreeItem>, Disposabl
         `(github.copilot.editor.enableAutoCompletions)` +
         `\nNote: editor.inlineSuggest.enabled is the VS Code master switch for ALL ` +
         `inline suggestions — it is not Copilot state. Click to toggle.`
-      : 'GitHub Copilot extension is not installed — install it to use Copilot inline completions'
-    copilotItem.description = copilotInstalled ? undefined : 'GitHub Copilot not installed'
+      : 'GitHub Copilot Chat (built into VS Code) is not available — enable it to use Copilot inline completions'
+    copilotItem.description = copilotInstalled ? undefined : 'Copilot Chat not available'
     items.push(copilotItem)
 
     // System section - live CPU / GPU / RAM stats for this machine. Only shown
