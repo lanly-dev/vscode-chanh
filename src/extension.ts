@@ -33,14 +33,19 @@ export async function activate(context: ExtensionContext) {
 
   // Expose Lemonade models in the native VS Code model picker
   const lmcProvider = new ChanhLmcProvider(serverManager)
-
   const modelManager = new ModelManager(serverManager, svProvider, lmcProvider)
   lmcProvider.setModelManager(modelManager)
+
   const chatParticipant = new ChatParticipant(serverManager, modelManager, context)
   initTokenStatsLog(context)
+
   const ghostTextProvider = new GhostTextProvider(serverManager)
   ghostTextProvider.register()
+
   context.subscriptions.push(
+    rc('chanh.internal.toggleCompletions', () => svProvider.toggleCompletions()),
+    rc('chanh.internal.toggleCopilot', () => svProvider.toggleCopilot()),
+
     rc('chanh.openWalkthrough', walkthrough),
     rc('chanh.downloadBinary', () => binaryManager.downloadBinary()),
     rc('chanh.selectChatModel', () => modelManager.selectChatModel(chatParticipant)),
@@ -83,18 +88,18 @@ export async function activate(context: ExtensionContext) {
     rc('chanh.ncp.toggleModelGrouping', () => svProvider.toggleModelGrouping()),
     rc('chanh.ncp.toggleDlModelGrouping', () => svProvider.toggleDlModelGrouping()),
     rc('chanh.ncp.toggleHotModels', () => svProvider.toggleHotModels()),
-    rc('chanh.ncp.toggleCompletions', () => svProvider.toggleCompletions()),
-    rc('chanh.ncp.toggleCopilot', () => svProvider.toggleCopilot()),
+
     rc('chanh.ncp.filterCapGroup', (item: CapGroupTreeItem) => svProvider.filterCapGroup(item)),
     rc('chanh.ncp.clearCapFilter', (item: CapGroupTreeItem) => svProvider.clearCapFilter(item)),
+
+    rc('chanh.draftReleaseNotes', () => draftReleaseNotes(serverManager, chatParticipant)),
+    // Ghost-text (inline) completions; inert unless chanh.completions.enabled
+    rc('chanh.test.ghostText', () => ghostTextProvider.testGhostText()),
 
     listenConfigsChange(serverManager),
     lmcProvider.register(),
     window.registerFileDecorationProvider(new ModelDecorationProvider()),
-    rc('chanh.draftReleaseNotes', () => draftReleaseNotes(serverManager, chatParticipant)),
 
-    // Ghost-text (inline) completions; inert unless chanh.completions.enabled
-    rc('chanh.test.ghostText', () => ghostTextProvider.testGhostText()),
     serverManager, chatParticipant, ghostTextProvider, lmcProvider, svProvider, Logger
   )
 
