@@ -83,6 +83,8 @@ export async function activate(context: ExtensionContext) {
     rc('chanh.ncp.toggleModelGrouping', () => svProvider.toggleModelGrouping()),
     rc('chanh.ncp.toggleDlModelGrouping', () => svProvider.toggleDlModelGrouping()),
     rc('chanh.ncp.toggleHotModels', () => svProvider.toggleHotModels()),
+    rc('chanh.ncp.toggleCompletions', () => svProvider.toggleCompletions()),
+    rc('chanh.ncp.toggleCopilot', () => svProvider.toggleCopilot()),
     rc('chanh.ncp.filterCapGroup', (item: CapGroupTreeItem) => svProvider.filterCapGroup(item)),
     rc('chanh.ncp.clearCapFilter', (item: CapGroupTreeItem) => svProvider.clearCapFilter(item)),
 
@@ -95,6 +97,7 @@ export async function activate(context: ExtensionContext) {
     rc('chanh.test.ghostText', () => ghostTextProvider.testGhostText()),
     serverManager, chatParticipant, ghostTextProvider, lmcProvider, svProvider, Logger
   )
+
   binaryManager.checkForUpdates()
 }
 

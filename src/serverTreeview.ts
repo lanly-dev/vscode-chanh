@@ -10,6 +10,7 @@ import {
   TreeView,
   TreeViewExpansionEvent,
   commands,
+  extensions,
   window,
   workspace
 } from 'vscode'
@@ -72,6 +73,25 @@ const HIDE_MODEL_SECTIONS_KEY = 'hideModelSections'
 
 /** Storage key for active sub-capability filters, one per capability group. */
 const CAP_SUB_FILTERS_KEY = 'capSubFilters'
+
+/** Context values for the inline-completion settings section in the tree view. */
+const CHANH_SETTINGS_COMPLETIONS = 'CHANH_SETTINGS_COMPLETIONS'
+const CHANH_SETTINGS_COPILOT = 'CHANH_SETTINGS_COPILOT'
+
+/** Configuration keys for the inline completion settings. */
+const CONFIG_COMPLETIONS_ENABLED = 'completions.enabled'
+const CONFIG_COMPLETIONS_MODEL = 'completions.model'
+
+/**
+ * Copilot's OWN ghost-text setting: the per-language map `github.copilot.enable`,
+ * whose `'*'` entry is the global ghost-text state — the exact entry Copilot's
+ * status-bar menu ("Ghost text suggestions" checkbox) flips. This — never
+ * `editor.inlineSuggest.enabled`, which is VS Code's master switch for ALL
+ * inline providers — is the source of truth for the Copilot settings row.
+ */
+const COPILOT_CONFIG_SECTION = 'github.copilot'
+const COPILOT_ENABLE_KEY = 'enable'
+const COPILOT_GLOBAL_LANGUAGE = '*'
 
 /**
  * Sentinel sub-filter value selecting models that carry no sub-capability label
@@ -329,6 +349,9 @@ export class ServerViewProvider implements TreeDataProvider<TreeItem>, Disposabl
       serverManager.onStatusChange(() => this.refreshServer()),
       workspace.onDidChangeConfiguration((e) => {
         if (e.affectsConfiguration('chanh.systemSampleInterval')) this.applySystemSampleInterval()
+        // The Settings section reports Copilot's own toggle; repaint when it
+        // is flipped anywhere (Copilot's status-bar menu writes it too).
+        if (e.affectsConfiguration('github.copilot.enable')) this.refresh()
       }),
       this._systemMonitor
     )
@@ -374,6 +397,51 @@ export class ServerViewProvider implements TreeDataProvider<TreeItem>, Disposabl
     this._showHotOnly = !this._showHotOnly
     void this.context.workspaceState.update(SHOW_HOT_ONLY_KEY, this._showHotOnly)
     this.refresh()
+  }
+
+  /** Toggle Chanh inline completions (chanh.completions.enabled). */
+  async toggleCompletions(): Promise<void> {
+    const config = workspace.getConfiguration('chanh')
+    const enabled = config.get<boolean>(CONFIG_COMPLETIONS_ENABLED, false)
+    await config.update(CONFIG_COMPLETIONS_ENABLED, !enabled, true)
+    this.refresh()
+  }
+
+  /** Copilot's per-language enable map (`github.copilot.enable`), or {} when unset. */
+  private copilotEnableMap(): Record<string, boolean> {
+    return workspace.getConfiguration(COPILOT_CONFIG_SECTION)
+      .get<Record<string, boolean>>(COPILOT_ENABLE_KEY) ?? {}
+  }
+
+  /**
+   * Copilot's ghost-text state: the `'*'` entry of `github.copilot.enable` —
+   * the entry Copilot's status-bar "Ghost text suggestions" checkbox flips —
+   * defaulting to enabled (Copilot's own default) when unset.
+   */
+  private copilotInlineState(): boolean {
+    return this.copilotEnableMap()[COPILOT_GLOBAL_LANGUAGE] ?? true
+  }
+
+  /**
+   * Toggle Copilot ghost text by flipping the `'*'` entry of
+   * `github.copilot.enable`, preserving any per-language entries.
+   */
+  async toggleCopilot(): Promise<void> {
+    if (!this.isCopilotInstalled()) return
+    const map = this.copilotEnableMap()
+    await workspace.getConfiguration(COPILOT_CONFIG_SECTION)
+      .update(COPILOT_ENABLE_KEY, { ...map, [COPILOT_GLOBAL_LANGUAGE]: !this.copilotInlineState() }, true)
+    this.refresh()
+  }
+
+  /**
+   * Whether Copilot is present. Current VS Code ships Copilot as the
+   * built-in GitHub Copilot Chat extension (`GitHub.copilot-chat`), which
+   * also provides inline completions — that is the only id checked; the
+   * standalone `GitHub.copilot` extension is deprecated and ignored.
+   */
+  isCopilotInstalled(): boolean {
+    return extensions.getExtension('GitHub.copilot-chat') !== undefined
   }
 
   /** Flip the Installed/Downloadable model sections visibility, persist, and refresh. */
@@ -631,7 +699,7 @@ export class ServerViewProvider implements TreeDataProvider<TreeItem>, Disposabl
    * running on it. Decided from the target URL rather than `serverMode`,
    * because CUSTOM may legitimately point back at localhost (the port editor
    * even suggests it) — a mode check would hide the stats from that setup.
-   * An empty or unparseable URL counts as local: hiding on "unknown" would
+   * An empty or unparsable URL counts as local: hiding on "unknown" would
    * be worse than showing.
    */
   private systemStatsRelevant(): boolean {
@@ -879,6 +947,59 @@ export class ServerViewProvider implements TreeDataProvider<TreeItem>, Disposabl
     serverHeader.contextValue = 'CHANH_SERVER_HEADER'
     serverHeader.tooltip = `Active server: ${displayName}\nURL: ${displayUrl}`
     items.push(serverHeader)
+
+    // Settings section - inline completion toggles
+    const settingsHeader = new TreeItem('Settings', Collapsed)
+    settingsHeader.id = 'chanh:settings'
+    settingsHeader.collapsibleState = this.sectionState('chanh:settings')
+    settingsHeader.iconPath = new ThemeIcon('gear')
+    settingsHeader.contextValue = 'CHANH_SETTINGS_HEADER'
+    items.push(settingsHeader)
+
+    const config = workspace.getConfiguration('chanh')
+    const completionsEnabled = config.get<boolean>(CONFIG_COMPLETIONS_ENABLED, false)
+    const completionsModel = config.get<string>(CONFIG_COMPLETIONS_MODEL, '')
+    const chatModel = config.get<string>('chatModel', '')
+    const modelLabel = completionsModel || chatModel || 'default (chat model)'
+    const completionsItem = new TreeItem(`Inline Completions: ${completionsEnabled ? 'On' : 'Off'}`, None)
+    completionsItem.id = 'chanh:settings:completions'
+    completionsItem.contextValue = CHANH_SETTINGS_COMPLETIONS
+    completionsItem.command = { command: 'chanh.ncp.toggleCompletions', title: 'Chanh: Toggle Inline Completions' }
+    completionsItem.iconPath = new ThemeIcon(completionsEnabled ? 'check' : 'circle-slash')
+    // The model only matters while completions are on; an Off row stays clean.
+    completionsItem.description = completionsEnabled ? `model: ${modelLabel}` : undefined
+    items.push(completionsItem)
+
+    const copilotInstalled = this.isCopilotInstalled()
+    // Copilot's ghost-text state from Copilot's OWN setting (the '*' entry of
+    // github.copilot.enable — the one Copilot's status-bar menu flips).
+    // editor.inlineSuggest.enabled is deliberately NOT read here: it is VS
+    // Code's master switch for ALL inline-suggestion providers, Chanh's ghost
+    // text included.
+    const copilotEnabled = this.copilotInlineState()
+
+    const copilotItem: TreeItem = copilotInstalled
+      ? new TreeItem(`Copilot Inline Completions: ${copilotEnabled ? 'On' : 'Off'}`, None)
+      : new TreeItem(`Copilot Inline Completions: Not Available`, None)
+
+    copilotItem.id = 'chanh:settings:copilot'
+    copilotItem.contextValue = CHANH_SETTINGS_COPILOT
+    copilotItem.command = copilotInstalled
+      ? { command: 'chanh.ncp.toggleCopilot', title: 'Chanh: Toggle Copilot Inline Completions' }
+      : undefined
+    copilotItem.iconPath = new ThemeIcon(
+      copilotInstalled
+        ? copilotEnabled ? 'check' : 'circle-slash'
+        : 'circle-slash'
+    )
+    copilotItem.tooltip = copilotInstalled
+      ? `Copilot inline completions: ${copilotEnabled ? 'on' : 'off'} ` +
+        `(github.copilot.enable, '*' entry — the same one Copilot's status-bar menu flips)` +
+        `\nNote: editor.inlineSuggest.enabled is the VS Code master switch for ALL ` +
+        `inline suggestions — it is not Copilot state. Click to toggle.`
+      : 'GitHub Copilot Chat (built into VS Code) is not available — enable it to use Copilot inline completions'
+    copilotItem.description = copilotInstalled ? undefined : 'Copilot Chat not available'
+    items.push(copilotItem)
 
     // System section - live CPU / GPU / RAM stats for this machine. Only shown
     // while the configured server runs locally (see `systemSectionVisible`),
@@ -1379,12 +1500,12 @@ export class ServerViewProvider implements TreeDataProvider<TreeItem>, Disposabl
         // Commands (e.g. the inline cancel button) receive this item as the
         // argument, so it must carry the model id.
         item.modelId = download.modelId
-        // Inline cancel button so the user can abort the pull from the row.
-        // (Cast needed: the trimmed @types/vscode here omits TreeItem.buttons,
-        // but the runtime API supports it.)
-        ; (item as TreeItem & { buttons?: Array<{ command: string, tooltip?: string }> }).buttons = [
-          { command: 'chanh.cancelDownload', tooltip: 'Cancel download' }
-        ]
+          // Inline cancel button so the user can abort the pull from the row.
+          // (Cast needed: the trimmed @types/vscode here omits TreeItem.buttons,
+          // but the runtime API supports it.)
+          ; (item as TreeItem & { buttons?: Array<{ command: string, tooltip?: string }> }).buttons = [
+            { command: 'chanh.cancelDownload', tooltip: 'Cancel download' }
+          ]
         this._downloadRows.set(download.modelId, item)
       }
       this.applyDownloadProgress(item, download)
@@ -1749,8 +1870,8 @@ export class ServerViewProvider implements TreeDataProvider<TreeItem>, Disposabl
         item.contextValue = subFilter
           ? 'CHANH_CAP_GROUP_FILTERED'
           : (subCount > 0 ? 'CHANH_CAP_GROUP' : 'CHANH_CAP_GROUP_NOSUB')
-        ; (item as TreeItem & { capability: string }).capability = category
-        ; (item as TreeItem & { downloadable: boolean }).downloadable = downloadable
+          ; (item as TreeItem & { capability: string }).capability = category
+          ; (item as TreeItem & { downloadable: boolean }).downloadable = downloadable
         // A number + "filter" reads the state without relying on the icon:
         // how many models match while filtered, or how many sub-capabilities
         // are available to filter by when none is active.
