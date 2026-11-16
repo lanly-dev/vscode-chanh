@@ -83,12 +83,10 @@ const CONFIG_COMPLETIONS_ENABLED = 'completions.enabled'
 const CONFIG_COMPLETIONS_MODEL = 'completions.model'
 
 /**
- * Copilot's OWN ghost-text setting: the `enableAutoCompletions` map under the
- * `github.copilot.editor` section. Its `'*'` key is the global state (absent
- * map/key = enabled, Copilot's default); other keys are per-language
- * overrides. This — never `editor.inlineSuggest.enabled`, which is VS Code's
- * master switch for ALL inline providers — is the source of truth for the
- * Copilot settings row.
+ * Copilot's OWN ghost-text setting: the boolean `enableAutoCompletions` under
+ * the `github.copilot.editor` section (default true). This — never
+ * `editor.inlineSuggest.enabled`, which is VS Code's master switch for ALL
+ * inline providers — is the source of truth for the Copilot settings row.
  */
 const COPILOT_CONFIG_SECTION = 'github.copilot.editor'
 const COPILOT_AUTO_COMPLETIONS_KEY = 'enableAutoCompletions'
@@ -408,28 +406,33 @@ export class ServerViewProvider implements TreeDataProvider<TreeItem>, Disposabl
   }
 
   /**
-   * Copilot's ghost-text map and its global state: the `'*'` key of
-   * `github.copilot.editor.enableAutoCompletions`, defaulting to enabled when
-   * the map or the key is absent (Copilot's own default).
+   * Copilot's ghost-text state: the boolean
+   * `github.copilot.editor.enableAutoCompletions`, defaulting to enabled
+   * (Copilot's own default) when unset.
    */
-  private copilotInlineState(): { map: Record<string, boolean>, enabled: boolean } {
-    const map = workspace.getConfiguration(COPILOT_CONFIG_SECTION)
-      .get<Record<string, boolean>>(COPILOT_AUTO_COMPLETIONS_KEY) ?? {}
-    return { map, enabled: map['*'] ?? true }
+  private copilotInlineState(): boolean {
+    return workspace.getConfiguration(COPILOT_CONFIG_SECTION)
+      .get<boolean>(COPILOT_AUTO_COMPLETIONS_KEY, true)
   }
 
-  /** Toggle Copilot inline completions via Copilot's own setting, preserving per-language overrides. */
+  /** Toggle Copilot inline completions via Copilot's own boolean setting. */
   async toggleCopilot(): Promise<void> {
     if (!this.isCopilotInstalled()) return
-    const { map, enabled } = this.copilotInlineState()
+    const enabled = this.copilotInlineState()
     await workspace.getConfiguration(COPILOT_CONFIG_SECTION)
-      .update(COPILOT_AUTO_COMPLETIONS_KEY, { ...map, '*': !enabled }, true)
+      .update(COPILOT_AUTO_COMPLETIONS_KEY, !enabled, true)
     this.refresh()
   }
 
-  /** Whether the GitHub Copilot extension is installed. */
+  /**
+   * Whether Copilot is installed. Current VS Code ships Copilot as the
+   * built-in GitHub Copilot Chat extension (`GitHub.copilot-chat`), which
+   * also provides inline completions; the standalone `GitHub.copilot`
+   * extension is deprecated — accept either id.
+   */
   isCopilotInstalled(): boolean {
-    return extensions.getExtension('GitHub.copilot') !== undefined
+    return extensions.getExtension('GitHub.copilot') !== undefined ||
+      extensions.getExtension('GitHub.copilot-chat') !== undefined
   }
 
   /** Flip the Installed/Downloadable model sections visibility, persist, and refresh. */
@@ -958,12 +961,11 @@ export class ServerViewProvider implements TreeDataProvider<TreeItem>, Disposabl
     items.push(completionsItem)
 
     const copilotInstalled = this.isCopilotInstalled()
-    // Copilot's ghost-text state from Copilot's OWN setting (the '*' key of
+    // Copilot's ghost-text state from Copilot's OWN setting (the boolean
     // github.copilot.editor.enableAutoCompletions). editor.inlineSuggest.enabled
     // is deliberately NOT read here: it is VS Code's master switch for ALL
     // inline-suggestion providers, Chanh's ghost text included.
-    const { map: copilotMap, enabled: copilotEnabled } = this.copilotInlineState()
-    const copilotOverrides = Object.keys(copilotMap).filter((k) => k !== '*')
+    const copilotEnabled = this.copilotInlineState()
 
     const copilotItem: TreeItem = copilotInstalled
       ? new TreeItem(`Copilot Inline Completions: ${copilotEnabled ? 'On' : 'Off'}`, None)
@@ -981,10 +983,7 @@ export class ServerViewProvider implements TreeDataProvider<TreeItem>, Disposabl
     )
     copilotItem.tooltip = copilotInstalled
       ? `Copilot inline completions: ${copilotEnabled ? 'on' : 'off'} ` +
-        `(github.copilot.editor.enableAutoCompletions, '*' key)` +
-        (copilotOverrides.length
-          ? `\nLanguage overrides: ${copilotOverrides.map((k) => `${k}: ${copilotMap[k] ? 'on' : 'off'}`).join(', ')}`
-          : '') +
+        `(github.copilot.editor.enableAutoCompletions)` +
         `\nNote: editor.inlineSuggest.enabled is the VS Code master switch for ALL ` +
         `inline suggestions — it is not Copilot state. Click to toggle.`
       : 'GitHub Copilot extension is not installed — install it to use Copilot inline completions'
