@@ -428,10 +428,14 @@ export class ServerViewProvider implements TreeDataProvider<TreeItem>, Disposabl
    */
   async toggleCopilot(): Promise<void> {
     if (!this.isCopilotInstalled()) return
+    // One map read derives both the current state and the flipped write.
+    // No explicit refresh: the constructor's onDidChangeConfiguration
+    // listener refreshes the tree on any `github.copilot.enable` change,
+    // including this write.
     const map = this.copilotEnableMap()
+    const enabled = map[COPILOT_GLOBAL_LANGUAGE] ?? true
     await workspace.getConfiguration(COPILOT_CONFIG_SECTION)
-      .update(COPILOT_ENABLE_KEY, { ...map, [COPILOT_GLOBAL_LANGUAGE]: !this.copilotInlineState() }, true)
-    this.refresh()
+      .update(COPILOT_ENABLE_KEY, { ...map, [COPILOT_GLOBAL_LANGUAGE]: !enabled }, true)
   }
 
   /**
@@ -976,7 +980,7 @@ export class ServerViewProvider implements TreeDataProvider<TreeItem>, Disposabl
     // editor.inlineSuggest.enabled is deliberately NOT read here: it is VS
     // Code's master switch for ALL inline-suggestion providers, Chanh's ghost
     // text included.
-    const copilotEnabled = this.copilotInlineState()
+    const copilotEnabled = copilotInstalled ? this.copilotInlineState() : false
 
     const copilotItem: TreeItem = copilotInstalled
       ? new TreeItem(`Copilot Inline Completions: ${copilotEnabled ? 'On' : 'Off'}`, None)

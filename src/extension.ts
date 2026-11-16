@@ -102,7 +102,6 @@ export async function activate(context: ExtensionContext) {
 
     serverManager, chatParticipant, ghostTextProvider, lmcProvider, svProvider, Logger
   )
-
   binaryManager.checkForUpdates()
 }
 
