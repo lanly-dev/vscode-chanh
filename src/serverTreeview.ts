@@ -10,6 +10,7 @@ import {
   TreeView,
   TreeViewExpansionEvent,
   commands,
+  extensions,
   window,
   workspace
 } from 'vscode'
@@ -72,6 +73,14 @@ const HIDE_MODEL_SECTIONS_KEY = 'hideModelSections'
 
 /** Storage key for active sub-capability filters, one per capability group. */
 const CAP_SUB_FILTERS_KEY = 'capSubFilters'
+
+/** Context values for the inline-completion settings section in the tree view. */
+const CHANH_SETTINGS_COMPLETIONS = 'CHANH_SETTINGS_COMPLETIONS'
+const CHANH_SETTINGS_COPILOT = 'CHANH_SETTINGS_COPILOT'
+
+/** Configuration keys for the inline completion settings. */
+const CONFIG_COMPLETIONS_ENABLED = 'completions.enabled'
+const CONFIG_COPILOT_ENABLED = 'copilot.enabled'
 
 /**
  * Sentinel sub-filter value selecting models that carry no sub-capability label
@@ -376,6 +385,28 @@ export class ServerViewProvider implements TreeDataProvider<TreeItem>, Disposabl
     this.refresh()
   }
 
+  /** Toggle Chanh inline completions (chanh.completions.enabled). */
+  toggleCompletions(): void {
+    const config = workspace.getConfiguration('chanh')
+    const enabled = config.get<boolean>(CONFIG_COMPLETIONS_ENABLED, false)
+    void config.update(CONFIG_COMPLETIONS_ENABLED, !enabled, true)
+    this.refresh()
+  }
+
+  /** Toggle VS Code Copilot inline suggestions (chanh.copilot.enabled). */
+  toggleCopilot(): void {
+    if (!this.isCopilotInstalled()) return
+    const config = workspace.getConfiguration('chanh')
+    const enabled = config.get<boolean>(CONFIG_COPILOT_ENABLED, true)
+    void config.update(CONFIG_COPILOT_ENABLED, !enabled, true)
+    this.refresh()
+  }
+
+  /** Whether the GitHub Copilot extension is installed. */
+  isCopilotInstalled(): boolean {
+    return extensions.getExtension('GitHub.copilot') !== undefined
+  }
+
   /** Flip the Installed/Downloadable model sections visibility, persist, and refresh. */
   toggleModelSections(): void {
     this._hideModelSections = !this._hideModelSections
@@ -631,7 +662,7 @@ export class ServerViewProvider implements TreeDataProvider<TreeItem>, Disposabl
    * running on it. Decided from the target URL rather than `serverMode`,
    * because CUSTOM may legitimately point back at localhost (the port editor
    * even suggests it) — a mode check would hide the stats from that setup.
-   * An empty or unparseable URL counts as local: hiding on "unknown" would
+   * An empty or unparsable URL counts as local: hiding on "unknown" would
    * be worse than showing.
    */
   private systemStatsRelevant(): boolean {
@@ -879,6 +910,45 @@ export class ServerViewProvider implements TreeDataProvider<TreeItem>, Disposabl
     serverHeader.contextValue = 'CHANH_SERVER_HEADER'
     serverHeader.tooltip = `Active server: ${displayName}\nURL: ${displayUrl}`
     items.push(serverHeader)
+
+    // Settings section - inline completion toggles
+    const settingsHeader = new TreeItem('Settings', Collapsed)
+    settingsHeader.id = 'chanh:settings'
+    settingsHeader.collapsibleState = this.sectionState('chanh:settings')
+    settingsHeader.iconPath = new ThemeIcon('gear')
+    settingsHeader.contextValue = 'CHANH_SETTINGS_HEADER'
+    items.push(settingsHeader)
+
+    const config = workspace.getConfiguration('chanh')
+    const completionsEnabled = config.get<boolean>(CONFIG_COMPLETIONS_ENABLED, false)
+    const completionsItem = new TreeItem(`Inline Completions: ${completionsEnabled ? 'On' : 'Off'}`, None)
+    completionsItem.id = 'chanh:settings:completions'
+    completionsItem.contextValue = CHANH_SETTINGS_COMPLETIONS
+    completionsItem.command = {
+      command: 'chanh.ncp.toggleCompletions',
+      title: 'Chanh: Toggle Inline Completions'
+    }
+    completionsItem.iconPath = new ThemeIcon(completionsEnabled ? 'check' : 'circle-slash')
+    completionsItem.tooltip = 'Toggle Chanh ghost inline code completions from the active Lemonade server'
+    items.push(completionsItem)
+
+    const copilotEnabled = config.get<boolean>(CONFIG_COPILOT_ENABLED, true)
+    const copilotInstalled = this.isCopilotInstalled()
+    let copilotItem: TreeItem
+    if (!copilotInstalled) {
+      copilotItem = new TreeItem(`Copilot Inline Completions: Not Installed`, None)
+      copilotItem.iconPath = new ThemeIcon('error')
+    } else {
+      copilotItem = new TreeItem(`Copilot Inline Completions: ${copilotEnabled ? 'On' : 'Off'}`, None)
+      copilotItem.command = {
+        command: 'chanh.ncp.toggleCopilot',
+        title: 'Chanh: Toggle Copilot Inline Completions'
+      }
+      copilotItem.iconPath = new ThemeIcon(copilotEnabled ? 'check' : 'circle-slash')
+    }
+    copilotItem.id = 'chanh:settings:copilot'
+    copilotItem.contextValue = CHANH_SETTINGS_COPILOT
+    items.push(copilotItem)
 
     // System section - live CPU / GPU / RAM stats for this machine. Only shown
     // while the configured server runs locally (see `systemSectionVisible`),
@@ -1379,12 +1449,12 @@ export class ServerViewProvider implements TreeDataProvider<TreeItem>, Disposabl
         // Commands (e.g. the inline cancel button) receive this item as the
         // argument, so it must carry the model id.
         item.modelId = download.modelId
-        // Inline cancel button so the user can abort the pull from the row.
-        // (Cast needed: the trimmed @types/vscode here omits TreeItem.buttons,
-        // but the runtime API supports it.)
-        ; (item as TreeItem & { buttons?: Array<{ command: string, tooltip?: string }> }).buttons = [
-          { command: 'chanh.cancelDownload', tooltip: 'Cancel download' }
-        ]
+          // Inline cancel button so the user can abort the pull from the row.
+          // (Cast needed: the trimmed @types/vscode here omits TreeItem.buttons,
+          // but the runtime API supports it.)
+          ; (item as TreeItem & { buttons?: Array<{ command: string, tooltip?: string }> }).buttons = [
+            { command: 'chanh.cancelDownload', tooltip: 'Cancel download' }
+          ]
         this._downloadRows.set(download.modelId, item)
       }
       this.applyDownloadProgress(item, download)
@@ -1749,8 +1819,8 @@ export class ServerViewProvider implements TreeDataProvider<TreeItem>, Disposabl
         item.contextValue = subFilter
           ? 'CHANH_CAP_GROUP_FILTERED'
           : (subCount > 0 ? 'CHANH_CAP_GROUP' : 'CHANH_CAP_GROUP_NOSUB')
-        ; (item as TreeItem & { capability: string }).capability = category
-        ; (item as TreeItem & { downloadable: boolean }).downloadable = downloadable
+          ; (item as TreeItem & { capability: string }).capability = category
+          ; (item as TreeItem & { downloadable: boolean }).downloadable = downloadable
         // A number + "filter" reads the state without relying on the icon:
         // how many models match while filtered, or how many sub-capabilities
         // are available to filter by when none is active.

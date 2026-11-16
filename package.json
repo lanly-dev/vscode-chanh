@@ -120,10 +120,6 @@
         "title": "Chanh: Draft Release Notes"
       },
       {
-        "command": "chanh.test.ghostText",
-        "title": "Chanh: Test Ghost Text Completion"
-      },
-      {
         "command": "chanh.ncp.copyModelId",
         "title": "Copy Model ID"
       },
@@ -268,6 +264,20 @@
         "command": "chanh.ncp.clearCapFilter",
         "title": "Chanh: Clear Sub-Capability Filter",
         "icon": "$(clear-all)"
+      },
+      {
+        "command": "chanh.ncp.toggleCompletions",
+        "title": "Chanh: Toggle Inline Completions",
+        "icon": "$(edit)"
+      },
+      {
+        "command": "chanh.ncp.toggleCopilot",
+        "title": "Chanh: Toggle Copilot Inline Completions",
+        "icon": "$(edit)"
+      },
+            {
+        "command": "chanh.test.ghostText",
+        "title": "Chanh: Test Ghost Text Completion"
       }
     ],
     "menus": {
@@ -485,6 +495,11 @@
           "type": "string",
           "default": "",
           "description": "Model to use for inline completions. Leave empty to use the chat model (`chanh.chatModel`), or the currently loaded chat model when no chat model is set. The model is never loaded automatically — it must already be loaded on the server. Small coder models work best."
+        },
+        "chanh.copilot.enabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable VS Code Copilot inline suggestions (editor.inlineSuggest.enabled). Toggle this to turn Copilot's ghost text completions on/off alongside Chanh's own inline completions."
         }
       }
     },
@@ -576,6 +591,18 @@
       {
         "command": "chanh.ncp.clearCapFilter",
         "when": "false"
+      },
+      {
+        "command": "chanh.ncp.toggleCompletions",
+        "when": "false"
+      },
+      {
+        "command": "chanh.ncp.toggleCopilot",
+        "when": "false"
+      },
+      {
+        "command": "chanh.test.ghostText",
+        "when": "false"
       }
     ],
     "walkthroughs": [
@@ -659,11 +686,11 @@
     "efix": "eslint . --fix"
   },
   "devDependencies": {
-    "@stylistic/eslint-plugin": "^5.10.0",
+    "@stylistic/eslint-plugin": "^6.0.1",
     "@types/node": "26.x",
-    "@types/vscode": "^1.145.0",
+    "@types/vscode": "^1.146.0",
     "esbuild": "^0.28.2",
-    "eslint": "^10.14.0",
+    "eslint": "^10.15.0",
     "npm-run-all": "^4.1.5",
     "ovsx": "^1.4.0",
     "typescript": "^6.0.3",
