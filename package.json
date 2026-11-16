@@ -265,16 +265,6 @@
         "title": "Chanh: Clear Sub-Capability Filter",
         "icon": "$(clear-all)"
       },
-      {
-        "command": "chanh.ncp.toggleCompletions",
-        "title": "Chanh: Toggle Inline Completions",
-        "icon": "$(edit)"
-      },
-      {
-        "command": "chanh.ncp.toggleCopilot",
-        "title": "Chanh: Toggle Copilot Inline Completions",
-        "icon": "$(edit)"
-      },
             {
         "command": "chanh.test.ghostText",
         "title": "Chanh: Test Ghost Text Completion"
@@ -585,14 +575,6 @@
       },
       {
         "command": "chanh.ncp.clearCapFilter",
-        "when": "false"
-      },
-      {
-        "command": "chanh.ncp.toggleCompletions",
-        "when": "false"
-      },
-      {
-        "command": "chanh.ncp.toggleCopilot",
         "when": "false"
       },
       {
