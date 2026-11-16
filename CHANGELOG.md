@@ -4,9 +4,8 @@ Check [Keep a Changelog](https://keepachangelog.com/) for recommendations on how
 
 ## [TODO]
 - @Chat deprecation
-- Chat participant deprecation
-- Config levels
-- Custom - need research
+- Config levels (using dot)
+- Custom models - need research
 - Effort level
 - Explore and add functionality for different types of models, e.g. image
 - Filter model name
@@ -17,7 +16,7 @@ Check [Keep a Changelog](https://keepachangelog.com/) for recommendations on how
 - Omni integration in vscode agent - it is not a real model
 - RAG - need research
 - Remind the changes
-- System over limit icon color change, and drives
+- Checking system storage before download
 - Token stats logs
 
 ## [0.1.5] - 2026-
