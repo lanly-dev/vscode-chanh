@@ -265,7 +265,7 @@
         "title": "Chanh: Clear Sub-Capability Filter",
         "icon": "$(clear-all)"
       },
-            {
+      {
         "command": "chanh.test.ghostText",
         "title": "Chanh: Test Ghost Text Completion"
       }

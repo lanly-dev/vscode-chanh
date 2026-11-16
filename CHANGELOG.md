@@ -10,7 +10,6 @@ Check [Keep a Changelog](https://keepachangelog.com/) for recommendations on how
 - Explore and add functionality for different types of models, e.g. image
 - Filter model name
 - Generate commit message
-- Ghost inline
 - Green icon for lime
 - Internal commands
 - Omni integration in vscode agent - it is not a real model

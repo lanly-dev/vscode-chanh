@@ -61,6 +61,7 @@ export async function activate(context: ExtensionContext) {
     rc('chanh.switchServer', () => serverManager.switchServer()),
     rc('chanh.refreshServer', () => refreshEvents.fire()),
     rc('chanh.showTokenUsage', () => showTokenUsage()),
+
     // No command palette
     // Context menu
     rc('chanh.ncp.copyModelId', (item: ModelTreeItem) => copyModelId(item)),
@@ -102,7 +103,6 @@ export async function activate(context: ExtensionContext) {
 
     serverManager, chatParticipant, ghostTextProvider, lmcProvider, svProvider, Logger
   )
-
   binaryManager.checkForUpdates()
 }
 
