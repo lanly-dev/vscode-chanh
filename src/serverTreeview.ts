@@ -968,7 +968,7 @@ export class ServerViewProvider implements TreeDataProvider<TreeItem>, Disposabl
 
     const copilotItem: TreeItem = copilotInstalled
       ? new TreeItem(`Copilot Inline Completions: ${copilotEnabled ? 'On' : 'Off'}`, None)
-      : new TreeItem(`Copilot Inline Completions: Not Installed`, None)
+      : new TreeItem(`Copilot Inline Completions: Not Available`, None)
 
     copilotItem.id = 'chanh:settings:copilot'
     copilotItem.contextValue = CHANH_SETTINGS_COPILOT
@@ -978,7 +978,7 @@ export class ServerViewProvider implements TreeDataProvider<TreeItem>, Disposabl
     copilotItem.iconPath = new ThemeIcon(
       copilotInstalled
         ? copilotEnabled ? 'check' : 'circle-slash'
-        : 'error'
+        : 'circle-slash'
     )
     copilotItem.tooltip = copilotInstalled
       ? `Copilot inline completions: ${copilotEnabled ? 'on' : 'off'} ` +
