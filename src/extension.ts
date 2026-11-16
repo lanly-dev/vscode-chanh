@@ -1,4 +1,4 @@
-import { commands, ExtensionContext, TreeItem, window, workspace, extensions } from 'vscode'
+import { commands, ExtensionContext, TreeItem, window } from 'vscode'
 
 import { BinaryManager } from './binaryManager'
 import { ChanhLmcProvider } from './lmcProvider'
@@ -98,21 +98,6 @@ export async function activate(context: ExtensionContext) {
     serverManager, chatParticipant, ghostTextProvider, lmcProvider, svProvider, Logger
   )
 
-  // VS Code Copilot inline suggestions toggle — only apply if Copilot is installed
-  const copilotConfig = workspace.getConfiguration('editor')
-  const copilotInstalled = extensions.getExtension('GitHub.copilot') !== undefined
-  if (copilotInstalled) {
-    const copilotEnabled = workspace.getConfiguration('chanh').get<boolean>('copilot.enabled', true)
-    void copilotConfig.update('inlineSuggest.enabled', copilotEnabled, true)
-
-    const copilotConfigListener = workspace.onDidChangeConfiguration((e) => {
-      if (e.affectsConfiguration('chanh.copilot.enabled')) {
-        const enabled = workspace.getConfiguration('chanh').get<boolean>('copilot.enabled', true)
-        void copilotConfig.update('inlineSuggest.enabled', enabled, true)
-      }
-    })
-    context.subscriptions.push(copilotConfigListener)
-  }
   binaryManager.checkForUpdates()
 }
 
