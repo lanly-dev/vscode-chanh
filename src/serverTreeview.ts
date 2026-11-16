@@ -80,6 +80,7 @@ const CHANH_SETTINGS_COPILOT = 'CHANH_SETTINGS_COPILOT'
 
 /** Configuration keys for the inline completion settings. */
 const CONFIG_COMPLETIONS_ENABLED = 'completions.enabled'
+const CONFIG_COMPLETIONS_MODEL = 'completions.model'
 const CONFIG_COPILOT_ENABLED = 'copilot.enabled'
 
 /**
@@ -386,19 +387,19 @@ export class ServerViewProvider implements TreeDataProvider<TreeItem>, Disposabl
   }
 
   /** Toggle Chanh inline completions (chanh.completions.enabled). */
-  toggleCompletions(): void {
+  async toggleCompletions(): Promise<void> {
     const config = workspace.getConfiguration('chanh')
     const enabled = config.get<boolean>(CONFIG_COMPLETIONS_ENABLED, false)
-    void config.update(CONFIG_COMPLETIONS_ENABLED, !enabled, true)
+    await config.update(CONFIG_COMPLETIONS_ENABLED, !enabled, true)
     this.refresh()
   }
 
   /** Toggle VS Code Copilot inline suggestions (chanh.copilot.enabled). */
-  toggleCopilot(): void {
+  async toggleCopilot(): Promise<void> {
     if (!this.isCopilotInstalled()) return
     const config = workspace.getConfiguration('chanh')
     const enabled = config.get<boolean>(CONFIG_COPILOT_ENABLED, true)
-    void config.update(CONFIG_COPILOT_ENABLED, !enabled, true)
+    await config.update(CONFIG_COPILOT_ENABLED, !enabled, true)
     this.refresh()
   }
 
@@ -921,33 +922,38 @@ export class ServerViewProvider implements TreeDataProvider<TreeItem>, Disposabl
 
     const config = workspace.getConfiguration('chanh')
     const completionsEnabled = config.get<boolean>(CONFIG_COMPLETIONS_ENABLED, false)
+    const completionsModel = config.get<string>(CONFIG_COMPLETIONS_MODEL, '')
+    const chatModel = config.get<string>('chatModel', '')
+    const modelLabel = completionsModel || chatModel || 'default (chat model)'
     const completionsItem = new TreeItem(`Inline Completions: ${completionsEnabled ? 'On' : 'Off'}`, None)
     completionsItem.id = 'chanh:settings:completions'
     completionsItem.contextValue = CHANH_SETTINGS_COMPLETIONS
-    completionsItem.command = {
-      command: 'chanh.ncp.toggleCompletions',
-      title: 'Chanh: Toggle Inline Completions'
-    }
+    completionsItem.command = { command: 'chanh.ncp.toggleCompletions', title: 'Chanh: Toggle Inline Completions' }
     completionsItem.iconPath = new ThemeIcon(completionsEnabled ? 'check' : 'circle-slash')
-    completionsItem.tooltip = 'Toggle Chanh ghost inline code completions from the active Lemonade server'
+    completionsItem.description = `model: ${modelLabel}`
     items.push(completionsItem)
 
-    const copilotEnabled = config.get<boolean>(CONFIG_COPILOT_ENABLED, true)
     const copilotInstalled = this.isCopilotInstalled()
-    let copilotItem: TreeItem
-    if (!copilotInstalled) {
-      copilotItem = new TreeItem(`Copilot Inline Completions: Not Installed`, None)
-      copilotItem.iconPath = new ThemeIcon('error')
-    } else {
-      copilotItem = new TreeItem(`Copilot Inline Completions: ${copilotEnabled ? 'On' : 'Off'}`, None)
-      copilotItem.command = {
-        command: 'chanh.ncp.toggleCopilot',
-        title: 'Chanh: Toggle Copilot Inline Completions'
-      }
-      copilotItem.iconPath = new ThemeIcon(copilotEnabled ? 'check' : 'circle-slash')
-    }
+    // VS Code Copilot agent status (editor.inlineSuggest.enabled) — read-only report
+    const editorConfig = workspace.getConfiguration('editor')
+    const copilotAgentEnabled = editorConfig.get<boolean>('inlineSuggest.enabled', false)
+
+    const copilotItem: TreeItem = copilotInstalled
+      ? new TreeItem(`Copilot Agent: ${copilotAgentEnabled ? 'Enabled' : 'Disabled'}`, None)
+      : new TreeItem(`Copilot Inline Completions: Not Installed`, None)
+
     copilotItem.id = 'chanh:settings:copilot'
     copilotItem.contextValue = CHANH_SETTINGS_COPILOT
+    copilotItem.command = undefined
+    copilotItem.iconPath = new ThemeIcon(
+      copilotInstalled
+        ? copilotAgentEnabled ? 'check' : 'circle-slash'
+        : 'error'
+    )
+    copilotItem.tooltip = copilotInstalled
+      ? `VS Code Copilot agent: ${copilotAgentEnabled ? 'enabled' : 'disabled'} (editor.inlineSuggest.enabled)`
+      : 'GitHub Copilot extension is not installed — install it to use Copilot inline completions'
+    copilotItem.description = copilotInstalled ? undefined : 'GitHub Copilot not installed'
     items.push(copilotItem)
 
     // System section - live CPU / GPU / RAM stats for this machine. Only shown
