@@ -83,13 +83,15 @@ const CONFIG_COMPLETIONS_ENABLED = 'completions.enabled'
 const CONFIG_COMPLETIONS_MODEL = 'completions.model'
 
 /**
- * Copilot's OWN ghost-text setting: the boolean `enableAutoCompletions` under
- * the `github.copilot.editor` section (default true). This — never
+ * Copilot's OWN ghost-text setting: the per-language map `github.copilot.enable`,
+ * whose `'*'` entry is the global ghost-text state — the exact entry Copilot's
+ * status-bar menu ("Ghost text suggestions" checkbox) flips. This — never
  * `editor.inlineSuggest.enabled`, which is VS Code's master switch for ALL
  * inline providers — is the source of truth for the Copilot settings row.
  */
-const COPILOT_CONFIG_SECTION = 'github.copilot.editor'
-const COPILOT_AUTO_COMPLETIONS_KEY = 'enableAutoCompletions'
+const COPILOT_CONFIG_SECTION = 'github.copilot'
+const COPILOT_ENABLE_KEY = 'enable'
+const COPILOT_GLOBAL_LANGUAGE = '*'
 
 /**
  * Sentinel sub-filter value selecting models that carry no sub-capability label
@@ -348,8 +350,8 @@ export class ServerViewProvider implements TreeDataProvider<TreeItem>, Disposabl
       workspace.onDidChangeConfiguration((e) => {
         if (e.affectsConfiguration('chanh.systemSampleInterval')) this.applySystemSampleInterval()
         // The Settings section reports Copilot's own toggle; repaint when it
-        // is flipped anywhere (VS Code's Inline Suggestions menu writes it too).
-        if (e.affectsConfiguration('github.copilot.editor.enableAutoCompletions')) this.refresh()
+        // is flipped anywhere (Copilot's status-bar menu writes it too).
+        if (e.affectsConfiguration('github.copilot.enable')) this.refresh()
       }),
       this._systemMonitor
     )
@@ -405,22 +407,30 @@ export class ServerViewProvider implements TreeDataProvider<TreeItem>, Disposabl
     this.refresh()
   }
 
-  /**
-   * Copilot's ghost-text state: the boolean
-   * `github.copilot.editor.enableAutoCompletions`, defaulting to enabled
-   * (Copilot's own default) when unset.
-   */
-  private copilotInlineState(): boolean {
+  /** Copilot's per-language enable map (`github.copilot.enable`), or {} when unset. */
+  private copilotEnableMap(): Record<string, boolean> {
     return workspace.getConfiguration(COPILOT_CONFIG_SECTION)
-      .get<boolean>(COPILOT_AUTO_COMPLETIONS_KEY, true)
+      .get<Record<string, boolean>>(COPILOT_ENABLE_KEY) ?? {}
   }
 
-  /** Toggle Copilot inline completions via Copilot's own boolean setting. */
+  /**
+   * Copilot's ghost-text state: the `'*'` entry of `github.copilot.enable` —
+   * the entry Copilot's status-bar "Ghost text suggestions" checkbox flips —
+   * defaulting to enabled (Copilot's own default) when unset.
+   */
+  private copilotInlineState(): boolean {
+    return this.copilotEnableMap()[COPILOT_GLOBAL_LANGUAGE] ?? true
+  }
+
+  /**
+   * Toggle Copilot ghost text by flipping the `'*'` entry of
+   * `github.copilot.enable`, preserving any per-language entries.
+   */
   async toggleCopilot(): Promise<void> {
     if (!this.isCopilotInstalled()) return
-    const enabled = this.copilotInlineState()
+    const map = this.copilotEnableMap()
     await workspace.getConfiguration(COPILOT_CONFIG_SECTION)
-      .update(COPILOT_AUTO_COMPLETIONS_KEY, !enabled, true)
+      .update(COPILOT_ENABLE_KEY, { ...map, [COPILOT_GLOBAL_LANGUAGE]: !this.copilotInlineState() }, true)
     this.refresh()
   }
 
@@ -960,10 +970,11 @@ export class ServerViewProvider implements TreeDataProvider<TreeItem>, Disposabl
     items.push(completionsItem)
 
     const copilotInstalled = this.isCopilotInstalled()
-    // Copilot's ghost-text state from Copilot's OWN setting (the boolean
-    // github.copilot.editor.enableAutoCompletions). editor.inlineSuggest.enabled
-    // is deliberately NOT read here: it is VS Code's master switch for ALL
-    // inline-suggestion providers, Chanh's ghost text included.
+    // Copilot's ghost-text state from Copilot's OWN setting (the '*' entry of
+    // github.copilot.enable — the one Copilot's status-bar menu flips).
+    // editor.inlineSuggest.enabled is deliberately NOT read here: it is VS
+    // Code's master switch for ALL inline-suggestion providers, Chanh's ghost
+    // text included.
     const copilotEnabled = this.copilotInlineState()
 
     const copilotItem: TreeItem = copilotInstalled
@@ -982,7 +993,7 @@ export class ServerViewProvider implements TreeDataProvider<TreeItem>, Disposabl
     )
     copilotItem.tooltip = copilotInstalled
       ? `Copilot inline completions: ${copilotEnabled ? 'on' : 'off'} ` +
-        `(github.copilot.editor.enableAutoCompletions)` +
+        `(github.copilot.enable, '*' entry — the same one Copilot's status-bar menu flips)` +
         `\nNote: editor.inlineSuggest.enabled is the VS Code master switch for ALL ` +
         `inline suggestions — it is not Copilot state. Click to toggle.`
       : 'GitHub Copilot Chat (built into VS Code) is not available — enable it to use Copilot inline completions'
