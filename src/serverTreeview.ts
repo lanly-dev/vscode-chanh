@@ -37,8 +37,8 @@ import type {
 
 /** Capability grouping order and display titles for the tree view. */
 const CAPABILITY_ORDER = [
-  'chat', 'image', 'transcription', 'embeddings', 'tts', 'omni', 'audio-generation',
-  'classification', 'reranking', '3d', 'custom'
+  'chat', 'image', 'transcription', 'embeddings', 'tts', 'omni', 'audio-generation', 'classification', 'reranking',
+  '3d', 'custom'
 ]
 
 const CAPABILITY_TITLES: Readonly<Record<string, string>> = {
@@ -712,8 +712,7 @@ export class ServerViewProvider implements TreeDataProvider<TreeItem>, Disposabl
     try {
       // `URL` keeps IPv6 brackets (`[::1]`), so strip them before comparing.
       const hostname = new URL(url).hostname.replace(/^\[|\]$/g, '')
-      return hostname === 'localhost' || hostname === '::1' ||
-        hostname === '127.0.0.1' || hostname.startsWith('127.')
+      return hostname === 'localhost' || hostname === '::1' || hostname === '127.0.0.1' || hostname.startsWith('127.')
     } catch {
       return true
     }
@@ -998,9 +997,9 @@ export class ServerViewProvider implements TreeDataProvider<TreeItem>, Disposabl
     )
     copilotItem.tooltip = copilotInstalled
       ? `Copilot inline completions: ${copilotEnabled ? 'on' : 'off'} ` +
-        `(github.copilot.enable, '*' entry — the same one Copilot's status-bar menu flips)` +
-        `\nNote: editor.inlineSuggest.enabled is the VS Code master switch for ALL ` +
-        `inline suggestions — it is not Copilot state. Click to toggle.`
+      `(github.copilot.enable, '*' entry — the same one Copilot's status-bar menu flips)` +
+      `\nNote: editor.inlineSuggest.enabled is the VS Code master switch for ALL ` +
+      `inline suggestions — it is not Copilot state. Click to toggle.`
       : 'GitHub Copilot Chat (built into VS Code) is not available — enable it to use Copilot inline completions'
     copilotItem.description = copilotInstalled ? undefined : 'Copilot Chat not available'
     items.push(copilotItem)
@@ -1289,12 +1288,7 @@ export class ServerViewProvider implements TreeDataProvider<TreeItem>, Disposabl
   }
 
   /** Build the leaf row for one usable backend, describing its state. */
-  private toBackendItem(
-    recipe: string,
-    name: string,
-    backend: SystemInfoBackend,
-    isRunning: boolean
-  ): TreeItem {
+  private toBackendItem(recipe: string, name: string, backend: SystemInfoBackend, isRunning: boolean): TreeItem {
     const installed = backend.state === 'installed'
     const item = new TreeItem(name, None) as TreeItem & { recipe: string, backend: string }
     // The uninstall command reads these off the tree item it is invoked on.
@@ -1414,10 +1408,9 @@ export class ServerViewProvider implements TreeDataProvider<TreeItem>, Disposabl
   private getLoadedModelChildren(): TreeItem[] {
     const server = this._activeServer
     if (!server?.health) return []
+
     const loadedModels = server.health.all_models_loaded
-
     const loadedIds = new Set(loadedModels.map((m) => m.model_name))
-
     const items: (TreeItem & { modelId: string })[] = loadedModels.map((model) =>
       this.buildLoadedModelItem(model, server)
     )
@@ -1504,12 +1497,12 @@ export class ServerViewProvider implements TreeDataProvider<TreeItem>, Disposabl
         // Commands (e.g. the inline cancel button) receive this item as the
         // argument, so it must carry the model id.
         item.modelId = download.modelId
-          // Inline cancel button so the user can abort the pull from the row.
-          // (Cast needed: the trimmed @types/vscode here omits TreeItem.buttons,
-          // but the runtime API supports it.)
-          ; (item as TreeItem & { buttons?: Array<{ command: string, tooltip?: string }> }).buttons = [
-            { command: 'chanh.cancelDownload', tooltip: 'Cancel download' }
-          ]
+        // Inline cancel button so the user can abort the pull from the row.
+        // (Cast needed: the trimmed @types/vscode here omits TreeItem.buttons,
+        // but the runtime API supports it.)
+        ; (item as TreeItem & { buttons?: Array<{ command: string, tooltip?: string }> }).buttons = [
+          { command: 'chanh.cancelDownload', tooltip: 'Cancel download' }
+        ]
         this._downloadRows.set(download.modelId, item)
       }
       this.applyDownloadProgress(item, download)
@@ -1529,9 +1522,7 @@ export class ServerViewProvider implements TreeDataProvider<TreeItem>, Disposabl
     // One decimal so the percentage visibly advances on every repaint; a whole
     // number only changes ~100 times across the entire download.
     if (download.pct >= 0) subtextParts.push(`${download.pct.toFixed(1)}%`)
-    if (hasBytes) {
-      subtextParts.push(formatByteProgress(download.written!, download.total!))
-    }
+    if (hasBytes) subtextParts.push(formatByteProgress(download.written!, download.total!))
     item.description = subtextParts.length > 0 ? subtextParts.join('  ') : download.message
   }
 
@@ -1585,10 +1576,7 @@ export class ServerViewProvider implements TreeDataProvider<TreeItem>, Disposabl
 
     // Server category keys map to the model label(s) that belong in that
     // category. chat is treated as llm; embeddings as embedding.
-    const categoryLabels: Record<string, string> = {
-      llm: 'chat',
-      embedding: 'embeddings'
-    }
+    const categoryLabels: Record<string, string> = { llm: 'chat', embedding: 'embeddings' }
     const theLabel = categoryLabels[category] ?? category
 
     // The server only reports pinned counts per category, not which specific
@@ -1608,11 +1596,11 @@ export class ServerViewProvider implements TreeDataProvider<TreeItem>, Disposabl
 
     return modelsInCategory.map((model) => {
       const item = new TreeItem(model.model_name, None) as TreeItem & { modelId: string }
-      item.modelId = model.model_name
+      const { model_name, is_busy, is_streaming } = model
+      item.modelId = model_name
       item.contextValue = 'CHANH_PINNED_MODEL'
-      item.description = model.is_busy ? 'busy' : 'idle'
-      item.tooltip =
-        `Model: ${model.model_name}\nCategory: ${category}\nBusy: ${model.is_busy}\nStreaming: ${model.is_streaming}`
+      item.description = is_busy ? 'busy' : 'idle'
+      item.tooltip = `Model: ${model_name}\nCategory: ${category}\nBusy: ${is_busy}\nStreaming: ${is_streaming}`
       return item
     })
   }
@@ -1815,9 +1803,7 @@ export class ServerViewProvider implements TreeDataProvider<TreeItem>, Disposabl
       // For each capability the collection claims, check if any loaded model
       // covers it. The loaded model's capability labels come from server.models.
       for (const cat of categories) {
-        const hasMatch = server.models.some(m =>
-          loadedIds.has(m.id) && ModelManager.capabilityFor(m, cat)
-        )
+        const hasMatch = server.models.some(m => loadedIds.has(m.id) && ModelManager.capabilityFor(m, cat))
         if (!hasMatch) return false
       }
       return true
@@ -1874,8 +1860,8 @@ export class ServerViewProvider implements TreeDataProvider<TreeItem>, Disposabl
         item.contextValue = subFilter
           ? 'CHANH_CAP_GROUP_FILTERED'
           : (subCount > 0 ? 'CHANH_CAP_GROUP' : 'CHANH_CAP_GROUP_NOSUB')
-          ; (item as TreeItem & { capability: string }).capability = category
-          ; (item as TreeItem & { downloadable: boolean }).downloadable = downloadable
+        ; (item as TreeItem & { capability: string }).capability = category
+        ; (item as TreeItem & { downloadable: boolean }).downloadable = downloadable
         // A number + "filter" reads the state without relying on the icon:
         // how many models match while filtered, or how many sub-capabilities
         // are available to filter by when none is active.
@@ -1919,9 +1905,7 @@ export class ServerViewProvider implements TreeDataProvider<TreeItem>, Disposabl
     // match the selected label, or the plain models with no sub-label when the
     // "General" option is active.
     const subFilter = this._capSubFilters.get(ServerViewProvider.subFilterKey(capability, downloadable))
-    if (subFilter) {
-      filtered = filtered.filter((m) => this.matchesSubFilter(m, subFilter))
-    }
+    if (subFilter) filtered = filtered.filter((m) => this.matchesSubFilter(m, subFilter))
 
     if (downloadable) return filtered.map((m) => this.toDownloadableItem(m))
 
