@@ -3,6 +3,7 @@ import {
   closeOpenMarkdownFence, contextBudget, estimateTokens, formatTurnFooter, outputTokenBudget, shouldShowTokenStats
 } from './utils'
 import { Logger } from './logger'
+import { buildReasoningConfigurationSchema, resolveReasoningEffort, resolveReasoningLevels } from './reasoningEffort'
 import { recordTokenUsage } from './tokenStatsLog'
 import { ServerStatus } from './interfaces'
 import { ModelManager } from './modelManager'
@@ -184,7 +185,13 @@ class ChanhLmcProvider implements vscode.LanguageModelChatProvider, vscode.Dispo
           this._onDidChange.fire()
         }
       }),
-      this.serverManager.onActiveServerChange(() => this._onDidChange.fire())
+      this.serverManager.onActiveServerChange(() => this._onDidChange.fire()),
+      vscode.workspace.onDidChangeConfiguration((e) => {
+        // The levels each model offers in the picker come from this
+        // setting, so the information the host cached is stale once it
+        // changes — the same reason the official extension refreshes.
+        if (e.affectsConfiguration('chanh.reasoningEfforts')) this._onDidChange.fire()
+      })
     )
   }
 
@@ -236,10 +243,15 @@ class ChanhLmcProvider implements vscode.LanguageModelChatProvider, vscode.Dispo
     // agent mode, while plain chat models stay available through @chanh.
     const chatModels = models.filter((m) => isToolCallingChatModel(m.labels))
     Logger.info('Loaded ' + chatModels.length + ' downloaded tool-calling chat models')
+    // The reasoning levels a model offers come from the user's map; read
+    // it once for the whole list rather than per model.
+    const effortsMap = vscode.workspace.getConfiguration('chanh')
+      .get<Record<string, string[]>>('reasoningEfforts') ?? {}
     return chatModels.map((m): vscode.LanguageModelChatInformation => {
       const contextWindow = m.context_length ?? m.max_context_window ?? 8192
       const { maxInput, maxOutput } = contextBudget(contextWindow)
       const vision = hasVisionLabel(m.labels)
+      const levels = resolveReasoningLevels(m.id, m.labels, effortsMap)
       return {
         id: m.id,
         name: m.id,
@@ -250,7 +262,12 @@ class ChanhLmcProvider implements vscode.LanguageModelChatProvider, vscode.Dispo
           `Context: ${contextWindow.toLocaleString()} tokens (${maxOutput.toLocaleString()} reserved for output)`,
         maxInputTokens: maxInput,
         maxOutputTokens: maxOutput,
-        capabilities: { toolCalling: true, imageInput: vision }
+        capabilities: { toolCalling: true, imageInput: vision },
+        // Proposed chatProvider API, not in the stable type surface:
+        // renders a Reasoning picker in the model's menu. Attached by
+        // spread — which the type checker does not excess-property check —
+        // the same way the official Lemonade extension attaches it.
+        ...(levels ? { configurationSchema: buildReasoningConfigurationSchema(levels) } : {})
       }
     })
   }
@@ -336,10 +353,26 @@ class ChanhLmcProvider implements vscode.LanguageModelChatProvider, vscode.Dispo
     const requireToolCall =
       options.toolMode === vscode.LanguageModelChatToolMode.Required && tools.length > 0
     const toolChoice = toolChoiceFor(requireToolCall, tools)
+    // Reasoning effort: the model menu's per-model picker value wins over
+    // the global `chanh.reasoningEffort` setting. `modelConfiguration` is
+    // part of the proposed chatProvider options, not the stable type
+    // surface, hence the cast — the official extension reads it the same way.
+    const modelConfiguration = (options as { modelConfiguration?: Record<string, unknown> }).modelConfiguration
+    const effort = resolveReasoningEffort(
+      modelConfiguration?.reasoningEffort,
+      vscode.workspace.getConfiguration('chanh').get<string>('reasoningEffort')
+    )
     // Implicit, not configured: this model already spent a whole turn's budget
     // thinking and delivered nothing (`thinkingWastedTurn`), so later turns stop
     // paying for a phase the host never receives.
-    const thinkingKwargs = chatTemplateKwargs(this.thinkingSkipped.has(model.id))
+    // Precedence: an explicit effort is the user's stated intent for the
+    // model, so it replaces the thinking-skip kwargs outright — the two are
+    // never sent together, as `enable_thinking: false` would contradict
+    // asking for a reasoning effort. With no explicit effort, the guard's
+    // behavior is unchanged.
+    const templateKwargs = effort
+      ? { reasoning_effort: effort }
+      : chatTemplateKwargs(this.thinkingSkipped.has(model.id))
 
     const abort = new AbortController()
     const cancel = token.onCancellationRequested(() => abort.abort())
@@ -390,7 +423,8 @@ class ChanhLmcProvider implements vscode.LanguageModelChatProvider, vscode.Dispo
           messages: base,
           max_tokens: this.outputTokenLimit(model, options),
           ...(tools.length > 0 ? { tools, tool_choice: toolChoice } : {}),
-          ...(thinkingKwargs ? { chat_template_kwargs: thinkingKwargs } : {})
+          ...(effort ? { reasoning_effort: effort } : {}),
+          ...(templateKwargs ? { chat_template_kwargs: templateKwargs } : {})
         },
         (text) => {
           markBusy()

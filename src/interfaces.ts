@@ -46,11 +46,22 @@ export interface ChatCompletionRequest {
    */
   tool_choice?: 'auto' | 'none' | 'required' | { type: 'function', function: { name: string } }
   /**
-   * llama.cpp extension, read by its Jinja chat templates: `enable_thinking:
-   * false` suppresses a reasoning model's chain of thought. A template that
-   * does not read the key ignores it, and other recipes ignore the object.
+   * Reasoning effort for reasoning models (`none`/`low`/`medium`/`high`),
+   * resolved from the model picker's per-model value or the
+   * `chanh.reasoningEffort` setting. Sent both as this top-level field and
+   * inside `chat_template_kwargs`, mirroring the official Lemonade
+   * extension. Omitted when no effort is configured.
    */
-  chat_template_kwargs?: { enable_thinking?: boolean }
+  reasoning_effort?: string
+  /**
+   * llama.cpp extension, read by its Jinja chat templates: `enable_thinking:
+   * false` suppresses a reasoning model's chain of thought, and
+   * `reasoning_effort` sets the template's reasoning effort. A template that
+   * does not read the key ignores it, and other recipes ignore the object.
+   * The provider never sends both keys at once: an explicit effort is the
+   * user's intent and replaces the thinking-skip heuristic.
+   */
+  chat_template_kwargs?: { enable_thinking?: boolean, reasoning_effort?: string }
   /**
    * Ask streaming backends to include the `usage` block on the final chunk
    * (required by e.g. vLLM; harmless elsewhere). The client sets this on
