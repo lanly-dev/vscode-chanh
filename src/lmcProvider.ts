@@ -171,6 +171,8 @@ class ChanhLmcProvider implements vscode.LanguageModelChatProvider, vscode.Dispo
    * and cleared with the token memo when the server restarts.
    */
   private readonly thinkingSkipped = new Set<string>()
+  /** Last successfully-fetched model list, so Chanh stays visible in the picker even when the server is down. */
+  private cachedModels: vscode.LanguageModelChatInformation[] = []
 
   constructor(private serverManager: ServerManager) {
     this.onDidChangeLanguageModelChatInformation = this._onDidChange.event
@@ -183,6 +185,10 @@ class ChanhLmcProvider implements vscode.LanguageModelChatProvider, vscode.Dispo
           this.noteTokenCountModel()
           this.thinkingSkipped.clear()
           this._onDidChange.fire()
+        } else {
+          // Server went down: keep showing cached models in the picker so
+          // Chanh doesn't disappear from the model list.
+          if (this.cachedModels.length > 0) this._onDidChange.fire()
         }
       }),
       this.serverManager.onActiveServerChange(() => this._onDidChange.fire()),
@@ -234,8 +240,12 @@ class ChanhLmcProvider implements vscode.LanguageModelChatProvider, vscode.Dispo
     try {
       models = await client.listModels()
     } catch (err) {
-      // Server down/unreachable: return empty so the picker shows "no models"
-      // instead of an error/retry state. It refreshes on next status change.
+      // Server down/unreachable: return cached models so Chanh stays visible
+      // in the picker instead of disappearing entirely.
+      if (this.cachedModels.length > 0) {
+        Logger.warn(`Could not list models for picker, returning cached: ${err}`)
+        return this.cachedModels
+      }
       Logger.warn(`Could not list models for picker: ${err}`)
       return []
     }
@@ -243,11 +253,11 @@ class ChanhLmcProvider implements vscode.LanguageModelChatProvider, vscode.Dispo
     // agent mode, while plain chat models stay available through @chanh.
     const chatModels = models.filter((m) => isToolCallingChatModel(m.labels))
     Logger.info('Loaded ' + chatModels.length + ' downloaded tool-calling chat models')
-    // The reasoning levels a model offers come from the user's map; read
-    // it once for the whole list rather than per model.
+    // The reasoning levels each model offers come from this setting.
     const effortsMap = vscode.workspace.getConfiguration('chanh')
       .get<Record<string, string[]>>('reasoningEfforts') ?? {}
-    return chatModels.map((m): vscode.LanguageModelChatInformation => {
+    // Cache the successful list so it survives server restarts/down-time.
+    this.cachedModels = chatModels.map((m): vscode.LanguageModelChatInformation => {
       const contextWindow = m.context_length ?? m.max_context_window ?? 8192
       const { maxInput, maxOutput } = contextBudget(contextWindow)
       const vision = hasVisionLabel(m.labels)
@@ -275,6 +285,7 @@ class ChanhLmcProvider implements vscode.LanguageModelChatProvider, vscode.Dispo
         ...(levels ? { configurationSchema: buildReasoningConfigurationSchema(levels) } : {})
       }
     })
+    return this.cachedModels
   }
 
   async provideLanguageModelChatResponse(
