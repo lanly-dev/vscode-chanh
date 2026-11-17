@@ -251,7 +251,7 @@ class ChanhLmcProvider implements vscode.LanguageModelChatProvider, vscode.Dispo
       const contextWindow = m.context_length ?? m.max_context_window ?? 8192
       const { maxInput, maxOutput } = contextBudget(contextWindow)
       const vision = hasVisionLabel(m.labels)
-      const levels = resolveReasoningLevels(m.id, m.labels, effortsMap)
+      const levels = resolveReasoningLevels(m.id, m.labels, effortsMap, m.capabilities)
       return {
         id: m.id,
         name: m.id,

@@ -23,7 +23,7 @@ function loadHelpers() {
   }
 }
 
-const { resolveReasoningLevels, buildReasoningConfigurationSchema, resolveReasoningEffort } = loadHelpers()
+const { resolveReasoningLevels, buildReasoningConfigurationSchema, resolveReasoningEffort, hasReasoningLabel } = loadHelpers()
 
 const DEFAULT_MAP = { '*': ['none', 'low', 'medium', 'high'] }
 
@@ -60,6 +60,50 @@ test('resolveReasoningLevels: * fallback does not apply without the reasoning la
 
 test('resolveReasoningLevels: the reasoning label match is case-insensitive', () => {
   assert.deepEqual(resolveReasoningLevels('SomeModel', ['Reasoning'], DEFAULT_MAP), DEFAULT_MAP['*'])
+})
+
+test('resolveReasoningLevels: * fallback applies for the vendor alias labels', () => {
+  for (const alias of ['thinking', 'reasoner', 'mtp']) {
+    assert.deepEqual(
+      resolveReasoningLevels('SomeModel-GGUF', ['chat', alias], DEFAULT_MAP),
+      DEFAULT_MAP['*'],
+      `alias ${alias} should open the * fallback`
+    )
+  }
+})
+
+test('resolveReasoningLevels: alias matching trims whitespace and ignores case', () => {
+  assert.deepEqual(resolveReasoningLevels('SomeModel', [' Thinking '], DEFAULT_MAP), DEFAULT_MAP['*'])
+})
+
+test('resolveReasoningLevels: * fallback applies when only capabilities declare reasoning', () => {
+  assert.deepEqual(
+    resolveReasoningLevels('SomeModel-GGUF', ['chat'], DEFAULT_MAP, ['reasoning']),
+    DEFAULT_MAP['*']
+  )
+  assert.deepEqual(
+    resolveReasoningLevels('SomeModel-GGUF', ['chat'], DEFAULT_MAP, ['thinking']),
+    DEFAULT_MAP['*']
+  )
+})
+
+test('resolveReasoningLevels: near-miss tags do not count as reasoning', () => {
+  assert.equal(resolveReasoningLevels('SomeModel', ['reasoningfast'], DEFAULT_MAP), undefined)
+  assert.equal(resolveReasoningLevels('SomeModel', ['non-reasoning'], DEFAULT_MAP), undefined)
+  assert.equal(resolveReasoningLevels('SomeModel', ['chat'], DEFAULT_MAP, ['vision']), undefined)
+})
+
+test('resolveReasoningLevels: a specific key still wins when capabilities declare reasoning', () => {
+  const map = { '*': ['none'], qwen: ['low'] }
+  assert.deepEqual(resolveReasoningLevels('Qwen3-GGUF', ['chat'], map, ['reasoning']), ['low'])
+})
+
+test('hasReasoningLabel: labels and capabilities are both sources', () => {
+  assert.equal(hasReasoningLabel(['reasoning']), true)
+  assert.equal(hasReasoningLabel(undefined, ['mtp']), true)
+  assert.equal(hasReasoningLabel(['chat'], ['vision']), false)
+  assert.equal(hasReasoningLabel(undefined), false)
+  assert.equal(hasReasoningLabel([], []), false)
 })
 
 test('resolveReasoningLevels: an empty list for a matched key disables the picker', () => {

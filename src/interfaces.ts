@@ -190,6 +190,8 @@ export interface LemonadeModel {
   owned_by?: string
   /** Category labels of the model (e.g. ["transcription"], ["image"], ["chat"]). */
   labels?: string[]
+  /** Capability strings declared by the server, separate from `labels`. */
+  capabilities?: string[]
   /** Human-friendly primary label derived from `labels`. */
   label?: string
   /** Machine-readable model type from the server. */

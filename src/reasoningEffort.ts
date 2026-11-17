@@ -5,9 +5,10 @@
  * Node (see test/reasoningEffort.test.cjs). The LM provider feeds these
  * helpers the `chanh.reasoningEfforts` map, the model's server labels, and
  * the picker's per-model value; they decide which effort levels a model
- * offers and which effort a request sends. The semantics mirror the
- * official Lemonade extension, so the two providers behave alike against
- * the same server.
+ * offers and which effort a request sends. The level-resolution semantics
+ * mirror the official Lemonade extension, so the two providers behave
+ * alike against the same server; the reasoning-model detection follows
+ * the Lemonade app's own capability-tag rules (see hasReasoningLabel).
  */
 
 /** Picker labels for the well-known effort levels. */
@@ -19,12 +20,28 @@ export const REASONING_LEVEL_LABELS: Record<string, string> = {
 }
 
 /**
- * Whether the model's server labels mark it as a reasoning model. Label
- * matching elsewhere in this codebase is case-insensitive (see
- * `ModelManager.capabilityFor`), so this check is too.
+ * The tag spellings the Lemonade app itself accepts for its "reasoning"
+ * capability tag (its CAPABILITY_TAG_ALIASES): a model is a reasoning
+ * model when any of these appears as a whole tag in its server labels or
+ * its server-declared capabilities.
  */
-export function hasReasoningLabel(labels: readonly string[] | undefined): boolean {
-  return (labels ?? []).some((l) => l.toLowerCase() === 'reasoning')
+export const REASONING_TAG_ALIASES: readonly string[] = ['reasoning', 'thinking', 'reasoner', 'mtp']
+
+/**
+ * Whether the model is a reasoning model, by the vendor's own rules: the
+ * Lemonade app derives its reasoning tag from the model's labels *and*
+ * its declared capabilities, matching whole tags case-insensitively
+ * against {@link REASONING_TAG_ALIASES}. The original version of this
+ * check looked at labels only and accepted only the exact tag
+ * `reasoning`, which missed models the server marks with another alias
+ * or only in capabilities — their picker never appeared.
+ */
+export function hasReasoningLabel(
+  labels: readonly string[] | undefined,
+  capabilities?: readonly string[]
+): boolean {
+  const tags = [...(labels ?? []), ...(capabilities ?? [])].map((l) => l.toLowerCase().trim())
+  return tags.some((t) => REASONING_TAG_ALIASES.includes(t))
 }
 
 /**
@@ -40,11 +57,13 @@ export function hasReasoningLabel(labels: readonly string[] | undefined): boolea
 export function resolveReasoningLevels(
   modelId: string,
   labels: readonly string[] | undefined,
-  effortsMap: Readonly<Record<string, readonly string[]>>
+  effortsMap: Readonly<Record<string, readonly string[]>>,
+  capabilities?: readonly string[]
 ): string[] | undefined {
   const id = modelId.toLowerCase()
   const key = Object.keys(effortsMap).find((k) => k !== '*' && id.includes(k.toLowerCase()))
-  const levels = key !== undefined ? effortsMap[key] : hasReasoningLabel(labels) ? effortsMap['*'] : undefined
+  const gated = hasReasoningLabel(labels, capabilities) ? effortsMap['*'] : undefined
+  const levels = key !== undefined ? effortsMap[key] : gated
   return Array.isArray(levels) && levels.length > 0 ? [...levels] : undefined
 }
 
