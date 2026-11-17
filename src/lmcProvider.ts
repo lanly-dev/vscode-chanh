@@ -254,7 +254,12 @@ class ChanhLmcProvider implements vscode.LanguageModelChatProvider, vscode.Dispo
       const levels = resolveReasoningLevels(m.id, m.labels, effortsMap, m.capabilities)
       return {
         id: m.id,
-        name: m.id,
+        // The lemon prefix marks the row as Chanh's in flat model lists,
+        // where the same model also appears under other vendors (e.g. the
+        // official Lemonade extension) with an identical bare name. The id
+        // stays the bare model id: selection persistence and requests key
+        // on it, not on the display name.
+        name: `🍋 ${m.id}`,
         family: m.id,
         version: '1.0.0',
         detail: vision ? 'vision' : undefined,
