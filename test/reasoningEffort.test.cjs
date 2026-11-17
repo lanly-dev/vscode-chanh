@@ -23,7 +23,9 @@ function loadHelpers() {
   }
 }
 
-const { resolveReasoningLevels, buildReasoningConfigurationSchema, resolveReasoningEffort, hasReasoningLabel } = loadHelpers()
+const {
+  resolveReasoningLevels, buildReasoningConfigurationSchema, resolveReasoningEffort, hasReasoningLabel
+} = loadHelpers()
 
 const DEFAULT_MAP = { '*': ['none', 'low', 'medium', 'high'] }
 
