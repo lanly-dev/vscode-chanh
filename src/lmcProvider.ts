@@ -171,8 +171,10 @@ class ChanhLmcProvider implements vscode.LanguageModelChatProvider, vscode.Dispo
    * and cleared with the token memo when the server restarts.
    */
   private readonly thinkingSkipped = new Set<string>()
-  /** Last successfully-fetched model list, so Chanh stays visible in the picker even when the server is down. */
-  private cachedModels: vscode.LanguageModelChatInformation[] = []
+  /** How long a picker query may wait for the server's list to settle before answering with the not-ready entry. */
+  private static readonly MODEL_LIST_WAIT_MS = 6000
+  /** Delay between model-list attempts while waiting for the server to settle. */
+  private static readonly MODEL_LIST_POLL_MS = 400
 
   constructor(private serverManager: ServerManager) {
     this.onDidChangeLanguageModelChatInformation = this._onDidChange.event
@@ -185,10 +187,6 @@ class ChanhLmcProvider implements vscode.LanguageModelChatProvider, vscode.Dispo
           this.thinkingSkipped.clear()
           // Tell VS Code to re-poll: fresh model list is available.
           this._onDidChange.fire()
-        } else {
-          // Server went down: keep showing cached models in the picker so
-          // Chanh doesn't disappear from the model list.
-          if (this.cachedModels.length > 0) this._onDidChange.fire()
         }
       }),
       this.serverManager.onActiveServerChange(() => this._onDidChange.fire()),
@@ -233,43 +231,51 @@ class ChanhLmcProvider implements vscode.LanguageModelChatProvider, vscode.Dispo
 
   async provideLanguageModelChatInformation(
     _options: vscode.PrepareLanguageModelChatModelOptions,
-    _token: vscode.CancellationToken
+    token: vscode.CancellationToken
   ): Promise<vscode.LanguageModelChatInformation[]> {
+    // Answer with a promise that only settles once the list is trustworthy.
+    // While the server is starting (or its per-model labels are still
+    // settling) an immediate answer can be a partial list, and VS Code
+    // treats the latest answer as final — a partial one makes picker
+    // entries, and the selected model, vanish. So poll briefly instead of
+    // answering early. When the server is decisively down (STOPPED/ERROR),
+    // the query is cancelled, or the wait budget runs out, answer with the
+    // not-ready entry so Chanh stays visible in the picker.
+    const deadline = Date.now() + ChanhLmcProvider.MODEL_LIST_WAIT_MS
+    for (;;) {
+      const infos = await this.fetchModelInfos()
+      if (infos) return infos
+      const status = this.serverManager.status
+      const mayStillSettle = status === ServerStatus.STARTING || status === ServerStatus.RUNNING
+      if (!mayStillSettle || token.isCancellationRequested || Date.now() >= deadline) break
+      await new Promise((resolve) => setTimeout(resolve, ChanhLmcProvider.MODEL_LIST_POLL_MS))
+    }
+    return [this.notReadyModel()]
+  }
+
+  /**
+   * One attempt at the picker list: the mapped model infos when the server
+   * answered with at least one tool-calling chat model, or undefined when
+   * the server is unreachable or its list has not settled yet.
+   */
+  private async fetchModelInfos(): Promise<vscode.LanguageModelChatInformation[] | undefined> {
     const client = this.serverManager.client
     let models: Awaited<ReturnType<typeof client.listModels>>
     try {
       models = await client.listModels()
     } catch (err) {
-      // Server down/unreachable: return cached models so Chanh stays visible
-      // in the picker instead of disappearing entirely.
-      if (this.cachedModels.length > 0) {
-        Logger.warn(`Could not list models for picker, returning cached: ${err}`)
-        return this.cachedModels
-      }
-      // No cache yet: show a not-ready entry so Chanh is still visible.
-      return [this.notReadyModel()]
+      Logger.warn(`Could not list models for picker: ${err}`)
+      return undefined
     }
     // Only chat models with tool-calling support are listed: the picker serves
     // agent mode, while plain chat models stay available through @chanh.
     const chatModels = models.filter((m) => isToolCallingChatModel(m.labels))
+    if (chatModels.length === 0) return undefined
     Logger.info('Loaded ' + chatModels.length + ' downloaded tool-calling chat models')
-    if (chatModels.length === 0) {
-      // A successful-but-empty list during server startup (labels not yet
-      // augmented, scan still settling) must not wipe a known-good list:
-      // fall back to the cache, same as the error path above. The
-      // placeholder is only for when nothing good has ever been seen.
-      if (this.cachedModels.length > 0) {
-        Logger.warn('Model list returned no tool-calling chat models, returning cached')
-        return this.cachedModels
-      }
-      // No cache yet: show a not-ready entry so Chanh is still visible.
-      return [this.notReadyModel()]
-    }
     // The reasoning levels each model offers come from this setting.
     const effortsMap = vscode.workspace.getConfiguration('chanh')
       .get<Record<string, string[]>>('reasoningEfforts') ?? {}
-    // Cache the successful list so it survives server restarts/down-time.
-    this.cachedModels = chatModels.map((m): vscode.LanguageModelChatInformation => {
+    return chatModels.map((m): vscode.LanguageModelChatInformation => {
       const contextWindow = m.context_length ?? m.max_context_window ?? 8192
       const { maxInput, maxOutput } = contextBudget(contextWindow)
       const vision = hasVisionLabel(m.labels)
@@ -297,7 +303,6 @@ class ChanhLmcProvider implements vscode.LanguageModelChatProvider, vscode.Dispo
         ...(levels ? { configurationSchema: buildReasoningConfigurationSchema(levels) } : {})
       }
     })
-    return this.cachedModels
   }
 
   /** Placeholder model entry shown when Chanh is installed but not ready
