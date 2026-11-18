@@ -180,10 +180,10 @@ class ChanhLmcProvider implements vscode.LanguageModelChatProvider, vscode.Dispo
       this.serverManager.onStatusChange((s) => {
         if (s === ServerStatus.RUNNING) {
           // A restart (or a reconnect to another server) discards the loaded
-          // set, so no memoised count is trustworthy any more, and what we
-          // learned about one server's models says nothing about the next.
+          // set, so no memoised count is trustworthy any more.
           this.noteTokenCountModel()
           this.thinkingSkipped.clear()
+          // Tell VS Code to re-poll: fresh model list is available.
           this._onDidChange.fire()
         } else {
           // Server went down: keep showing cached models in the picker so
@@ -246,13 +246,18 @@ class ChanhLmcProvider implements vscode.LanguageModelChatProvider, vscode.Dispo
         Logger.warn(`Could not list models for picker, returning cached: ${err}`)
         return this.cachedModels
       }
-      Logger.warn(`Could not list models for picker: ${err}`)
-      return []
+      // No cache yet: show a not-ready entry so Chanh is still visible.
+      return [this.notReadyModel()]
     }
     // Only chat models with tool-calling support are listed: the picker serves
     // agent mode, while plain chat models stay available through @chanh.
     const chatModels = models.filter((m) => isToolCallingChatModel(m.labels))
     Logger.info('Loaded ' + chatModels.length + ' downloaded tool-calling chat models')
+    // If no chat-capable models are available, show a not-ready entry so Chanh
+    // stays visible in the picker instead of disappearing.
+    if (chatModels.length === 0) {
+      return [this.notReadyModel()]
+    }
     // The reasoning levels each model offers come from this setting.
     const effortsMap = vscode.workspace.getConfiguration('chanh')
       .get<Record<string, string[]>>('reasoningEfforts') ?? {}
@@ -288,6 +293,27 @@ class ChanhLmcProvider implements vscode.LanguageModelChatProvider, vscode.Dispo
     return this.cachedModels
   }
 
+  /** Placeholder model entry shown when Chanh is installed but not ready
+   * (no server running or no tool-calling chat models loaded). Keeps Chanh
+   * visible in the model picker instead of disappearing, and guides the user
+   * on what to do next. */
+  private notReadyModel(): vscode.LanguageModelChatInformation {
+    const serverRunning = this.serverManager.status === ServerStatus.RUNNING
+    return {
+      id: 'chanh:not-ready',
+      name: '🍋 Chanh (server not running)',
+      family: 'chanh',
+      version: '1.0.0',
+      detail: serverRunning ? 'no tool-calling chat models loaded' : 'start Lemonade server',
+      tooltip: serverRunning
+        ? 'Load a chat-capable model with tool-calling support in the Chanh sidebar, then select it here.'
+        : 'Start the Lemonade server from the Chanh sidebar, load a model, then select it here.',
+      maxInputTokens: 4096,
+      maxOutputTokens: 2048,
+      capabilities: { toolCalling: false, imageInput: false },
+    }
+  }
+
   async provideLanguageModelChatResponse(
     model: vscode.LanguageModelChatInformation,
     messages: readonly vscode.LanguageModelChatRequestMessage[],
@@ -295,6 +321,17 @@ class ChanhLmcProvider implements vscode.LanguageModelChatProvider, vscode.Dispo
     progress: vscode.Progress<vscode.LanguageModelResponsePart>,
     token: vscode.CancellationToken
   ): Promise<void> {
+    // Guard against the not-ready placeholder: user selected "Chanh (server
+    // not running)" — explain what to do instead of calling the server.
+    if (model.id === 'chanh:not-ready') {
+      const serverRunning = this.serverManager.status === ServerStatus.RUNNING
+      const message = serverRunning
+        ? 'Chanh: No tool-calling chat models loaded. Load one in the Chanh sidebar, then select it here.'
+        : 'Chanh: Lemonade server is not running. Start it from the Chanh sidebar, load a model, then select it here.'
+      void vscode.window.showErrorMessage(message)
+      return
+    }
+
     if (!await this.serverManager.ensureRunning()) return
     const client = this.serverManager.client
     try {
