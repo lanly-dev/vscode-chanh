@@ -253,9 +253,16 @@ class ChanhLmcProvider implements vscode.LanguageModelChatProvider, vscode.Dispo
     // agent mode, while plain chat models stay available through @chanh.
     const chatModels = models.filter((m) => isToolCallingChatModel(m.labels))
     Logger.info('Loaded ' + chatModels.length + ' downloaded tool-calling chat models')
-    // If no chat-capable models are available, show a not-ready entry so Chanh
-    // stays visible in the picker instead of disappearing.
     if (chatModels.length === 0) {
+      // A successful-but-empty list during server startup (labels not yet
+      // augmented, scan still settling) must not wipe a known-good list:
+      // fall back to the cache, same as the error path above. The
+      // placeholder is only for when nothing good has ever been seen.
+      if (this.cachedModels.length > 0) {
+        Logger.warn('Model list returned no tool-calling chat models, returning cached')
+        return this.cachedModels
+      }
+      // No cache yet: show a not-ready entry so Chanh is still visible.
       return [this.notReadyModel()]
     }
     // The reasoning levels each model offers come from this setting.
