@@ -238,16 +238,16 @@ class ChanhLmcProvider implements vscode.LanguageModelChatProvider, vscode.Dispo
     // settling) an immediate answer can be a partial list, and VS Code
     // treats the latest answer as final — a partial one makes picker
     // entries, and the selected model, vanish. So poll briefly instead of
-    // answering early. When the server is decisively down (STOPPED/ERROR),
-    // the query is cancelled, or the wait budget runs out, answer with the
-    // not-ready entry so Chanh stays visible in the picker.
+    // answering early. When the query is cancelled or the wait budget runs
+    // out, answer with the not-ready entry so Chanh stays visible in the
+    // picker. The server's reported status is deliberately not consulted:
+    // at startup it still reads STOPPED while the probe is in flight, even
+    // with a healthy server behind it.
     const deadline = Date.now() + ChanhLmcProvider.MODEL_LIST_WAIT_MS
     for (;;) {
       const infos = await this.fetchModelInfos()
       if (infos) return infos
-      const status = this.serverManager.status
-      const mayStillSettle = status === ServerStatus.STARTING || status === ServerStatus.RUNNING
-      if (!mayStillSettle || token.isCancellationRequested || Date.now() >= deadline) break
+      if (token.isCancellationRequested || Date.now() >= deadline) break
       await new Promise((resolve) => setTimeout(resolve, ChanhLmcProvider.MODEL_LIST_POLL_MS))
     }
     return [this.notReadyModel()]
@@ -259,10 +259,11 @@ class ChanhLmcProvider implements vscode.LanguageModelChatProvider, vscode.Dispo
    * the server is unreachable or its list has not settled yet.
    */
   private async fetchModelInfos(): Promise<vscode.LanguageModelChatInformation[] | undefined> {
-    const client = this.serverManager.client
-    let models: Awaited<ReturnType<typeof client.listModels>>
+    let models: Awaited<ReturnType<ServerManager['client']['listModels']>>
     try {
-      models = await client.listModels()
+      // The client getter throws while the manager is still initializing;
+      // that is just another not-ready answer, not a provider failure.
+      models = await this.serverManager.client.listModels()
     } catch (err) {
       Logger.warn(`Could not list models for picker: ${err}`)
       return undefined
