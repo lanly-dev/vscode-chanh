@@ -33,6 +33,11 @@
   "activationEvents": [
     "onStartupFinished"
   ],
+  "capabilities": {
+    "agentsWindow": {
+      "supported": true
+    }
+  },
   "main": "./dist/extension.js",
   "contributes": {
     "viewsContainers": {
