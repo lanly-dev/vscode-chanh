@@ -8,7 +8,7 @@
     "url": "https://github.com/sponsors/lanly-dev"
   },
   "engines": {
-    "vscode": "^1.140.0"
+    "vscode": "^1.107.0"
   },
   "categories": [
     "AI",
@@ -33,6 +33,11 @@
   "activationEvents": [
     "onStartupFinished"
   ],
+  "capabilities": {
+    "agentsWindow": {
+      "supported": true
+    }
+  },
   "main": "./dist/extension.js",
   "contributes": {
     "viewsContainers": {
@@ -485,6 +490,36 @@
           "type": "string",
           "default": "",
           "description": "Model to use for inline completions. Leave empty to use the chat model (`chanh.chatModel`), or the currently loaded chat model when no chat model is set. The model is never loaded automatically — it must already be loaded on the server. Small coder models work best."
+        },
+        "chanh.reasoningEffort": {
+          "type": "string",
+          "enum": [
+            "",
+            "none",
+            "low",
+            "medium",
+            "high"
+          ],
+          "default": "",
+          "description": "Reasoning effort sent to the server as `reasoning_effort` for models used through the native model picker. Leave empty to use the server default. A per-model Reasoning picker choice (see `chanh.reasoningEfforts`) overrides this."
+        },
+        "chanh.reasoningEfforts": {
+          "type": "object",
+          "default": {
+            "*": [
+              "none",
+              "low",
+              "medium",
+              "high"
+            ]
+          },
+          "additionalProperties": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "description": "Reasoning effort levels offered in the model picker, keyed by a case-insensitive substring of the model id; the `*` key applies to models the server labels `reasoning`. An empty array hides the picker for matching models."
         }
       }
     },
@@ -665,7 +700,7 @@
   "devDependencies": {
     "@stylistic/eslint-plugin": "^6.0.1",
     "@types/node": "26.x",
-    "@types/vscode": "^1.146.0",
+    "@types/vscode": "^1.107.0",
     "esbuild": "^0.28.2",
     "eslint": "^10.15.0",
     "npm-run-all": "^4.1.5",

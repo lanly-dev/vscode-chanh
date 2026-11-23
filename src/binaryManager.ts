@@ -386,6 +386,7 @@ export class BinaryManager {
 
   /** Recursively merge sourceDir into targetDir. */
   private mergeDirectory(sourceDir: string, targetDir: string): void {
+    if (!fs.existsSync(sourceDir)) return
     fs.mkdirSync(targetDir, { recursive: true })
     const entries = fs.readdirSync(sourceDir, { withFileTypes: true })
     for (const entry of entries) {
@@ -403,6 +404,9 @@ export class BinaryManager {
 
   /** Recursively search for a file by name. */
   private findFile(dir: string, fileName: string): string | null {
+    if (!fs.existsSync(dir)) {
+      return null
+    }
     try {
       const entries = fs.readdirSync(dir, { withFileTypes: true })
       for (const entry of entries) {

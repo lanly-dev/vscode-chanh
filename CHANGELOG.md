@@ -9,6 +9,7 @@ Check [Keep a Changelog](https://keepachangelog.com/) for recommendations on how
 - Effort level
 - Explore and add functionality for different types of models, e.g. image
 - Filter model name
+- Fixed duplicated chanh's info output
 - Generate commit message
 - Green icon for lime
 - Internal commands

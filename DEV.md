@@ -173,6 +173,64 @@ The retired estimate was wrong in either direction depending on the content:
 | English prose | 119 | 30 | 23 | +30% |
 | JSON schema | 77 | 20 | 18 | +11% |
 | TypeScript | 64 | 16 | 12 | +33% |
+
+## LLM Model Provider — Chanh visible in model picker (2026-10-28)
+
+### Problem
+
+VS Code's native language model picker (`@` → model selection) only shows providers
+whose `provideLanguageModelChatInformation()` returns a **non-empty** array. When
+Chanh's Lemonade server was down, or no tool-calling chat models were loaded, the
+provider returned `[]` — causing Chanh to vanish from the picker entirely.
+
+### Fix
+
+`src/lmcProvider.ts` now **never returns `[]`**. It always returns at least one
+entry, following the same pattern Ollama and Azure AI Foundry use:
+
+| Scenario | Return value | Result in picker |
+|----------|-------------|------------------|
+| Server running + tool-calling models installed | Real model list | `🍋 model-name` entries |
+| Server down, had previous cache | Cached models | Same entries (stays visible) |
+| First run, server down / no cache | `[notReadyModel()]` | `🍋 Chanh (server not running)` |
+| Server running, no tool-calling models | `[notReadyModel()]` | `🍋 Chanh (server not running)` |
+
+### Key changes
+
+1. **`cachedModels` field** — Stores the last successfully-fetched model list so
+   Chanh stays visible even when the server is unreachable.
+
+2. **`notReadyModel()`** — Placeholder entry with valid token values
+   (`maxInputTokens: 4096`, `maxOutputTokens: 2048`) and actionable tooltip.
+   Zero token values cause VS Code to reject entries.
+
+3. **`provideLanguageModelChatResponse()` guard** — If a user selects the
+   `chanh:not-ready` placeholder, show an error dialog instead of calling the
+   server.
+
+4. **`listModels()` hits `/v1/models`** — Shows **installed/downloaded models**,
+   not just models currently loaded in server memory (`/v1/health`). Matches
+   Ollama / Azure AI Foundry behavior.
+
+5. **`_onDidChange.fire()` on state transitions only** — Fires on server
+   RUNNING/STOPPED and `chanh.reasoningEfforts` config change, not on every
+   poll. Avoids flicker from excessive re-polling.
+
+### Files modified
+
+- `src/lmcProvider.ts` — cachedModels, notReadyModel, response guard
+- `src/serverTreeview.ts` — Removed dead Copilot toggle code; Copilot is now read-only status report
+- `src/extension.ts` — Removed `chanh.internal.toggleCopilot` registration
+- `package.json` — Removed `chanh.ncp.toggleCopilot` command; added `chanh.copilot.enabled` setting
+
+### Testing checklist
+
+1. Start Lemonade server, load a tool-calling chat model → Chanh appears in `@` picker
+2. Stop server → Chanh **still** appears (cached models)
+3. First run with no server → Chanh appears as "not ready" placeholder
+4. Select "not ready" entry → error dialog, not crash
+5. Reload VS Code window (`Developer: Reload Window`) after extension changes
+6. Check Chanh output channel (`Ctrl+Shift+P` → `Channels` → `Chanh`) for errors
 | Windows path | 53 | 14 | 19 | -26% |
 | Thai | 22 | 6 | 14 | -57% |
 
