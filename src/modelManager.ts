@@ -995,6 +995,16 @@ export class ModelManager {
   }
 
   /**
+   * Ask the native provider to re-read the server's model list. The `@chanh`
+   * participant loads models through the same client as this tree, so a model
+   * it just loaded can be the first tool-calling chat model the picker would
+   * show; without this it keeps the not-ready entry until a status change.
+   */
+  refreshNativePicker(): void {
+    this.lmcProvider?.refresh()
+  }
+
+  /**
    * Select an active model for chat: prompt for a chat-capable model, load it,
    * and hand it to the chat participant.
    */

@@ -1,6 +1,7 @@
 ﻿.gitignore
 **/*.map
 **/*.ts
+*.vsix
 DEV.md
 esbuild.js
 eslint.config.mjs

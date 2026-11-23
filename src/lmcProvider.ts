@@ -55,6 +55,18 @@ function hasVisionLabel(labels: string[] | undefined): boolean {
 }
 
 /**
+ * Whether the running host is Microsoft's VS Code build (stable or Insiders).
+ * The provider's proposed `chatProvider` fields — currently the per-model
+ * `configurationSchema` — are only meaningful to that host, and they are
+ * attached by object spread rather than through the typed surface. Forks and
+ * other variants mint their own API surface, so they get only the stable
+ * fields; `engines.vscode` is 1.107 so those variants stay installable.
+ */
+function isMicrosoftVSCode(): boolean {
+  return (vscode.env.appName ?? '').startsWith('Visual Studio Code')
+}
+
+/**
  * The `chat_template_kwargs` a request should carry, or `undefined` for none.
  * `enable_thinking: false` is llama.cpp's switch for suppressing a chain of
  * thought, which the host never sees (1.138 exposes no thinking part), so the
@@ -79,6 +91,41 @@ function thinkingWastedTurn(stats: ChatStreamStats, delivered: boolean): boolean
 function previewText(text: string, limit = 200): string {
   return text.length <= limit ? text : `${text.slice(0, limit)}... (${text.length} chars total)`
 }
+
+/**
+ * The prefix that makes a picker id unique to Chanh. The host keys promoted
+ * picker entries by a model's bare `metadata.id` as well as by its full
+ * identifier, so when a second provider serves the same id (the official
+ * Lemonade extension lists identical model ids) every model with that id is
+ * dropped from "Other Models" — still present in Manage Language Models, but
+ * absent from the picker and from its search (microsoft/vscode#312908).
+ * Namespacing the id keeps that filter from ever matching Chanh's entries;
+ * `wireModelId()` recovers the bare id the server knows.
+ */
+const PICKER_ID_PREFIX = 'chanh:'
+
+/** The picker id for a server model: the bare id, namespaced. */
+function pickerIdFor(modelId: string): string {
+  return `${PICKER_ID_PREFIX}${modelId}`
+}
+
+/** The server's own model id, recovered from a picker id. */
+function wireModelId(pickerId: string): string {
+  return pickerId.startsWith(PICKER_ID_PREFIX) ? pickerId.slice(PICKER_ID_PREFIX.length) : pickerId
+}
+
+/**
+ * The one proposed field that decides whether a third-party provider's models
+ * are shown in the chat model picker at all. VS Code 1.120 began hiding models
+ * whose provider leaves it unset (microsoft/vscode#316687, #296786) — they still
+ * list in "Manage Language Models", which is what makes the symptom confusing.
+ * Only the fix that treats a missing flag as visible (#316843) restores them, and
+ * that landed in November 2026, so any older build needs the flag from us.
+ *
+ * Attached by spread because `LanguageModelChatInformation` at the 1.107 API we
+ * compile against has no such property; a host that does not know it ignores it.
+ */
+const PICKER_VISIBILITY_FIELDS: Record<string, unknown> = { isUserSelectable: true }
 
 /**
  * Parse a streamed tool call. Missing, `null`, or `[]` arguments mean a
@@ -175,6 +222,10 @@ class ChanhLmcProvider implements vscode.LanguageModelChatProvider, vscode.Dispo
   private static readonly MODEL_LIST_WAIT_MS = 6000
   /** Delay between model-list attempts while waiting for the server to settle. */
   private static readonly MODEL_LIST_POLL_MS = 400
+  /** Delay before the one background retry that follows a not-ready answer. */
+  private static readonly MODEL_LIST_RETRY_MS = 5000
+  /** Pending not-ready retry timer, if one is armed. */
+  private listRetry?: NodeJS.Timeout
 
   constructor(private serverManager: ServerManager) {
     this.onDidChangeLanguageModelChatInformation = this._onDidChange.event
@@ -226,13 +277,39 @@ class ChanhLmcProvider implements vscode.LanguageModelChatProvider, vscode.Dispo
   register(): vscode.Disposable {
     const disposable = vscode.lm.registerLanguageModelChatProvider('chanh', this)
     Logger.info('Registered Chanh language model provider')
+    void this.verifyRegistration()
     return disposable
+  }
+
+  /**
+   * Prove the registration reached the workbench, and populate its model list
+   * while we are at it.
+   *
+   * `registerLanguageModelChatProvider` is fire-and-forget: the extension host
+   * sends the vendor over RPC and never reports back, so a registration the
+   * workbench rejected (unknown vendor, vendor already taken) is invisible to
+   * the extension — the call returns a disposable either way. Asking for our
+   * own models forces the host to resolve this vendor now: an answered query
+   * proves it kept the provider, and the models it caches are what the picker
+   * reads, so this also covers a host that never resolved the vendor on its own.
+   */
+  private async verifyRegistration(): Promise<void> {
+    try {
+      const models = await vscode.lm.selectChatModels({ vendor: 'chanh' })
+      Logger.info(`Native picker knows ${models.length} Chanh model(s)`)
+    } catch (err) {
+      Logger.warn(`Could not ask the native picker for our models: ${err}`)
+    }
   }
 
   async provideLanguageModelChatInformation(
     _options: vscode.PrepareLanguageModelChatModelOptions,
     token: vscode.CancellationToken
   ): Promise<vscode.LanguageModelChatInformation[]> {
+    // First line of evidence for the only question a silent picker asks: was
+    // this provider queried at all? Everything the picker shows follows from
+    // an answer to this call.
+    Logger.info(`Picker queried our models (silent=${_options.silent})`)
     // Answer with a promise that only settles once the list is trustworthy.
     // While the server is starting (or its per-model labels are still
     // settling) an immediate answer can be a partial list, and VS Code
@@ -250,7 +327,30 @@ class ChanhLmcProvider implements vscode.LanguageModelChatProvider, vscode.Dispo
       if (token.isCancellationRequested || Date.now() >= deadline) break
       await new Promise((resolve) => setTimeout(resolve, ChanhLmcProvider.MODEL_LIST_POLL_MS))
     }
+    Logger.info('Picker query answered with the not-ready entry: ' +
+      (token.isCancellationRequested ? 'query cancelled' : 'model list did not settle in time'))
+    this.armListRetry()
     return [this.notReadyModel()]
+  }
+
+  /**
+   * Retry the list once, out of band, after answering with the not-ready entry.
+   * The host caches the list a provider reports and re-reads it only when
+   * `onDidChangeLanguageModelChatInformation` fires — normally a status change
+   * or a config edit. A list that missed the query window but settles seconds
+   * later would otherwise leave the picker on the placeholder until the user
+   * restarts the server, so one bounded retry covers the cold-start case (a
+   * server still warming, labels still settling) without polling forever.
+   */
+  private armListRetry(): void {
+    if (this.listRetry || this.disposed) return
+    this.listRetry = setTimeout(() => {
+      this.listRetry = undefined
+      if (this.disposed) return
+      void this.fetchModelInfos().then((infos) => {
+        if (infos && !this.disposed) this._onDidChange.fire()
+      })
+    }, ChanhLmcProvider.MODEL_LIST_RETRY_MS)
   }
 
   /**
@@ -272,17 +372,20 @@ class ChanhLmcProvider implements vscode.LanguageModelChatProvider, vscode.Dispo
     // agent mode, while plain chat models stay available through @chanh.
     const chatModels = models.filter((m) => isToolCallingChatModel(m.labels))
     if (chatModels.length === 0) return undefined
-    Logger.info('Loaded ' + chatModels.length + ' downloaded tool-calling chat models')
+    Logger.info('Loaded ' + chatModels.length + ' downloaded tool-calling chat models: ' +
+      chatModels.map((m) => m.id).join(', '))
     // The reasoning levels each model offers come from this setting.
     const effortsMap = vscode.workspace.getConfiguration('chanh')
       .get<Record<string, string[]>>('reasoningEfforts') ?? {}
+    // Proposed fields are only attached on Microsoft's build (see above).
+    const allowProposed = isMicrosoftVSCode()
     return chatModels.map((m): vscode.LanguageModelChatInformation => {
       const contextWindow = m.context_length ?? m.max_context_window ?? 8192
       const { maxInput, maxOutput } = contextBudget(contextWindow)
       const vision = hasVisionLabel(m.labels)
       const levels = resolveReasoningLevels(m.id, m.labels, effortsMap, m.capabilities)
       return {
-        id: m.id,
+        id: pickerIdFor(m.id),
         // The lemon prefix marks the row as Chanh's in flat model lists,
         // where the same model also appears under other vendors (e.g. the
         // official Lemonade extension) with an identical bare name. The id
@@ -297,11 +400,12 @@ class ChanhLmcProvider implements vscode.LanguageModelChatProvider, vscode.Dispo
         maxInputTokens: maxInput,
         maxOutputTokens: maxOutput,
         capabilities: { toolCalling: true, imageInput: vision },
+        ...PICKER_VISIBILITY_FIELDS,
         // Proposed chatProvider API, not in the stable type surface:
         // renders a Reasoning picker in the model's menu. Attached by
         // spread — which the type checker does not excess-property check —
         // the same way the official Lemonade extension attaches it.
-        ...(levels ? { configurationSchema: buildReasoningConfigurationSchema(levels) } : {})
+        ...(levels && allowProposed ? { configurationSchema: buildReasoningConfigurationSchema(levels) } : {})
       }
     })
   }
@@ -323,7 +427,8 @@ class ChanhLmcProvider implements vscode.LanguageModelChatProvider, vscode.Dispo
         : 'Start the Lemonade server from the Chanh sidebar, load a model, then select it here.',
       maxInputTokens: 4096,
       maxOutputTokens: 2048,
-      capabilities: { toolCalling: false, imageInput: false },
+      capabilities: { toolCalling: true, imageInput: false },
+      ...PICKER_VISIBILITY_FIELDS
     }
   }
 
@@ -338,12 +443,19 @@ class ChanhLmcProvider implements vscode.LanguageModelChatProvider, vscode.Dispo
     // not running)" — explain what to do instead of calling the server.
     if (model.id === 'chanh:not-ready') {
       const serverRunning = this.serverManager.status === ServerStatus.RUNNING
-      const message = serverRunning
-        ? 'Chanh: No tool-calling chat models loaded. Load one in the Chanh sidebar, then select it here.'
-        : 'Chanh: Lemonade server is not running. Start it from the Chanh sidebar, load a model, then select it here.'
-      void vscode.window.showErrorMessage(message)
-      return
+      // Reject instead of returning: a silent success hands the host an empty
+      // turn, which in agent mode reads as "the model answered nothing" rather
+      // than "Chanh is not ready". The entry advertises tool calling so the
+      // picker offers it, which is exactly why its failure has to be visible.
+      throw new Error(serverRunning
+        ? 'Chanh: no tool-calling chat models are loaded. Load one in the Chanh sidebar, then select it here.'
+        : 'Chanh: the Lemonade server is not running. Start it from the Chanh sidebar, ' +
+          'load a model, then select it here.')
     }
+
+    // The picker id is namespaced (see `pickerIdFor`); the server only knows the
+    // bare model id, so everything below works from this.
+    const modelId = wireModelId(model.id)
 
     if (!await this.serverManager.ensureRunning()) return
     const client = this.serverManager.client
@@ -357,22 +469,22 @@ class ChanhLmcProvider implements vscode.LanguageModelChatProvider, vscode.Dispo
       let alreadyLoaded = false
       try {
         const health = await client.getHealth()
-        alreadyLoaded = health.all_models_loaded.some((m) => m.model_name === model.id)
+        alreadyLoaded = health.all_models_loaded.some((m) => m.model_name === modelId)
       } catch {
         alreadyLoaded = false
       }
       if (!alreadyLoaded) {
-        await client.loadModel(model.id)
+        await client.loadModel(modelId)
         // Agent mode loaded the model on demand. Paint the loaded row
         // without invalidating the server snapshot (no re-query of
         // /v1/health, /v1/models, /v1/system-info or /internal/config).
         this.modelManager?.refreshTreeView()
-      } else Logger.info(`Model already loaded, skipping load: ${model.id}`)
+      } else Logger.info(`Model already loaded, skipping load: ${modelId}`)
       // Counts taken before this request were tokenized by whatever model was
       // loaded then, so they do not apply to the one being served now.
-      this.noteTokenCountModel(model.id)
+      this.noteTokenCountModel(modelId)
     } catch (err) {
-      Logger.warn(`Could not preload '${model.id}': ${err}`)
+      Logger.warn(`Could not preload '${modelId}': ${err}`)
     }
 
     const base: ChatMessage[] = []
@@ -438,7 +550,7 @@ class ChanhLmcProvider implements vscode.LanguageModelChatProvider, vscode.Dispo
     // behavior is unchanged.
     const templateKwargs = effort
       ? { reasoning_effort: effort }
-      : chatTemplateKwargs(this.thinkingSkipped.has(model.id))
+      : chatTemplateKwargs(this.thinkingSkipped.has(modelId))
 
     const abort = new AbortController()
     const cancel = token.onCancellationRequested(() => abort.abort())
@@ -485,7 +597,7 @@ class ChanhLmcProvider implements vscode.LanguageModelChatProvider, vscode.Dispo
       // response: a turn whose only call is dropped must fail visibly.
       const fullResponse = await client.chatCompletionStream(
         {
-          model: model.id,
+          model: modelId,
           messages: base,
           max_tokens: this.outputTokenLimit(model, options),
           ...(tools.length > 0 ? { tools, tool_choice: toolChoice } : {}),
@@ -520,7 +632,7 @@ class ChanhLmcProvider implements vscode.LanguageModelChatProvider, vscode.Dispo
           `usually lets the model correct them.`
         )
       }
-      recordTokenUsage(model.id, 'agent', stats)
+      recordTokenUsage(modelId, 'agent', stats)
       // Success-state signal for the Get Started walkthrough (agent-mode
       // step): only set once the stream actually delivered text or a valid
       // tool call. Cancelled turns return early from the catch below and
@@ -539,24 +651,24 @@ class ChanhLmcProvider implements vscode.LanguageModelChatProvider, vscode.Dispo
       // rejects.
       if (requireToolCall && toolCalls.length === 0) {
         Logger.warn(
-          `'${model.id}' was told to call one of ${tools.length} tool(s) ` +
+          `'${modelId}' was told to call one of ${tools.length} tool(s) ` +
           `(tool_choice: ${typeof toolChoice === 'string' ? toolChoice : toolChoice.function.name}) ` +
           `and answered with ${reportedText ? 'text' : 'nothing'} instead` +
           `${droppedCalls > 0 ? `, besides ${droppedCalls} unusable tool call(s)` : ''}. ` +
           `Asking again usually produces a call.`
         )
       }
-      Logger.info(`Language model response complete for ${model.id}`)
+      Logger.info(`Language model response complete for ${modelId}`)
     } catch (err) {
       if (token.isCancellationRequested || abort.signal.aborted) return
-      await this.modelManager?.offerContextIncrease(model.id, err)
+      await this.modelManager?.offerContextIncrease(modelId, err)
       throw err
     } finally {
       // Stop the health poller so we don't keep hitting /v1/health after the stream ends.
       if (healthPoller) clearInterval(healthPoller)
       // A cancelled turn is the user's own doing, not evidence about a model.
       if (!abort.signal.aborted) {
-        this.noteThinkingWaste(model.id, stats, reportedText || toolCalls.length > 0)
+        this.noteThinkingWaste(modelId, stats, reportedText || toolCalls.length > 0)
       }
       cancel.dispose()
       this.syncRuntimeStatus()
@@ -670,6 +782,8 @@ class ChanhLmcProvider implements vscode.LanguageModelChatProvider, vscode.Dispo
 
   dispose(): void {
     this.disposed = true
+    if (this.listRetry) clearTimeout(this.listRetry)
+    this.listRetry = undefined
     this.tokenCounts.clear()
     while (this._subscriptions.length > 0) this._subscriptions.pop()?.dispose()
     this._onDidChange.dispose()

@@ -159,6 +159,10 @@ export class ChatParticipant implements Disposable {
     this.contextWindow = model.context_length ?? model.max_context_window ?? 8192
     // Keep the tree view's loaded rows in sync with this implicit load.
     this.modelManager?.refreshTreeView()
+    // A model loaded here is now a candidate for the native picker, which only
+    // lists tool-calling chat models; re-read the list so an `@chanh` session
+    // does not leave the picker on the not-ready entry.
+    this.modelManager?.refreshNativePicker()
     return model.id
   }
 
